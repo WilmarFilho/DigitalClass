@@ -1,0 +1,40 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPOSITORY:-digitalclass}/backend:latest
+    container_name: digitalclass-backend
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      # Supabase and OpenAI Keys will be populated via env vars directly on the VPS
+      # - SUPABASE_URL=${SUPABASE_URL}
+      # - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+    networks:
+      - digitalclass-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: ghcr.io/${GITHUB_REPOSITORY:-digitalclass}/frontend:latest
+    container_name: digitalclass-frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+    depends_on:
+      - backend
+    networks:
+      - digitalclass-network
+
+networks:
+  digitalclass-network:
+    driver: bridge
