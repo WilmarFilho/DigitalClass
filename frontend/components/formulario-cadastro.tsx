@@ -35,7 +35,7 @@ export function SignUpForm({
     setError(null);
 
     if (password !== repeatPassword) {
-      setError("Passwords do not match");
+      setError("As senhas não coincidem");
       setIsLoading(false);
       return;
     }
@@ -51,7 +51,7 @@ export function SignUpForm({
       if (error) throw error;
       router.push("/auth/sign-up-success");
     } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "An error occurred");
+      setError(error instanceof Error ? error.message : "Ocorreu um erro.");
     } finally {
       setIsLoading(false);
     }
@@ -69,78 +69,79 @@ export function SignUpForm({
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card>
+      <Card className="bg-white border-slate-200 shadow-lg shadow-slate-200/50">
         <CardHeader>
-          <CardTitle className="text-2xl">Sign up</CardTitle>
-          <CardDescription>Create a new account</CardDescription>
+          <CardTitle className="text-2xl text-slate-900">Cadastrar</CardTitle>
+          <CardDescription className="text-slate-600">
+            Crie sua conta para começar
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignUp}>
             <div className="flex flex-col gap-6">
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="text-slate-700">E-mail</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="m@example.com"
+                  placeholder="seu@email.com"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  className="text-slate-900 placeholder:text-slate-400"
                 />
               </div>
               <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
-                </div>
+                <Label htmlFor="password" className="text-slate-700">Senha</Label>
                 <Input
                   id="password"
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  className="text-slate-900 placeholder:text-slate-400"
                 />
               </div>
               <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="repeat-password">Repeat Password</Label>
-                </div>
+                <Label htmlFor="repeat-password" className="text-slate-700">Repetir senha</Label>
                 <Input
                   id="repeat-password"
                   type="password"
                   required
                   value={repeatPassword}
                   onChange={(e) => setRepeatPassword(e.target.value)}
+                  className="text-slate-900 placeholder:text-slate-400"
                 />
               </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
+              {error && <p className="text-sm text-red-600">{error}</p>}
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Creating an account..." : "Sign up"}
+                {isLoading ? "Criando conta..." : "Cadastrar"}
               </Button>
             </div>
-            
+
             <div className="relative my-6">
               <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
+                <span className="w-full border-t border-slate-200" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
+                <span className="bg-white px-2 text-slate-500">
                   Ou continue com
                 </span>
               </div>
             </div>
 
             <div className="flex flex-col gap-4">
-              <Button variant="outline" type="button" onClick={() => handleOAuthLogin('github')} className="w-full">
-                <Github className="w-4 h-4 mr-2" /> GitHub
+              <Button variant="outline" type="button" onClick={() => handleOAuthLogin('github')} className="w-full bg-white border-slate-300 text-slate-800 hover:bg-slate-100 hover:text-slate-900 hover:border-slate-400">
+                <Github className="w-4 h-4 mr-2" /> Continuar com GitHub
               </Button>
-              <Button variant="outline" type="button" onClick={() => handleOAuthLogin('google')} className="w-full">
-                <Mail className="w-4 h-4 mr-2" /> Google
+              <Button variant="outline" type="button" onClick={() => handleOAuthLogin('google')} className="w-full bg-white border-slate-300 text-slate-800 hover:bg-slate-100 hover:text-slate-900 hover:border-slate-400">
+                <Mail className="w-4 h-4 mr-2" /> Continuar com Google
               </Button>
             </div>
-            <div className="mt-4 text-center text-sm">
-              Already have an account?{" "}
-              <Link href="/auth/login" className="underline underline-offset-4">
-                Login
+            <div className="mt-4 text-center text-sm text-slate-600">
+              Já tem uma conta?{" "}
+              <Link href="/auth/login" className="text-slate-900 underline underline-offset-4 hover:text-slate-700">
+                Entrar
               </Link>
             </div>
           </form>

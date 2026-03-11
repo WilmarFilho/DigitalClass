@@ -3,6 +3,10 @@ import type { CompleteProfileDto, Role } from '@eduflow/types';
 
 export class CreateProfileDto implements CompleteProfileDto {
   @IsString()
+  @IsOptional()
+  full_name?: string;
+
+  @IsString()
   @IsIn(['student', 'teacher'])
   role!: Role;
 

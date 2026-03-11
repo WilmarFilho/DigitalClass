@@ -1,0 +1,97 @@
+---
+alwaysApply: true
+---
+
+-- SQL
+
+-- 1. EXTENSÃO DE PERFIS (ALUNOS E PROFESSORES)
+CREATE TABLE public.profiles (
+  id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
+  full_name TEXT,
+  avatar_url TEXT,
+  role TEXT CHECK (role IN ('student', 'teacher')) DEFAULT 'student',
+  learning_goals TEXT[], -- Array de objetivos (IA usa isso)
+  interests TEXT[],      -- Áreas de interesse
+  hours_per_day INTEGER DEFAULT 2,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. MATÉRIAS (SUBJECTS)
+CREATE TABLE public.subjects (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  student_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  color_code TEXT DEFAULT '#4F46E5', -- Cor para o calendário
+  target_hours INTEGER NOT NULL,      -- Meta total de horas
+  completed_hours INTEGER DEFAULT 0,
+  deadline DATE,
+  difficulty_level INTEGER CHECK (difficulty_level BETWEEN 1 AND 5),
+  is_custom BOOLEAN DEFAULT true,     -- Se foi adicionada manualmente ou sugerida
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. CRONOGRAMA / CALENDÁRIO (CALENDAR_EVENTS)
+-- Gerado via NestJS + IA
+CREATE TABLE public.calendar_events (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  student_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  subject_id UUID REFERENCES public.subjects(id) ON DELETE CASCADE,
+  scheduled_date DATE NOT NULL,
+  scheduled_time TIME,  -- Horário opcional (HH:mm)
+  duration_minutes INTEGER NOT NULL,
+  status TEXT CHECK (status IN ('pending', 'completed', 'missed')) DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. SESSÕES DE ESTUDO (STUDY_SESSIONS)
+CREATE TABLE public.study_sessions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  student_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  subject_id UUID REFERENCES public.subjects(id),
+  content_raw TEXT,                   -- Texto base que o aluno estudou
+  ai_summary TEXT,                    -- Resumo gerado pela IA
+  duration_minutes INTEGER,
+  mood_rating INTEGER,                -- Como o aluno se sentiu (1-5)
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. ATIVOS DE ESTUDO (FLASHCARDS E QUIZZES)
+CREATE TABLE public.study_assets (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  session_id UUID REFERENCES public.study_sessions(id) ON DELETE CASCADE,
+  type TEXT CHECK (type IN ('flashcard', 'quiz_question')),
+  question TEXT NOT NULL,
+  answer TEXT NOT NULL,               -- Resposta ou alternativa correta
+  options JSONB,                      -- Nulo para flashcards, preenchido para quizzes
+  next_review DATE DEFAULT NOW(),     -- Para algoritmo de Repetição Espaçada
+  ease_factor FLOAT DEFAULT 2.5
+);
+
+-- 6. ÁREA DO PROFESSOR (TEACHER_AREAS)
+CREATE TABLE public.teacher_areas (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  teacher_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  banner_url TEXT,
+  is_private BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 7. CONTEÚDO DO PROFESSOR (LESSONS)
+CREATE TABLE public.lessons (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  area_id UUID REFERENCES public.teacher_areas(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  content_url TEXT,                   -- Link para vídeo ou PDF
+  description TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. SEGUIDORES/ALUNOS DOS PROFESSORES (SUBSCRIPTIONS)
+CREATE TABLE public.teacher_subscriptions (
+  student_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  teacher_area_id UUID REFERENCES public.teacher_areas(id) ON DELETE CASCADE,
+  subscribed_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (student_id, teacher_area_id)
+);

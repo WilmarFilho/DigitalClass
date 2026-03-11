@@ -38,6 +38,7 @@ export interface CalendarEvent {
 
 // DTOs for Onboarding
 export interface CompleteProfileDto {
+  full_name?: string;
   role: Role;
   learning_goals?: string[];
   interests?: string[];

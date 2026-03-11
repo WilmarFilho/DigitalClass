@@ -1,0 +1,93 @@
+---
+alwaysApply: true
+---
+
+📘 Especificação de Produto: Plataforma Educacional Digital Class
+1. Experiência de Onboarding (Pré-Login)
+O objetivo desta etapa é converter o visitante em usuário através de uma interface fluida e personalizada.
+
+Landing Page Dinâmica: * Exibição de benefícios distintos para Estudantes (foco em aprovação e organização) e Professores (foco em autoridade e gestão de alunos).
+
+Fluxo de Cadastro (Smart Form):
+
+Login Social: Integração nativa com Google, Apple e GitHub.
+
+Formulário Animado: Uso de micro-interações (ex: ao selecionar "Estudante", os ícones de "Professor" desaparecem suavemente).
+
+Coleta de Dados: 1.  Perfil: Aluno (Ensino Médio, Universitário, Concurseiro) ou Professor.
+2.  Objetivos: Ex: "Passar em Medicina", "Aprender Inglês em 6 meses".
+3.  Disponibilidade: Quantas horas pretende estudar por dia?
+4.  Interesses: Tags para alimentar o algoritmo de recomendação.
+
+2. Tela Home: O Cockpit de Aprendizado
+A Home deixa de ser um resumo estático e passa a ser um guia de ação diária.
+
+🗓️ Feature: Calendário Inteligente (Smart Scheduler)
+Visão Semanal/Mensal: Um calendário interativo que não apenas mostra eventos, mas prescreve o estudo.
+
+Distribuição por IA: Com base na "Meta de Horas" e "Data Limite" das matérias, a IA preenche o calendário automaticamente, equilibrando matérias difíceis com fáceis (técnica de intercalação).
+
+Status de Carga: Dias com sobrecarga de estudo ficam destacados em vermelho, sugerindo ao usuário o remanejamento.
+
+Quick Start: Ao clicar na matéria do dia no calendário, um botão "Iniciar Sessão" aparece, levando o usuário direto para o ambiente de estudo.
+
+📊 Métricas de Performance
+Gráfico de Consistência: Estilo "GitHub Contributions" mostrando os dias ativos.
+
+Últimos Ativos: Atalhos para os últimos Flashcards revisados e Quizzes realizados.
+
+3. Gestão de Conteúdo (Minhas Matérias & Estudos)
+📚 Tela: Minhas Matérias
+Recomendações IA: Seção "Sugerido para você" baseada nos objetivos do Onboarding.
+
+Configuração de Matéria:
+
+Meta de Horas: Total de horas que o aluno deseja dedicar.
+
+Deadline: Data da prova ou conclusão.
+
+Peso de Dificuldade: O usuário define de 1 a 5 o quanto domina o tema (ajuda a IA no calendário).
+
+✍️ Tela: Meus Estudos (O Cérebro Digital)
+Log de Sessões: Histórico detalhado (Data, Duração, Matéria, Humor/Cansaço).
+
+Repositório de Ativos:
+
+Flashcards: Gerados automaticamente pela IA a partir dos textos de estudo.
+
+Questionários Dinâmicos: Testes de múltipla escolha criados com base no progresso real do aluno.
+
+4. Ecossistema Professor & Comunidade
+👨‍🏫 Tela: Meus Professores
+Diretório Global: Busca de professores por matéria, avaliação e "estilo de aula".
+
+Following System: Lista de professores que o aluno segue.
+
+Acesso à Área do Mestre: Um clique para entrar no ambiente exclusivo do professor (materiais, vídeos e avisos).
+
+🛠️ Tela: Minha Área de Estudante (Visão Professor)
+Creator Studio: Ferramenta de upload de videoaulas, PDFs e exercícios.
+
+IA Assistente de Criação: A IA lê o PDF do professor e sugere uma estrutura de curso e banco de questões.
+
+Gestão de Alunos: Visualização de quantos alunos estão seguindo e progresso médio da turma.S
+
+
+
+🗄️ Estrutura de Banco de Dados: EduFlow IA
+Este esquema utiliza o Supabase Auth para gestão de usuários e estende os perfis com metadados de aprendizado.
+
+1. Diagrama Lógico de Tabelas
+profiles: Extensão do auth.users (estudante vs professor).
+
+subjects: As matérias (entidade central para metas).
+
+study_sessions: Onde o progresso real é registrado.
+
+study_assets: Flashcards e Quizzes gerados pela IA.
+
+calendar_events: O cronograma gerado pela IA.
+
+teacher_areas: Espaços exclusivos de cada professor.
+
+subscriptions: Relação entre alunos e professores.

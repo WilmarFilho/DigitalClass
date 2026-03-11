@@ -1,0 +1,83 @@
+---
+alwaysApply: true
+---
+
+🏗️ System Design & Guia de Engenharia: Digital Class
+1. Arquitetura de Alto Nível (High-Level Design)
+A arquitetura segue o modelo de BFF (Backend-for-Frontend) com NestJS atuando como orquestrador entre o Cliente, o Supabase e as APIs de IA.
+
+Snippet de código
+
+graph TD
+    A[Next.js Frontend] -->|Auth/Realtime| B[Supabase]
+    A -->|Lógica de IA / Calendário| C[NestJS API]
+    C -->|Leitura/Escrita| B
+    C -->|Prompt Engineering| D[OpenAI/Anthropic API]
+    C -->|Background Jobs| E[Redis/BullMQ]
+Decisões de Design:
+Next.js (Edge Runtime): Use o Next.js para a interface e chamadas simples ao banco via SDK do Supabase.
+
+NestJS (Core Logic): Deixe para o NestJS as tarefas pesadas: processamento de PDFs de professores, geração de cronogramas complexos e webhooks de pagamento.
+
+Redis/Queues: A geração de 50 flashcards via IA pode levar 10 segundos. Nunca faça o usuário esperar o request. Use filas para processamento em background e avise via Realtime (Supabase) quando estiver pronto.
+
+2. Estratégia de Segurança (Security First)
+🛡️ Row Level Security (RLS) no Supabase
+O banco de dados não deve confiar no Frontend. Cada tabela deve ter políticas rigorosas.
+
+Exemplo: Um aluno só pode ler study_sessions onde student_id = auth.uid().
+
+Service Role: O NestJS usará a SERVICE_ROLE_KEY para bypassar o RLS apenas em operações administrativas ou de sistema.
+
+🔑 Gestão de Secrets
+Jamais exponha a OPENAI_API_KEY ou SUPABASE_SERVICE_ROLE_KEY no Frontend.
+
+Use o Vault do Supabase ou variáveis de ambiente seguras (Vercel/Railway).
+
+🛂 Validação de Input
+No NestJS, utilize obrigatoriamente class-validator e class-transformer.
+
+TypeScript
+
+// Exemplo: DTO para criar matéria
+export class CreateSubjectDto {
+  @IsString() @MinLength(3) title: string;
+  @IsInt() @Min() target_hours: number;
+  @IsOptional() @IsDateString() deadline?: string;
+}
+3. Otimização de Performance (UX & IA)
+🚀 Estratégia de Caching
+Cache de Recomendações: As recomendações de matérias da IA não precisam mudar a cada refresh. Cacheie o resultado por 24h usando Redis ou o próprio cache do Next.js (revalidate).
+
+Optimistic UI: Ao marcar uma matéria como concluída no calendário, atualize o estado local instantaneamente antes mesmo da resposta do servidor.
+
+🤖 Prompt Engineering & Custos
+Streaming de Resposta: Para resumos longos, use Streaming (Server-Sent Events) para que o aluno veja a IA "escrevendo" em tempo real. Isso reduz a percepção de latência.
+
+Token Management: Limite o tamanho dos textos enviados para a IA para evitar custos astronômicos e timeouts.
+
+4. Padrões de Desenvolvimento (Clean Code)
+Monorepo vs Polyrepo
+Para este escopo, recomendo uma estrutura de pastas clara:
+
+/apps/web: Next.js app.
+
+/apps/api: NestJS app.
+
+/packages/types: Tipagens TypeScript compartilhadas entre Front e Back (evita erros de interface).
+
+Commits e Versionamento
+Use Conventional Commits (feat:, fix:, chore:, docs:).
+
+CI/CD: Configure GitHub Actions para rodar Linter e Testes Unitários em cada Pull Request.
+
+5. Checklist de Lançamento (Go-Live)
+[ ] Rate Limiting: Configurar no NestJS para evitar que bots esgotem seus créditos de IA.
+
+[ ] Sentry Integration: Monitoramento de erros em tempo real tanto no Next.js quanto no NestJS.
+
+[ ] Database Indexing: Criar índices nas colunas student_id e scheduled_date para que a busca do calendário seja instantânea.
+
+[ ] Legal: Adicionar Termos de Uso e Política de Privacidade (obrigatório para login social e LGPD).
+
+Conselho de Senior: "Não tente fazer a IA mais inteligente do mundo no dia 1. Foque em fazer o Calendário funcionar perfeitamente. A organização é o que segura o aluno na plataforma; a IA é o tempero que facilita essa organização."

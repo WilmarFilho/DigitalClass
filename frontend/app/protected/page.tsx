@@ -1,42 +1,36 @@
-import { redirect } from "next/navigation";
-
 import { createClient } from "@/lib/supabase/server";
-import { InfoIcon } from "lucide-react";
-import { FetchDataSteps } from "@/components/tutorial/fetch-data-steps";
-import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { GreetingBanner } from "@/components/dashboard/GreetingBanner";
+import { StatsCards } from "@/components/dashboard/StatsCards";
+import { CalendarPreview } from "@/components/dashboard/CalendarPreview";
+import { ConsistencyGraph } from "@/components/dashboard/ConsistencyGraph";
+import { LastAssets } from "@/components/dashboard/LastAssets";
 
-async function UserDetails() {
+export default async function DashboardPage() {
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.getClaims();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/auth/login");
 
-  if (error || !data?.claims) {
-    redirect("/auth/login");
-  }
+  const userName =
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    user.email?.split("@")[0] ||
+    "Estudante";
 
-  return JSON.stringify(data.claims, null, 2);
-}
-
-export default function ProtectedPage() {
   return (
-    <div className="flex-1 w-full flex flex-col gap-12">
-      <div className="w-full">
-        <div className="bg-accent text-sm p-3 px-5 rounded-md text-foreground flex gap-3 items-center">
-          <InfoIcon size="16" strokeWidth={2} />
-          This is a protected page that you can only see as an authenticated
-          user
+    <div className="space-y-6">
+      <GreetingBanner userName={userName} />
+
+      <StatsCards />
+
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <CalendarPreview />
         </div>
-      </div>
-      <div className="flex flex-col gap-2 items-start">
-        <h2 className="font-bold text-2xl mb-4">Your user details</h2>
-        <pre className="text-xs font-mono p-3 rounded border max-h-32 overflow-auto">
-          <Suspense>
-            <UserDetails />
-          </Suspense>
-        </pre>
-      </div>
-      <div>
-        <h2 className="font-bold text-2xl mb-4">Next steps</h2>
-        <FetchDataSteps />
+        <div className="space-y-6">
+          <ConsistencyGraph />
+          <LastAssets />
+        </div>
       </div>
     </div>
   );

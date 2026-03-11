@@ -8,20 +8,19 @@ import {
 
 export default function Page() {
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10">
+    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10 bg-slate-50">
       <div className="w-full max-w-sm">
         <div className="flex flex-col gap-6">
-          <Card>
+          <Card className="bg-white border-slate-200 shadow-lg shadow-slate-200/50">
             <CardHeader>
-              <CardTitle className="text-2xl">
-                Thank you for signing up!
+              <CardTitle className="text-2xl text-slate-900">
+                Obrigado por se cadastrar!
               </CardTitle>
-              <CardDescription>Check your email to confirm</CardDescription>
+              <CardDescription className="text-slate-600">Confira seu e-mail</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                You&apos;ve successfully signed up. Please check your email to
-                confirm your account before signing in.
+              <p className="text-sm text-slate-600">
+                Cadastro realizado com sucesso. Confira seu e-mail para confirmar sua conta antes de entrar.
               </p>
             </CardContent>
           </Card>
