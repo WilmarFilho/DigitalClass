@@ -1,6 +1,5 @@
+import { Suspense } from 'react'; // Importe o Suspense
 import { SmartStepper } from '@/components/onboarding/SmartStepper';
-
-export const dynamic = 'force-dynamic';
 
 export default function OnboardingPage() {
   return (
@@ -15,7 +14,10 @@ export default function OnboardingPage() {
           </p>
         </div>
 
-        <SmartStepper />
+        {/* Envolva aqui com Suspense */}
+        <Suspense fallback={<div className="flex justify-center p-10">Carregando formulário...</div>}>
+          <SmartStepper />
+        </Suspense>
       </div>
     </div>
   );
