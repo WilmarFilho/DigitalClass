@@ -4,17 +4,16 @@ WORKDIR /app
 
 # ---- Dependencies ----
 FROM base AS deps
-# Copia arquivos de configuração da raiz e do backend
-COPY package.json package-lock.json ./
+# Copiamos apenas o package.json da raiz (se existir) ou apenas os do backend
+COPY package.json ./ 
 COPY packages/ ./packages/
-COPY backend/package.json ./backend/
-# Instala tudo para garantir que os links do workspace funcionem
-RUN npm ci
+COPY backend/package.json backend/package-lock.json ./backend/
+
+# Instala as dependências focando no backend
+RUN npm ci --prefix backend
 
 # ---- Builder ----
 FROM deps AS builder
-WORKDIR /app
-# Copia o código do backend e os pacotes de tipos
 COPY backend/ ./backend/
 WORKDIR /app/backend
 RUN npm run build
@@ -23,10 +22,8 @@ RUN npm run build
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-
-# Copia apenas o necessário para rodar
 COPY --from=builder /app/backend/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/backend/node_modules ./node_modules
 COPY --from=builder /app/backend/package.json ./package.json
 
 EXPOSE 3003

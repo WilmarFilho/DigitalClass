@@ -1,29 +1,23 @@
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    image: ghcr.io/${GITHUB_REPOSITORY:-digitalclass}/backend:latest
+    image: ghcr.io/${GITHUB_REPOSITORY}/backend:latest
     container_name: digitalclass-backend
     restart: always
     ports:
       - "3003:3003"
     env_file:
-      - .env.backend # O Docker vai ler as chaves daqui
+      - .env.backend
     networks:
       - digitalclass-network
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    image: ghcr.io/${GITHUB_REPOSITORY:-digitalclass}/frontend:latest
+    image: ghcr.io/${GITHUB_REPOSITORY}/frontend:latest
     container_name: digitalclass-frontend
     restart: always
     ports:
-      - "8004:8004"
+      - "8004:3000" # Mapeia a porta interna 3000 do Next para a 8004 da VPS
     env_file:
-      - .env.frontend # O Docker vai ler as chaves daqui
+      - .env.frontend
     depends_on:
       - backend
     networks:
