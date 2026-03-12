@@ -3,7 +3,13 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.enableCors({ origin: true }); // Allow frontend (localhost:3000) and any origin in dev
-  await app.listen(3001);
+
+  app.enableCors({
+    origin: ['https://class.nkwflow.com', 'http://localhost:3000'],
+    credentials: true,
+  });
+
+  await app.listen(process.env.PORT || 3001, '0.0.0.0');
 }
+
 bootstrap();
