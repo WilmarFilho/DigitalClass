@@ -1,4 +1,4 @@
-export const revalidate = 0;
+export const dynamic = "force-dynamic";
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
