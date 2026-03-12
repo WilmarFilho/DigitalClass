@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
+import { ConditionalLayout } from "@/components/dashboard/ConditionalLayout";
 import { LoaderScreen } from "@/components/ui/LoaderScreen";
 
 async function ProtectedLayoutContent({
@@ -22,13 +22,21 @@ async function ProtectedLayoutContent({
     user.email?.split("@")[0] ||
     "Estudante";
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const userRole = (profile?.role as "student" | "teacher") ?? "student";
+
   // Delay bruto para visualizar a animação do loader (remover em produção)
   await new Promise((r) => setTimeout(r, 2500));
 
   return (
-    <DashboardLayout userName={userName}>
+    <ConditionalLayout userName={userName} userRole={userRole}>
       {children}
-    </DashboardLayout>
+    </ConditionalLayout>
   );
 }
 

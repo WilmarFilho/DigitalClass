@@ -7,13 +7,9 @@ services:
     container_name: digitalclass-backend
     restart: always
     ports:
-      - "3001:3001"
-    environment:
-      - NODE_ENV=production
-      # Supabase and OpenAI Keys will be populated via env vars directly on the VPS
-      # - SUPABASE_URL=${SUPABASE_URL}
-      # - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - "3003:3003"
+    env_file:
+      - .env.backend # O Docker vai ler as chaves daqui
     networks:
       - digitalclass-network
 
@@ -25,11 +21,9 @@ services:
     container_name: digitalclass-frontend
     restart: always
     ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
-      - NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+      - "8004:8004"
+    env_file:
+      - .env.frontend # O Docker vai ler as chaves daqui
     depends_on:
       - backend
     networks:

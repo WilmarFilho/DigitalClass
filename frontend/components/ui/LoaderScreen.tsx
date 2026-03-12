@@ -4,7 +4,10 @@ import { GraduationCap } from "lucide-react";
 
 export function LoaderScreen() {
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-100">
+    <div
+      style={{ backgroundColor: "#ffffff" }}
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+    >
       <div className="relative">
         {/* Logo com animação de respiro */}
         <div className="animate-breathe flex h-20 w-20 items-center justify-center rounded-2xl bg-indigo-600 shadow-lg shadow-indigo-500/30">
@@ -24,7 +27,9 @@ export function LoaderScreen() {
         </div>
       </div>
 
-      <p className="mt-8 text-sm font-medium text-slate-600">Carregando sua experiência</p>
+      <p className="mt-8 text-sm font-medium text-slate-600">
+        Carregando sua experiência
+      </p>
 
       {/* Dots animados */}
       <div className="mt-3 flex gap-1.5">

@@ -7,6 +7,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  # Forçamos o nome da imagem para lowercase para evitar erro de sintaxe no Docker
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
@@ -27,16 +28,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Backend
+      # BACKEND
+      - name: Extract metadata for Backend
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend
-          tags: |
-            type=raw,value=latest
-            type=sha
+          tags: type=raw,value=latest
 
-      - name: Build and push Backend Docker image
+      - name: Build and push Backend
         uses: docker/build-push-action@v5
         with:
           context: ./backend
@@ -44,16 +44,15 @@ jobs:
           tags: ${{ steps.meta-backend.outputs.tags }}
           labels: ${{ steps.meta-backend.outputs.labels }}
 
-      - name: Extract metadata (tags, labels) for Frontend
+      # FRONTEND
+      - name: Extract metadata for Frontend
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend
-          tags: |
-            type=raw,value=latest
-            type=sha
+          tags: type=raw,value=latest
 
-      - name: Build and push Frontend Docker image
+      - name: Build and push Frontend
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
@@ -76,7 +75,7 @@ jobs:
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
           source: "docker-compose.yml"
-          target: "~/digitalclass-deploy"
+          target: "~/DigitalClass"
 
       - name: Execute deployment on VPS
         uses: appleboy/ssh-action@v1.0.3
@@ -85,20 +84,20 @@ jobs:
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
-            # Log in to GitHub Container Registry inside the VPS
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            # 1. Login usando um Personal Access Token (PAT)
+            # O GITHUB_TOKEN expira rápido. Para o VPS, use o GH_PAT que criamos nos Secrets.
+            echo "${{ secrets.GH_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            # Navigate to the deploy directory
-            cd ~/digitalclass-deploy
+            # 2. Navegar e preparar variáveis
+            cd ~/DigitalClass
+            
+            # O Docker Registry exige nomes em letras MINÚSCULAS. 
+            # Se seu repo for "User/Repo", o export abaixo garante que o Docker ache a imagem.
+            export GITHUB_REPOSITORY=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
 
-            # Export the repository name so docker-compose uses the correct images
-            export GITHUB_REPOSITORY=${{ github.repository }}
-
-            # Pull the latest containers
+            # 3. Atualizar e Subir
             docker compose pull
-
-            # Restart the services in detached mode
             docker compose up -d
-
-            # Clean up old unused images
+            
+            # 4. Limpeza para não encher o disco do VPS
             docker image prune -af
