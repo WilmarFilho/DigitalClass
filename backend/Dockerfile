@@ -4,24 +4,26 @@ WORKDIR /app
 
 # ---- Dependencies ----
 FROM base AS deps
-# Copiamos apenas o package.json da raiz (se existir) ou apenas os do backend
-COPY package.json ./ 
+# Copiamos a pasta de tipos que o backend precisa
 COPY packages/ ./packages/
+# Copiamos os arquivos do backend
 COPY backend/package.json backend/package-lock.json ./backend/
 
-# Instala as dependências focando no backend
-RUN npm ci --prefix backend
+# Instalamos as dependências dentro da pasta do backend
+RUN cd backend && npm ci
 
 # ---- Builder ----
 FROM deps AS builder
+WORKDIR /app
 COPY backend/ ./backend/
-WORKDIR /app/backend
-RUN npm run build
+RUN cd backend && npm run build
 
 # ---- Production ----
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+
+# Copia o que foi gerado
 COPY --from=builder /app/backend/dist ./dist
 COPY --from=builder /app/backend/node_modules ./node_modules
 COPY --from=builder /app/backend/package.json ./package.json
