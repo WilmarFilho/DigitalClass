@@ -1,4 +1,4 @@
-import { Suspense } from 'react'; // Importe o Suspense
+import { Suspense } from 'react';
 import { SmartStepper } from '@/components/onboarding/SmartStepper';
 
 export default function OnboardingPage() {
@@ -14,8 +14,8 @@ export default function OnboardingPage() {
           </p>
         </div>
 
-        {/* Envolva aqui com Suspense */}
-        <Suspense fallback={<div className="flex justify-center p-10">Carregando formulário...</div>}>
+        {/* Mantenha o Suspense aqui */}
+        <Suspense fallback={<div className="flex justify-center p-10 text-slate-500">Iniciando configuração...</div>}>
           <SmartStepper />
         </Suspense>
       </div>

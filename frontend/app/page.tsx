@@ -1,10 +1,10 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function Home() {
+// Esta função faz o trabalho pesado
+async function HomeRedirector() {
   const supabase = await createClient();
-  
-  // O acesso ao getUser() já é dinâmico por natureza
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
@@ -22,4 +22,14 @@ export default async function Home() {
   }
 
   redirect("/onboarding");
+  return null;
+}
+
+export default function Home() {
+  return (
+    // O Suspense aqui avisa ao compilador: "Não tente adivinhar o que tem aqui no build"
+    <Suspense fallback={null}>
+      <HomeRedirector />
+    </Suspense>
+  );
 }
