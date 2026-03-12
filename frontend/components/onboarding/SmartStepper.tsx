@@ -213,6 +213,7 @@ export function SmartStepper() {
         const msg = Array.isArray(data.message) ? data.message[0] : data.message;
         setError(msg || "Erro ao criar perfil. Tente novamente.");
       }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       setError(
         "Não foi possível conectar ao servidor. Verifique se o backend está rodando em " +

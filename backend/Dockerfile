@@ -29,4 +29,7 @@ COPY --from=builder /app/backend/package.json ./package.json
 EXPOSE 3003
 
 # Agora o comando aponta para a raiz onde o dist foi copiado
-CMD ["node", "dist/main"]
+CMD ["node", "dist/backend/src/main.js"]
+
+
+

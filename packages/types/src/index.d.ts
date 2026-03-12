@@ -32,6 +32,7 @@ export interface CalendarEvent {
     created_at: string;
 }
 export interface CompleteProfileDto {
+    full_name?: string;
     role: Role;
     learning_goals?: string[];
     interests?: string[];
