@@ -40,8 +40,6 @@ COPY --from=builder /app/frontend/.next ./.next
 COPY --from=builder /app/frontend/node_modules ./node_modules
 COPY --from=builder /app/frontend/package.json ./package.json
 
-COPY .env.production .env
-
 EXPOSE 3000
 
 # Como mudamos o WORKDIR no runner para /app/frontend, o comando simplifica:
