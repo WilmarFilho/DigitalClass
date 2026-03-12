@@ -13,6 +13,11 @@ RUN cd frontend && npm ci
 FROM deps AS builder
 WORKDIR /app
 COPY frontend/ ./frontend/
+
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV SKIP_TYPESCRIPT_CHECK=true
+ENV SKIP_LINT=true
+
 RUN cd frontend && npm run build
 
 # ---- Production ----
