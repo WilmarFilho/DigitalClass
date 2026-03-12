@@ -7,8 +7,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Forçamos o nome da imagem para lowercase para evitar erro de sintaxe no Docker
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -28,39 +26,28 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # BACKEND
-      - name: Extract metadata for Backend
-        id: meta-backend
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend
-          tags: type=raw,value=latest
+      # Convert repository name to lowercase for Docker
+      - name: Set lower case owner name
+        run: |
+          echo "IMAGE_NAME_LOWER=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
+      # BACKEND
       - name: Build and push Backend
         uses: docker/build-push-action@v5
         with:
-          context: . # MUDOU AQUI: Agora ele vê a raiz do projeto
+          context: .
           file: ./backend/Dockerfile
           push: true
-          tags: ${{ steps.meta-backend.outputs.tags }}
-          labels: ${{ steps.meta-backend.outputs.labels }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}/backend:latest
 
       # FRONTEND
-      - name: Extract metadata for Frontend
-        id: meta-frontend
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend
-          tags: type=raw,value=latest
-
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
         with:
-          context: . # MUDOU AQUI: Agora ele vê a raiz do projeto
+          context: .
           file: ./frontend/Dockerfile
           push: true
-          tags: ${{ steps.meta-frontend.outputs.tags }}
-          labels: ${{ steps.meta-frontend.outputs.labels }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}/frontend:latest
 
   deploy:
     needs: build-and-push
@@ -86,20 +73,13 @@ jobs:
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
-            # 1. Login usando um Personal Access Token (PAT)
-            # O GITHUB_TOKEN expira rápido. Para o VPS, use o GH_PAT que criamos nos Secrets.
             echo "${{ secrets.GH_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            # 2. Navegar e preparar variáveis
             cd ~/DigitalClass
             
-            # O Docker Registry exige nomes em letras MINÚSCULAS. 
-            # Se seu repo for "User/Repo", o export abaixo garante que o Docker ache a imagem.
+            # Garante que o nome do repo esteja em lowercase para o pull
             export GITHUB_REPOSITORY=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
 
-            # 3. Atualizar e Subir
             docker compose pull
             docker compose up -d
-            
-            # 4. Limpeza para não encher o disco do VPS
             docker image prune -af

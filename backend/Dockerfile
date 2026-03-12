@@ -4,30 +4,30 @@ WORKDIR /app
 
 # ---- Dependencies ----
 FROM base AS deps
+# Copia arquivos de configuração da raiz e do backend
 COPY package.json package-lock.json ./
+COPY packages/ ./packages/
+COPY backend/package.json ./backend/
+# Instala tudo para garantir que os links do workspace funcionem
 RUN npm ci
 
 # ---- Builder ----
-FROM base AS builder
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-# Build the NestJS application
+FROM deps AS builder
+WORKDIR /app
+# Copia o código do backend e os pacotes de tipos
+COPY backend/ ./backend/
+WORKDIR /app/backend
 RUN npm run build
-# Now keep only production dependencies
-RUN npm ci --omit=dev && npm cache clean --force
 
 # ---- Production ----
 FROM base AS runner
-# Set node env
+WORKDIR /app
 ENV NODE_ENV=production
 
-# Copy non-root user details (alpine has `node` user by default)
-USER node
+# Copia apenas o necessário para rodar
+COPY --from=builder /app/backend/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/backend/package.json ./package.json
 
-# Copy built code and production deps
-COPY --from=builder --chown=node:node /app/node_modules ./node_modules
-COPY --from=builder --chown=node:node /app/dist ./dist
-
-EXPOSE 3001
-
+EXPOSE 3003
 CMD ["node", "dist/main"]
