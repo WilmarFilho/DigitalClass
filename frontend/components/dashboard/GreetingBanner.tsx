@@ -9,22 +9,17 @@ export function GreetingBanner({ userName = "Estudante" }: { userName?: string }
   else if (hour >= 18) greeting = "Boa noite";
 
   return (
-    <div className="rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-800 p-6 text-white shadow-lg">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">
-            {greeting}, {userName}!
-          </h1>
-          <p className="text-indigo-200 mt-1">
-            Pronto para mais uma sessão de estudos? O calendário está esperando por você.
-          </p>
-        </div>
-        <div className="hidden sm:block opacity-90">
-          <div className="rounded-full bg-white/20 p-4">
-            <BookOpen className="h-12 w-12" />
-          </div>
-        </div>
+    <div className="relative overflow-hidden rounded-2xl bg-[#6D44CC] p-8 text-white shadow-xl shadow-[#6D44CC]/20">
+      <div className="relative z-10">
+        <h1 className="text-3xl font-bold tracking-tight">
+          {greeting}, <span className="text-[#F38B4B]">{userName}!</span>
+        </h1>
+        <p className="text-[#E6E0F8] mt-2 text-lg max-w-md font-medium opacity-90">
+          Pronto para mais uma sessão de estudos? O calendário está esperando por você.
+        </p>
       </div>
+      {/* Ícone decorativo em marca d'água */}
+      <BookOpen className="absolute right-[-20px] top-[-20px] h-48 w-48 text-white/10 -rotate-12 pointer-events-none" />
     </div>
   );
 }

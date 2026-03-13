@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiGet } from "@/lib/api";
 
 const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 interface CalendarEvent {
   id: string;
@@ -19,9 +19,7 @@ interface CalendarEvent {
 const today = new Date();
 
 export function CalendarPreview() {
-  const [currentDate, setCurrentDate] = useState(
-    () => new Date(today.getFullYear(), today.getMonth(), 1)
-  );
+  const [currentDate, setCurrentDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -45,121 +43,131 @@ export function CalendarPreview() {
   const prevMonth = () => setCurrentDate(new Date(year, month - 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1));
 
-  const dateStr = (day: number) =>
-    `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-
   const getEventsForDay = (day: number) => {
-    const d = dateStr(day);
+    const d = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
     return events.filter((e) => e.scheduled_date === d);
   };
 
   const formatDuration = (mins: number) => {
-    if (mins >= 60) return `${Math.floor(mins / 60)}h${mins % 60 ? `${mins % 60}min` : ""}`;
+    if (mins >= 60) return `${Math.floor(mins / 60)}h${mins % 60 ? `${mins % 60}m` : ""}`;
     return `${mins}min`;
-  };
-
-  const colorClass = (hex: string) => {
-    const map: Record<string, string> = {
-      "#4F46E5": "bg-indigo-500",
-      "#059669": "bg-emerald-500",
-      "#DC2626": "bg-red-500",
-      "#D97706": "bg-amber-500",
-    };
-    return map[hex] ?? "bg-slate-500";
   };
 
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
   const todayEvents = isCurrentMonth ? getEventsForDay(today.getDate()) : [];
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-slate-900">Calendário</h3>
-        <div className="flex items-center gap-1">
-          <button onClick={prevMonth} className="p-1 rounded hover:bg-slate-100">
+    <div className="rounded-2xl border border-[#E6E0F8] bg-white p-6 shadow-sm">
+      {/* Header do Calendário */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-[#F5F3FF] rounded-lg">
+            <CalendarIcon className="h-5 w-5 text-[#6D44CC]" />
+          </div>
+          <h3 className="text-lg font-bold text-[#1A1A1A]">Calendário</h3>
+        </div>
+        
+        <div className="flex items-center gap-3 bg-[#F8F7FF] p-1 rounded-xl border border-[#E6E0F8]">
+          <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm transition-all text-[#6D44CC]">
             <ChevronLeft className="h-4 w-4" />
           </button>
-          <span className="text-sm font-medium min-w-[100px] text-center">
+          <span className="text-xs font-bold text-[#4A4A4A] min-w-[110px] text-center uppercase tracking-wider">
             {MONTHS[month]} {year}
           </span>
-          <button onClick={nextMonth} className="p-1 rounded hover:bg-slate-100">
+          <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm transition-all text-[#6D44CC]">
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 text-center text-xs">
+      {/* Grid de Dias */}
+      <div className="grid grid-cols-7 gap-2 text-center">
         {DAYS.map((d) => (
-          <div key={d} className="text-slate-500 font-medium py-1">
+          <div key={d} className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pb-2">
             {d}
           </div>
         ))}
+        
         {padding.map((_, i) => (
-          <div key={`pad-${i}`} />
+          <div key={`pad-${i}`} className="aspect-square" />
         ))}
+        
         {days.map((day) => {
           const dayEvents = loading ? [] : getEventsForDay(day);
           const isToday = isCurrentMonth && day === today.getDate();
+          
           return (
             <div
               key={day}
               className={cn(
-                "min-h-10 rounded-lg p-1 flex flex-col items-center justify-start gap-0.5",
-                isToday && "ring-2 ring-indigo-500 bg-indigo-50"
+                "aspect-square rounded-xl p-1 flex flex-col items-center justify-between border transition-all relative group cursor-default",
+                isToday 
+                  ? "border-[#6D44CC] bg-[#F5F3FF] ring-1 ring-[#6D44CC]/20" 
+                  : "border-transparent hover:border-[#E6E0F8] hover:bg-slate-50"
               )}
             >
-              <span
-                className={cn(
-                  "text-sm",
-                  isToday ? "font-bold text-indigo-600" : "text-slate-700"
-                )}
-              >
+              <span className={cn(
+                "text-sm font-bold",
+                isToday ? "text-[#6D44CC]" : "text-[#4A4A4A]"
+              )}>
                 {day}
               </span>
-              {dayEvents.slice(0, 2).map((e, i) => (
-                <div
-                  key={e.id}
-                  className={cn(
-                    "w-full h-1.5 rounded-full truncate",
-                    colorClass(e.subjects?.color_code ?? "#4F46E5")
-                  )}
-                  title={`${e.subjects?.title ?? "?"} - ${formatDuration(e.duration_minutes)}`}
-                />
-              ))}
+              
+              {/* Indicadores de Eventos */}
+              <div className="flex gap-0.5 mt-auto pb-1">
+                {dayEvents.slice(0, 3).map((e) => (
+                  <div
+                    key={e.id}
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: e.subjects?.color_code || "#6D44CC" }}
+                  />
+                ))}
+              </div>
             </div>
           );
         })}
       </div>
 
-      <div className="mt-4 pt-4 border-t border-slate-100">
-        <p className="text-xs text-slate-500 mb-2">
-          Hoje ({today.getDate()} {MONTHS[today.getMonth()]})
-        </p>
+      {/* Seção "Hoje" Refinada */}
+      <div className="mt-8 pt-6 border-t border-[#E6E0F8]">
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+            Eventos de Hoje
+          </h4>
+          <span className="text-[10px] font-bold bg-[#E6E0F8] text-[#6D44CC] px-2 py-1 rounded-md uppercase">
+            {today.getDate()} {MONTHS[today.getMonth()].slice(0, 3)}
+          </span>
+        </div>
+
         {loading ? (
-          <p className="text-sm text-slate-500">Carregando...</p>
+          <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-[#6D44CC] border-t-transparent rounded-full animate-spin" /></div>
         ) : todayEvents.length === 0 ? (
-          <p className="text-sm text-slate-500">Nenhum evento hoje</p>
+          <div className="text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-[#E6E0F8]">
+             <p className="text-sm text-slate-400 font-medium">Nenhum evento planejado para hoje.</p>
+          </div>
         ) : (
-          <div className="space-y-2">
+          <div className="grid gap-3">
             {todayEvents.map((e) => (
               <Link
                 key={e.id}
                 href="/protected/calendario"
-                className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 hover:bg-slate-100 cursor-pointer"
+                className="group flex items-center gap-4 p-3 rounded-2xl bg-white border border-[#E6E0F8] hover:border-[#6D44CC] hover:shadow-md transition-all"
               >
-                <div
-                  className={cn(
-                    "w-2 h-2 rounded-full shrink-0",
-                    colorClass(e.subjects?.color_code ?? "#4F46E5")
-                  )}
+                <div 
+                  className="w-1 h-8 rounded-full" 
+                  style={{ backgroundColor: e.subjects?.color_code || "#6D44CC" }}
                 />
-                <span className="text-sm font-medium flex-1 truncate">
-                  {e.subjects?.title ?? "Matéria"}
-                </span>
-                <span className="text-xs text-slate-500 shrink-0">
-                  {formatDuration(e.duration_minutes)}
-                </span>
-                <span className="text-xs text-indigo-600 font-medium shrink-0">Ver</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-[#1A1A1A] truncate">
+                    {e.subjects?.title || "Sessão de Estudo"}
+                  </p>
+                  <p className="text-[11px] font-medium text-slate-400">
+                    Duração: {formatDuration(e.duration_minutes)}
+                  </p>
+                </div>
+                <button className="text-[11px] font-bold text-[#6D44CC] opacity-0 group-hover:opacity-100 transition-opacity pr-2">
+                  DETALHES
+                </button>
               </Link>
             ))}
           </div>

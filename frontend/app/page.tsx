@@ -8,7 +8,7 @@ async function HomeRedirector() {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/auth/login");
+    redirect("/auth");
   }
 
   const { data: profile } = await supabase

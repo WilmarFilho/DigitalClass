@@ -10,7 +10,7 @@ export async function GET(request: Request) {
   const base = isLocal || !forwardedHost ? origin : `https://${forwardedHost}`;
 
   if (!code) {
-    return NextResponse.redirect(`${base}/auth/login`);
+    return NextResponse.redirect(`${base}/auth`);
   }
 
   const cookiesToSet: { name: string; value: string; options?: object }[] = [];
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    return NextResponse.redirect(`${base}/auth/login`);
+    return NextResponse.redirect(`${base}/auth`);
   }
 
   const { data: { user } } = await supabase.auth.getUser();

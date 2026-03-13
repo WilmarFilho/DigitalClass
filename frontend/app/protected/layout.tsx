@@ -13,7 +13,7 @@ async function ProtectedLayoutContent({
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/auth/login");
+    redirect("/auth");
   }
 
   const userName =

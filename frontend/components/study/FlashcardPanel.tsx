@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Layers, Loader2, ChevronLeft, ChevronRight, History, ChevronDown, ChevronUp } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Layers, Loader2, ChevronLeft, ChevronRight, History, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Flashcard } from "./Flashcard";
 import { apiGet, apiPost } from "@/lib/api";
@@ -17,7 +18,7 @@ interface FlashcardPanelProps {
   subjectColor?: string;
 }
 
-export function FlashcardPanel({ sessionId, subjectColor = "#4F46E5" }: FlashcardPanelProps) {
+export function FlashcardPanel({ sessionId, subjectColor = "#6D44CC" }: FlashcardPanelProps) {
   const [batches, setBatches] = useState<FlashcardItem[][]>([]);
   const [currentBatch, setCurrentBatch] = useState<FlashcardItem[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -77,123 +78,156 @@ export function FlashcardPanel({ sessionId, subjectColor = "#4F46E5" }: Flashcar
   const hasContent = batches.length > 0 || currentBatch !== null || loading;
 
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div
-        className="shrink-0 rounded-t-xl px-4 py-3"
-        style={{ backgroundColor: `${subjectColor}15`, borderBottom: `2px solid ${subjectColor}` }}
+    <div className="flex h-full min-h-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-xl shadow-slate-200/50 overflow-hidden">
+      {/* Header Estilizado */}
+      <div 
+        className="shrink-0 px-6 py-5 border-b border-slate-100"
+        style={{ background: `linear-gradient(135deg, ${subjectColor}05, ${subjectColor}12)` }}
       >
-        <h3 className="flex items-center gap-2 font-semibold text-slate-800">
-          <Layers className="h-5 w-5" style={{ color: subjectColor }} />
-          Flashcards
-        </h3>
-        <p className="mt-1 text-xs text-slate-600">
-          Gere cards e revise os conjuntos anteriores.
-        </p>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-white shadow-sm">
+            <Layers className="h-5 w-5" style={{ color: subjectColor }} />
+          </div>
+          <div>
+            <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest">
+              Flashcards
+            </h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+              Memorização Ativa
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 flex flex-col">
+      <div className="flex-1 min-h-0 overflow-y-auto p-6 flex flex-col custom-scrollbar">
         {loadingAssets && (
           <div className="flex justify-center py-4">
-            <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+            <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
           </div>
         )}
 
+        {/* Histórico com visual de Pill */}
         {batches.length > 0 && !loading && (
-          <div className="space-y-2 mb-4">
+          <div className="mb-6">
             <button
               type="button"
               onClick={() => setExpandedBatch(expandedBatch === 0 ? null : 0)}
-              className="flex w-full items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm font-medium text-slate-700 hover:bg-slate-100"
+              className="flex w-full items-center justify-between rounded-xl border border-slate-100 bg-slate-50/50 px-4 py-2.5 text-left transition-colors hover:bg-slate-100"
             >
-              <span className="flex items-center gap-2">
-                <History className="h-4 w-4" />
-                Histórico ({batches.length} conjunto{batches.length !== 1 ? "s" : ""})
+              <span className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <History className="h-3.5 w-3.5" />
+                Histórico ({batches.length})
               </span>
-              {expandedBatch === 0 ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {expandedBatch === 0 ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
             </button>
-            {expandedBatch === 0 && (
-              <div className="space-y-2 pl-2 border-l-2 border-slate-200">
-                {batches.map((batch, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => handleRevisar(batch)}
-                    className="block w-full rounded-lg bg-white px-3 py-2 text-left text-sm text-slate-600 shadow-sm ring-1 ring-slate-200 hover:ring-indigo-300"
-                  >
-                    Conjunto {i + 1} · {batch.length} cards
-                  </button>
-                ))}
-              </div>
-            )}
+            <AnimatePresence>
+              {expandedBatch === 0 && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="grid grid-cols-1 gap-2 mt-2 pl-2 border-l-2 border-slate-100">
+                    {batches.map((batch, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => handleRevisar(batch)}
+                        className="text-left px-3 py-2 rounded-lg text-xs font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors bg-white border border-slate-100 shadow-sm"
+                      >
+                        Conjunto #{i + 1} • {batch.length} cards
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
 
+        {/* Estado Vazio */}
         {!hasContent && !loading && (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 py-8">
-            <Layers className="h-12 w-12 text-slate-300" />
-            <p className="text-center text-sm text-slate-500">
-              Clique no botão para gerar flashcards sobre o tema.
-            </p>
-            <Button onClick={handleGenerate} disabled={loading}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Gerar flashcards"}
+          <div className="flex flex-1 flex-col items-center justify-center gap-6 py-8 text-center">
+            <div className="p-6 bg-slate-50 rounded-full">
+              <Sparkles className="h-12 w-12 text-slate-200" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-800 uppercase tracking-tight">Nenhum card gerado</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-[200px]">Transforme este tema em flashcards para fixar o conteúdo.</p>
+            </div>
+            <Button 
+              onClick={handleGenerate} 
+              className="bg-slate-900 hover:bg-black text-white rounded-xl px-8 font-bold text-xs uppercase tracking-widest shadow-lg shadow-slate-200"
+            >
+              Gerar agora
             </Button>
           </div>
         )}
 
+        {/* Loading de Geração */}
         {loading && (
-          <div className="flex h-48 items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+          <div className="flex flex-1 flex-col items-center justify-center gap-3">
+            <Loader2 className="h-10 w-10 animate-spin text-slate-200" />
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Criando flashcards...</p>
           </div>
         )}
 
+        {/* Interface de Estudo */}
         {!loading && current && (
-          <div className="w-full max-w-sm space-y-4 mx-auto flex-1 flex flex-col">
-            <Flashcard
-              key={currentIndex}
-              question={current.question}
-              answer={current.answer}
-              color={subjectColor}
-            />
-            <div className="flex items-center justify-between">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-sm mx-auto flex-1 flex flex-col justify-center"
+          >
+            <div className="flex-1 flex flex-col justify-center min-h-[300px]">
+              <Flashcard
+                key={currentIndex}
+                question={current.question}
+                answer={current.answer}
+                color={subjectColor}
+              />
+            </div>
+
+            <div className="mt-8 space-y-4">
+              <div className="flex items-center justify-between bg-slate-50 rounded-2xl p-2 border border-slate-100">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-xl hover:bg-white hover:shadow-sm"
+                  onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                  disabled={currentIndex === 0}
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                
+                <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
+                  Card {currentIndex + 1} / {cards.length}
+                </span>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-xl hover:bg-white hover:shadow-sm"
+                  onClick={() => setCurrentIndex((i) => Math.min(cards.length - 1, i + 1))}
+                  disabled={currentIndex >= cards.length - 1}
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+              </div>
+
               <Button
                 variant="outline"
-                size="sm"
-                onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
-                disabled={currentIndex === 0}
+                className="w-full border-2 border-slate-100 rounded-2xl py-6 font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all active:scale-[0.98]"
+                onClick={() => {
+                  setCurrentBatch(null);
+                  setCurrentIndex(0);
+                }}
               >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm text-slate-500">
-                {currentIndex + 1} / {cards.length}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setCurrentIndex((i) => Math.min(cards.length - 1, i + 1))}
-                disabled={currentIndex >= cards.length - 1}
-              >
-                <ChevronRight className="h-4 w-4" />
+                Finalizar Revisão
               </Button>
             </div>
-            <Button
-              variant="outline"
-              className="w-full mt-2"
-              onClick={() => {
-                setCurrentBatch(null);
-                setCurrentIndex(0);
-              }}
-            >
-              Concluir e gerar novos
-            </Button>
-          </div>
-        )}
-
-        {!loading && !current && hasContent && (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
-            <Button onClick={handleGenerate} disabled={loading}>
-              Gerar novos flashcards
-            </Button>
-          </div>
+          </motion.div>
         )}
       </div>
     </div>

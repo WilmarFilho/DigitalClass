@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Timer } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface SessionTimerProps {
   initialSeconds?: number;
@@ -41,11 +42,29 @@ export function SessionTimer({
 
   return (
     <div
-      className={`flex items-center gap-2 font-mono text-lg font-semibold tabular-nums text-slate-700 ${className}`}
-      title="Tempo de sessão"
+      className={cn(
+        "flex items-center gap-3 px-4 py-2 rounded-2xl bg-white border border-slate-100 shadow-sm transition-all hover:border-slate-200 group",
+        className
+      )}
+      title="Tempo total de estudo"
     >
-      <Timer className="h-5 w-5 text-indigo-500" />
-      {display}
+      <div className="relative flex h-2 w-2">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+      </div>
+      
+      <div className="flex items-center gap-2">
+        <Timer className="h-4 w-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+        <span className="font-mono text-sm font-black tabular-nums text-slate-700 tracking-tight">
+          {display}
+        </span>
+      </div>
+      
+      <div className="hidden sm:block border-l border-slate-100 h-4 ml-1 pl-3">
+        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+          Em sessão
+        </span>
+      </div>
     </div>
   );
 }

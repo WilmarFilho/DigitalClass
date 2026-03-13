@@ -11,8 +11,10 @@ import { LastAssets } from "@/components/dashboard/LastAssets";
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth/login");
+  
+  if (!user) redirect("/auth");
 
+  // Extração robusta do nome para o Banner
   const userName =
     user.user_metadata?.full_name ||
     user.user_metadata?.name ||
@@ -20,16 +22,24 @@ export default async function DashboardPage() {
     "Estudante";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Banner Principal - Roxo com ícone de livro */}
       <GreetingBanner userName={userName} />
 
-      <StatsCards />
+      {/* Seção de Métricas (Horas, Meta, Sequência, Matérias) */}
+      <section>
+        <StatsCards />
+      </section>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+      {/* Grid Principal: Calendário e Engajamento */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Coluna da Esquerda: Calendário (Ocupa 2/3) */}
+        <div className="lg:col-span-2 space-y-6">
           <CalendarPreview />
         </div>
-        <div className="space-y-6">
+
+        {/* Coluna da Direita: Consistência e Ativos (Ocupa 1/3) */}
+        <div className="flex flex-col gap-8">
           <ConsistencyGraph />
           <LastAssets />
         </div>
@@ -37,6 +47,3 @@ export default async function DashboardPage() {
     </div>
   );
 }
-
-
-

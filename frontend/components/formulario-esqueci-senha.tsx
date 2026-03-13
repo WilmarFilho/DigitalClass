@@ -90,7 +90,7 @@ export function ForgotPasswordForm({
               <div className="mt-4 text-center text-sm text-slate-600">
                 Já tem uma conta?{" "}
                 <Link
-                  href="/auth/login"
+                  href="/auth"
                   className="text-slate-900 underline underline-offset-4 hover:text-slate-700"
                 >
                   Entrar

@@ -1,16 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { BookOpen, Plus, Loader2, Sparkles } from "lucide-react";
+import { BookOpen, Plus, Loader2, Sparkles, Calendar, Clock, Target, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Modal } from "@/components/ui/modal";
+import { cn } from "@/lib/utils";
 import { apiGet, apiPost } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
-
-const RECOMMENDATIONS_CACHE_KEY = "subjects_recommendations";
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 interface RecommendedSubject {
   title: string;
@@ -29,29 +27,6 @@ interface Subject {
   difficulty_level: number | null;
   is_custom: boolean;
   created_at: string;
-}
-
-function getCachedRecommendations(userId: string): RecommendedSubject[] | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem(RECOMMENDATIONS_CACHE_KEY);
-    if (!raw) return null;
-    const { data, userId: cachedUserId, timestamp } = JSON.parse(raw);
-    if (cachedUserId !== userId || Date.now() - timestamp > CACHE_TTL_MS) return null;
-    return data;
-  } catch {
-    return null;
-  }
-}
-
-function setCachedRecommendations(userId: string, data: RecommendedSubject[]) {
-  if (typeof window === "undefined") return;
-  try {
-    sessionStorage.setItem(
-      RECOMMENDATIONS_CACHE_KEY,
-      JSON.stringify({ data, userId, timestamp: Date.now() })
-    );
-  } catch {}
 }
 
 export function MateriasClient() {
@@ -76,369 +51,237 @@ export function MateriasClient() {
     if (user) setUserId(user.id);
   }, []);
 
-  const loadRecommendations = useCallback(async (uid: string) => {
+  const loadData = useCallback(async () => {
     setLoadingRecs(true);
-    const cached = getCachedRecommendations(uid);
-    if (cached) {
-      setRecommendations(cached);
-      setLoadingRecs(false);
-      return;
-    }
-    try {
-      const data = await apiGet<RecommendedSubject[]>("/subjects/recommendations");
-      setRecommendations(data);
-      setCachedRecommendations(uid, data);
-    } catch (e) {
-      setRecommendations([]);
-    } finally {
-      setLoadingRecs(false);
-    }
-  }, []);
-
-  const loadMySubjects = useCallback(async () => {
     setLoadingSubjects(true);
+    
     try {
-      const data = await apiGet<Subject[]>("/subjects");
-      setMySubjects(data);
-    } catch {
-      setMySubjects([]);
+      const [recsData, subsData] = await Promise.all([
+        apiGet<RecommendedSubject[]>("/subjects/recommendations"),
+        apiGet<Subject[]>("/subjects")
+      ]);
+      setRecommendations(recsData);
+      setMySubjects(subsData);
+    } catch (e) {
+      console.error("Erro ao carregar matérias", e);
     } finally {
+      setLoadingRecs(false);
       setLoadingSubjects(false);
     }
   }, []);
 
-  useEffect(() => {
-    loadUserId();
-  }, [loadUserId]);
+  useEffect(() => { loadUserId(); }, [loadUserId]);
+  useEffect(() => { if (userId) loadData(); }, [userId, loadData]);
 
-  useEffect(() => {
-    if (!userId) return;
-    loadRecommendations(userId);
-  }, [userId, loadRecommendations]);
-
-  useEffect(() => {
-    loadMySubjects();
-  }, [loadMySubjects]);
-
-  const openRecommendationModal = (rec: RecommendedSubject) => {
-    setSelectedRecommendation(rec);
-    setRecommendationDeadline("");
-    setModalError(null);
-    setRecommendationModalOpen(true);
-  };
-
-  const addFromRecommendation = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedRecommendation) return;
-    setAddingId(selectedRecommendation.title);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const addSubject = async (payload: any, isManual: boolean) => {
+    setAddingId(isManual ? "manual" : payload.title);
     setModalError(null);
     try {
-      await apiPost("/subjects", {
-        title: selectedRecommendation.title,
-        color_code: selectedRecommendation.color_code,
-        target_hours: selectedRecommendation.suggested_hours,
-        difficulty_level: selectedRecommendation.difficulty_level,
-        is_custom: false,
-        deadline: recommendationDeadline.trim() || undefined,
-      });
-      setRecommendationModalOpen(false);
-      setSelectedRecommendation(null);
-      await loadMySubjects();
-    } catch (e) {
-      setModalError(e instanceof Error ? e.message : "Erro ao adicionar");
-    } finally {
-      setAddingId(null);
-    }
-  };
-
-  const addManual = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const title = manualTitle.trim();
-    const hours = parseInt(manualHours, 10);
-    if (!title) {
-      setModalError("Informe o nome da matéria");
-      return;
-    }
-    if (isNaN(hours) || hours < 1 || hours > 500) {
-      setModalError("Meta de horas deve ser entre 1 e 500");
-      return;
-    }
-    setAddingId("manual");
-    setModalError(null);
-    try {
-      await apiPost("/subjects", {
-        title,
-        target_hours: hours,
-        deadline: manualDeadline.trim() || undefined,
-        is_custom: true,
-      });
-      setManualTitle("");
-      setManualHours("60");
-      setManualDeadline("");
+      await apiPost("/subjects", payload);
       setManualModalOpen(false);
-      await loadMySubjects();
-    } catch (e) {
-      setModalError(e instanceof Error ? e.message : "Erro ao adicionar");
+      setRecommendationModalOpen(false);
+      if (userId) loadData();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      setModalError(e.message || "Erro ao adicionar");
     } finally {
       setAddingId(null);
     }
   };
 
-  const alreadyAdded = (title: string) =>
+  const alreadyAdded = (title: string) => 
     mySubjects.some((s) => s.title.toLowerCase() === title.toLowerCase());
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-          <BookOpen className="h-6 w-6" />
-          Minhas Matérias
-        </h1>
-        <p className="mt-1 text-slate-600">
-          Sugestões personalizadas e suas matérias cadastradas
-        </p>
-      </div>
-
-      {/* Sugestões IA */}
-      <div className="rounded-xl border border-white/20 bg-white/70 backdrop-blur-md p-5 shadow-lg">
-        <h3 className="font-semibold text-slate-900 flex items-center gap-2 mb-4">
-          <Sparkles className="h-4 w-4 text-amber-500" />
-          Sugerido para você
-        </h3>
-        {loadingRecs ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+    <div className="space-y-10 pb-10 animate-in fade-in duration-700">
+      {/* Header Central */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-8 rounded-3xl border border-[#E6E0F8] shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-[#F5F3FF] rounded-2xl border border-[#E6E0F8]">
+            <BookOpen className="h-7 w-7 text-[#6D44CC]" />
           </div>
-        ) : recommendations.length === 0 ? (
-          <p className="text-slate-500 py-4">Nenhuma sugestão disponível. Complete seu onboarding.</p>
-        ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recommendations.map((rec) => {
-              const added = alreadyAdded(rec.title);
-              return (
-                <div
-                  key={rec.title}
-                  className="relative overflow-hidden rounded-xl border border-white/20 p-5 shadow-lg backdrop-blur-md transition-transform hover:scale-[1.02]"
-                  style={{
-                    background: `linear-gradient(135deg, ${rec.color_code}22 0%, ${rec.color_code}08 100%)`,
-                    boxShadow: `0 8px 32px -8px ${rec.color_code}40`,
-                  }}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div
-                        className="h-12 w-12 rounded-xl shrink-0 shadow-inner"
-                        style={{
-                          backgroundColor: rec.color_code,
-                          boxShadow: `inset 0 1px 0 rgba(255,255,255,0.2)`,
-                        }}
-                      />
-                      <div className="min-w-0">
-                        <p className="font-semibold text-slate-900 truncate">{rec.title}</p>
-                        <p className="text-sm text-slate-600">{rec.suggested_hours}h de estudo</p>
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      disabled={added || addingId !== null}
-                      onClick={() => openRecommendationModal(rec)}
-                      className="shrink-0"
-                    >
-                      {added ? (
-                        "Adicionada"
-                      ) : (
-                        <>
-                          <Plus className="h-4 w-4" />
-                          Adicionar
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              );
-            })}
+          <div>
+            <h1 className="text-2xl font-black text-[#1A1A1A] tracking-tight">Minhas Matérias</h1>
+            <p className="text-sm font-medium text-slate-400">Personalize sua grade e acompanhe seu progresso</p>
           </div>
-        )}
-      </div>
-
-      {/* Adicionar manualmente */}
-      <div className="rounded-xl border border-white/20 bg-white/70 backdrop-blur-md p-5 shadow-lg">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-slate-900">Adicionar manualmente</h3>
-          <Button
-            size="sm"
-            onClick={() => {
-              setManualTitle("");
-              setManualHours("60");
-              setManualDeadline("");
-              setModalError(null);
-              setManualModalOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Nova matéria
-          </Button>
         </div>
+        <Button 
+          onClick={() => { setManualModalOpen(true); setModalError(null); }}
+          className="bg-[#6D44CC] hover:bg-[#5B39A8] text-white rounded-xl px-6 h-12 font-bold shadow-lg shadow-[#6D44CC]/20"
+        >
+          <Plus className="h-5 w-5 mr-2" /> NOVA MATÉRIA
+        </Button>
       </div>
 
-      {/* Modal: Nova matéria manual */}
-      <Modal
-        open={manualModalOpen}
-        onClose={() => setManualModalOpen(false)}
-        title="Nova matéria"
-      >
-        <form onSubmit={addManual} className="space-y-4">
-          <div>
-            <Label htmlFor="manual-title">Nome da matéria</Label>
-            <Input
-              id="manual-title"
-              value={manualTitle}
-              onChange={(e) => setManualTitle(e.target.value)}
-              placeholder="Ex: Cálculo I"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label htmlFor="manual-hours">Meta de horas</Label>
-            <Input
-              id="manual-hours"
-              type="number"
-              min={1}
-              max={500}
-              value={manualHours}
-              onChange={(e) => setManualHours(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label htmlFor="manual-deadline">Prazo (opcional)</Label>
-            <Input
-              id="manual-deadline"
-              type="date"
-              value={manualDeadline}
-              onChange={(e) => setManualDeadline(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-          {modalError && (
-            <p className="text-sm text-red-600">{modalError}</p>
-          )}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setManualModalOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={addingId === "manual"}>
-              {addingId === "manual" ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                "Adicionar"
-              )}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      {/* Seção de Sugestões IA */}
+      <section className="space-y-4">
+        <div className="flex items-center gap-2 px-2">
+          <Sparkles className="h-5 w-5 text-amber-500 fill-amber-500" />
+          <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Sugerido pela IA</h3>
+        </div>
 
-      {/* Modal: Adicionar recomendação (apenas deadline) */}
-      <Modal
-        open={recommendationModalOpen}
-        onClose={() => {
-          setRecommendationModalOpen(false);
-          setSelectedRecommendation(null);
-        }}
-        title={selectedRecommendation ? `Adicionar ${selectedRecommendation.title}` : "Adicionar matéria"}
-      >
-        {selectedRecommendation && (
-          <form onSubmit={addFromRecommendation} className="space-y-4">
-            <p className="text-sm text-slate-600">
-              {selectedRecommendation.title} • {selectedRecommendation.suggested_hours}h de estudo
-            </p>
-            <div>
-              <Label htmlFor="rec-deadline">Prazo (opcional)</Label>
-              <Input
-                id="rec-deadline"
-                type="date"
-                value={recommendationDeadline}
-                onChange={(e) => setRecommendationDeadline(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            {modalError && (
-              <p className="text-sm text-red-600">{modalError}</p>
-            )}
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setRecommendationModalOpen(false)}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {loadingRecs ? (
+            Array(3).fill(0).map((_, i) => <div key={i} className="h-32 rounded-3xl bg-slate-100 animate-pulse" />)
+          ) : recommendations.map((rec) => {
+            const added = alreadyAdded(rec.title);
+            return (
+              <div
+                key={rec.title}
+                className="group relative overflow-hidden rounded-3xl border border-[#E6E0F8] bg-white p-6 transition-all hover:shadow-xl hover:-translate-y-1"
               >
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={addingId !== null}>
-                {addingId ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Adicionar"
-                )}
-              </Button>
-            </div>
-          </form>
-        )}
-      </Modal>
-
-      {/* Minhas matérias */}
-      <div className="rounded-xl border border-white/20 bg-white/70 backdrop-blur-md p-5 shadow-lg">
-        <h3 className="font-semibold text-slate-900 mb-4">Minhas matérias</h3>
-        {loadingSubjects ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-          </div>
-        ) : mySubjects.length === 0 ? (
-          <p className="text-slate-500 py-4">
-            Nenhuma matéria cadastrada. Adicione das sugestões ou manualmente.
-          </p>
-        ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {mySubjects.map((s) => {
-              const color = s.color_code || "#4F46E5";
-              return (
-                <div
-                  key={s.id}
-                  className="relative overflow-hidden rounded-xl border border-white/20 p-5 shadow-lg backdrop-blur-md transition-transform hover:scale-[1.02]"
-                  style={{
-                    background: `linear-gradient(135deg, ${color}22 0%, ${color}08 100%)`,
-                    boxShadow: `0 8px 32px -8px ${color}40`,
-                  }}
-                >
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <Sparkles className="h-12 w-12 text-[#6D44CC]" />
+                </div>
+                
+                <div className="flex flex-col h-full justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <div
-                      className="h-12 w-12 rounded-xl shrink-0"
-                      style={{
-                        backgroundColor: color,
-                        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.2)`,
-                      }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-900 truncate">{s.title}</p>
-                      <p className="text-sm text-slate-600">
-                        {s.completed_hours}h / {s.target_hours}h
-                        {s.deadline && (
-                          <span className="block text-xs text-slate-500 mt-0.5">
-                            Prazo: {new Date(s.deadline).toLocaleDateString("pt-BR")}
-                          </span>
-                        )}
+                    <div className="h-14 w-14 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-inner" style={{ backgroundColor: rec.color_code }}>
+                      <BookOpen className="h-6 w-6" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-[#1A1A1A] truncate">{rec.title}</p>
+                      <p className="text-xs font-bold text-slate-400 flex items-center gap-1">
+                        <Clock className="h-3 w-3" /> {rec.suggested_hours}H ESTIMADAS
                       </p>
                     </div>
                   </div>
+
+                  <Button
+                    variant={added ? "secondary" : "outline"}
+                    className={cn(
+                      "w-full rounded-xl font-bold text-xs h-10 transition-all",
+                      added ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "border-[#E6E0F8] text-[#6D44CC] hover:bg-[#F5F3FF]"
+                    )}
+                    disabled={added || !!addingId}
+                    onClick={() => { setSelectedRecommendation(rec); setRecommendationModalOpen(true); }}
+                  >
+                    {added ? <><CheckCircle2 className="h-4 w-4 mr-2" /> JÁ ADICIONADA</> : "ADICIONAR À GRADE"}
+                  </Button>
                 </div>
-              );
-            })}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Seção Minhas Matérias */}
+      <section className="space-y-4">
+        <div className="flex items-center gap-2 px-2">
+          <Target className="h-5 w-5 text-[#6D44CC]" />
+          <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Em Andamento</h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {loadingSubjects ? (
+             Array(3).fill(0).map((_, i) => <div key={i} className="h-40 rounded-3xl bg-slate-100 animate-pulse" />)
+          ) : mySubjects.length === 0 ? (
+            <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed border-[#E6E0F8]">
+              <BookOpen className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+              <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Sua grade está vazia</p>
+            </div>
+          ) : mySubjects.map((s) => {
+            const progress = Math.min(Math.round((s.completed_hours / s.target_hours) * 100), 100);
+            return (
+              <div key={s.id} className="bg-white rounded-3xl border border-[#E6E0F8] p-6 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl flex items-center justify-center text-white" style={{ backgroundColor: s.color_code || "#6D44CC" }}>
+                      <span className="text-sm font-black">{s.title.charAt(0)}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-[#1A1A1A] truncate text-sm">{s.title}</p>
+                      {s.deadline && (
+                        <p className="text-[10px] font-bold text-red-400 flex items-center gap-1 uppercase">
+                          <Calendar className="h-3 w-3" /> {new Date(s.deadline).toLocaleDateString("pt-BR")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-black text-[#6D44CC]">{progress}%</span>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="h-2 w-full bg-[#F5F3FF] rounded-full overflow-hidden">
+                    <div 
+                      className="h-full transition-all duration-1000" 
+                      style={{ width: `${progress}%`, backgroundColor: s.color_code || "#6D44CC" }} 
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-tighter">
+                    <span>{s.completed_hours}H Concluídas</span>
+                    <span>Meta: {s.target_hours}H</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Modal: Manual */}
+      <Modal open={manualModalOpen} onClose={() => setManualModalOpen(false)} title="Nova Matéria" className="max-w-md">
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          addSubject({ title: manualTitle, target_hours: parseInt(manualHours), deadline: manualDeadline || undefined, is_custom: true }, true);
+        }} className="space-y-5">
+          <div className="space-y-2">
+            <Label className="text-xs font-bold uppercase text-slate-500">Nome da Disciplina</Label>
+            <Input placeholder="Ex: Anatomia Humana" value={manualTitle} onChange={e => setManualTitle(e.target.value)} className="h-12 rounded-xl border-[#E6E0F8]" />
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase text-slate-500">Carga Horária (H)</Label>
+              <Input type="number" value={manualHours} onChange={e => setManualHours(e.target.value)} className="h-12 rounded-xl border-[#E6E0F8]" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase text-slate-500">Prazo Final</Label>
+              <Input type="date" value={manualDeadline} onChange={e => setManualDeadline(e.target.value)} className="h-12 rounded-xl border-[#E6E0F8]" />
+            </div>
+          </div>
+          {modalError && <p className="text-xs font-bold text-red-500">{modalError}</p>}
+          <Button type="submit" disabled={!!addingId} className="w-full bg-[#6D44CC] h-12 rounded-xl font-bold">
+            {addingId ? <Loader2 className="animate-spin h-5 w-5" /> : "CRIAR MATÉRIA"}
+          </Button>
+        </form>
+      </Modal>
+
+      {/* Modal: Recomendação */}
+      <Modal open={recommendationModalOpen} onClose={() => setRecommendationModalOpen(false)} title="Confirmar Sugestão" className="max-w-md">
+        {selectedRecommendation && (
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            addSubject({ 
+              title: selectedRecommendation.title, 
+              color_code: selectedRecommendation.color_code, 
+              target_hours: selectedRecommendation.suggested_hours, 
+              difficulty_level: selectedRecommendation.difficulty_level, 
+              deadline: recommendationDeadline || undefined 
+            }, false);
+          }} className="space-y-6">
+            <div className="p-4 rounded-2xl bg-[#F5F3FF] border border-[#E6E0F8] flex items-center gap-4">
+              <div className="h-12 w-12 rounded-xl flex items-center justify-center text-white font-black" style={{ backgroundColor: selectedRecommendation.color_code }}>
+                {selectedRecommendation.title.charAt(0)}
+              </div>
+              <div>
+                <p className="font-bold text-[#1A1A1A]">{selectedRecommendation.title}</p>
+                <p className="text-[10px] font-black text-[#6D44CC] uppercase tracking-widest">{selectedRecommendation.suggested_hours} HORAS SUGERIDAS</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase text-slate-500">Você tem um prazo para concluir?</Label>
+              <Input type="date" value={recommendationDeadline} onChange={e => setRecommendationDeadline(e.target.value)} className="h-12 rounded-xl border-[#E6E0F8]" />
+            </div>
+            {modalError && <p className="text-xs font-bold text-red-500">{modalError}</p>}
+            <Button type="submit" disabled={!!addingId} className="w-full bg-[#6D44CC] h-12 rounded-xl font-bold">
+              {addingId ? <Loader2 className="animate-spin h-5 w-5" /> : "CONFIRMAR ADIÇÃO"}
+            </Button>
+          </form>
         )}
-      </div>
+      </Modal>
     </div>
   );
 }
