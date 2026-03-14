@@ -13,7 +13,7 @@ export function ConditionalLayout({
   userRole: "student" | "teacher";
 }) {
   const pathname = usePathname();
-  const isFullscreen = pathname?.startsWith("/protected/estudos/sessao");
+  const isFullscreen = pathname?.startsWith("/protected/estudos/sessao") || pathname?.startsWith("/protected/professores/area");
 
   if (isFullscreen) {
     return <>{children}</>;

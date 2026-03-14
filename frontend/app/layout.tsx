@@ -9,8 +9,16 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Digital Class",
+  title: "Digital Class - Sua Plataforma de Estudos",
   description: "Plataforma de estudos inteligente com calendário, IA e flashcards",
+  icons: {
+    icon: [
+      {
+        url: "/favicon.svg",
+        type: "image/svg+xml",
+      },
+    ],
+  },
 };
 
 const geistSans = Geist({

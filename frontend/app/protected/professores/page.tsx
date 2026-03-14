@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   GraduationCap,
   Search,
@@ -50,16 +51,13 @@ interface Lesson {
 type Tab = "following" | "explore";
 
 export default function ProfessoresPage() {
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("following");
   const [following, setFollowing] = useState<FollowingArea[]>([]);
   const [allAreas, setAllAreas] = useState<TeacherArea[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(null);
-
-  const [selectedArea, setSelectedArea] = useState<TeacherArea | null>(null);
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [loadingLessons, setLoadingLessons] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -94,7 +92,6 @@ export default function ProfessoresPage() {
     try {
       await apiDelete(`/teachers/areas/${areaId}/subscribe`);
       setFollowing((prev) => prev.filter((f) => f.id !== areaId));
-      if (selectedArea?.id === areaId) setSelectedArea(null);
     } catch {
       // erro silencioso
     } finally {
@@ -102,17 +99,8 @@ export default function ProfessoresPage() {
     }
   };
 
-  const openArea = async (area: TeacherArea) => {
-    setSelectedArea(area);
-    setLoadingLessons(true);
-    try {
-      const l = await apiGet<Lesson[]>(`/teachers/areas/${area.id}/lessons`);
-      setLessons(l);
-    } catch {
-      setLessons([]);
-    } finally {
-      setLoadingLessons(false);
-    }
+  const openArea = (area: TeacherArea) => {
+    window.open(`/protected/professores/area/${area.id}`, '_blank');
   };
 
   const filteredAll = allAreas.filter(
@@ -231,17 +219,6 @@ export default function ProfessoresPage() {
         </motion.div>
       </AnimatePresence>
 
-      {/* Drawer de Aulas */}
-      <AnimatePresence>
-        {selectedArea && (
-          <LessonsPanel
-            area={selectedArea}
-            lessons={lessons}
-            loading={loadingLessons}
-            onClose={() => setSelectedArea(null)}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }
@@ -376,155 +353,4 @@ function AreaCard({
   );
 }
 
-// ─── LessonsPanel (Framer Motion Drawer) ──────────────────────────────────────
-
-function LessonsPanel({
-  area,
-  lessons,
-  loading,
-  onClose,
-}: {
-  area: TeacherArea;
-  lessons: Lesson[];
-  loading: boolean;
-  onClose: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-[100] flex justify-end">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      <motion.div
-        initial={{ x: "100%" }}
-        animate={{ x: 0 }}
-        exit={{ x: "100%" }}
-        transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="relative w-full max-w-lg bg-white h-full shadow-[-20px_0_60px_-15px_rgba(0,0,0,0.1)] flex flex-col overflow-hidden"
-      >
-        {/* Header Drawer com Correção Definitiva de Blur */}
-        <div className="relative h-48 w-full shrink-0 flex items-end p-8 overflow-hidden">
-          {/* Camada de Fundo Isolada */}
-          <div 
-            className="absolute inset-0 z-0" 
-            style={{ backgroundColor: area.color_code }}
-          >
-            {area.banner_url && (
-              <div 
-                className="absolute inset-0 bg-center bg-cover"
-                style={{ backgroundImage: `url(${area.banner_url})` }}
-              />
-            )}
-            {/* Overlay Gradiente Profundo */}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/80" />
-            {/* Camada de Blur Suave aplicada ao fundo */}
-            <div className="absolute inset-0 backdrop-blur-[4px] pointer-events-none" />
-          </div>
-
-          <button
-            onClick={onClose}
-            className="absolute top-6 right-6 z-50 h-10 w-10 flex items-center justify-center rounded-2xl bg-white/20 backdrop-blur-xl text-white hover:bg-white hover:text-slate-900 transition-all border border-white/30 shadow-lg"
-          >
-            <X className="h-5 w-5" />
-          </button>
-
-          <div className="relative z-10 text-white w-full">
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/80 mb-2 drop-shadow-md">
-              Treinamento Exclusivo
-            </p>
-            <h2 className="font-black text-2xl tracking-tight leading-none uppercase drop-shadow-xl">
-              {area.title}
-            </h2>
-          </div>
-        </div>
-
-        {/* Lista de Aulas */}
-        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-white">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 gap-4">
-              <Loader2 className="h-8 w-8 animate-spin text-slate-200" />
-              <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Sincronizando Módulos</p>
-            </div>
-          ) : lessons.length === 0 ? (
-            <div className="text-center py-20 px-10">
-              <div className="bg-slate-50 h-16 w-16 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                <BookOpen className="h-8 w-8 text-slate-200" />
-              </div>
-              <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Vazio por enquanto</p>
-              <p className="text-xs text-slate-400 mt-2 font-medium">O mentor ainda não liberou as aulas desta trilha.</p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Playlist de Conteúdo</span>
-                <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase">{lessons.length} Módulos</span>
-              </div>
-              <ul className="space-y-3">
-                {lessons.map((lesson, i) => (
-                  <LessonRow key={lesson.id} lesson={lesson} index={i + 1} color={area.color_code} />
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
-function LessonRow({
-  lesson,
-  index,
-  color,
-}: {
-  lesson: Lesson;
-  index: number;
-  color: string;
-}) {
-  return (
-    <li className="group flex items-center gap-4 rounded-3xl border border-slate-100 bg-white p-4 hover:border-indigo-100 hover:shadow-xl hover:shadow-indigo-50 transition-all cursor-default">
-      <div
-        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg transition-transform group-hover:scale-110"
-        style={{ backgroundColor: color }}
-      >
-        {lesson.type === "video" ? (
-          <PlayCircle className="h-6 w-6" />
-        ) : (
-          <BookOpen className="h-6 w-6" />
-        )}
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">Módulo {index.toString().padStart(2, '0')}</span>
-        </div>
-        <p className="text-sm font-bold text-slate-800 truncate leading-tight group-hover:text-indigo-600 transition-colors">
-          {lesson.title}
-        </p>
-        <div className="flex items-center gap-3 mt-1.5">
-          <span className="text-[9px] font-black uppercase tracking-[0.1em] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md">
-            {lesson.type === "video" ? "Vídeo Aula" : "Material PDF"}
-          </span>
-          {lesson.duration_minutes && (
-            <span className="text-[9px] font-bold text-slate-400">{lesson.duration_minutes} MINUTOS</span>
-          )}
-        </div>
-      </div>
-
-      {lesson.content_url && (
-        <a
-          href={lesson.content_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="shrink-0 h-10 w-10 flex items-center justify-center rounded-xl bg-slate-900 text-white hover:bg-black transition-all shadow-md opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0"
-        >
-          <ArrowRight className="h-4 w-4" />
-        </a>
-      )}
-    </li>
-  );
-}
+// LessonsPanel removido em favor de uma página dedicada de área (/protected/professores/area/[areaId])

@@ -23,17 +23,17 @@ import { useRole } from "@/contexts/RoleContext";
 import { motion, AnimatePresence } from "framer-motion";
 
 const studentNav = [
-  { href: "/protected", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/protected/calendario", icon: Calendar, label: "Calendário" },
-  { href: "/protected/materias", icon: BookOpen, label: "Minhas Matérias" },
-  { href: "/protected/estudos", icon: Brain, label: "Meus Estudos" },
-  { href: "/protected/professores", icon: GraduationCap, label: "Meus Professores" },
+  { href: "/protected", icon: LayoutDashboard, label: "Dashboard", newTab: false },
+  { href: "/protected/calendario", icon: Calendar, label: "Calendário", newTab: false },
+  { href: "/protected/materias", icon: BookOpen, label: "Minhas Matérias", newTab: false },
+  { href: "/protected/estudos", icon: Brain, label: "Meus Estudos", newTab: false },
+  { href: "/protected/professores", icon: GraduationCap, label: "Meus Professores", newTab: false },
 ];
 
 const teacherNav = [
-  { href: "/protected", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/protected/minha-area", icon: MonitorPlay, label: "Minha Área" },
-  { href: "/protected/meus-alunos", icon: UsersRound, label: "Meus Alunos" },
+  { href: "/protected", icon: LayoutDashboard, label: "Dashboard", newTab: false },
+  { href: "/professor/minha-area", icon: MonitorPlay, label: "Minha Área", newTab: true },
+  { href: "/professor/meus-alunos", icon: UsersRound, label: "Meus Alunos", newTab: true },
 ];
 
 const bottomNav = [
@@ -144,12 +144,17 @@ export function Sidebar({
         {/* Navegação Principal */}
         <nav className="flex-1 overflow-y-auto px-4 custom-scrollbar">
           <ul className="space-y-2.5">
-            {mainNav.map(({ href, icon: Icon, label }) => {
-              const active = isActive(href);
+            {mainNav.map(({ href, icon: Icon, label, newTab }) => {
+              const active = !newTab && isActive(href);
+              const linkProps = newTab
+                ? { target: "_blank" as const, rel: "noopener noreferrer" }
+                : {};
+              const Tag = newTab ? "a" : Link;
               return (
                 <li key={href}>
-                  <Link
+                  <Tag
                     href={href}
+                    {...linkProps}
                     className={cn(
                       "group relative flex items-center gap-4 rounded-xl px-4 py-3 font-semibold transition-all duration-300",
                       active 
@@ -160,7 +165,7 @@ export function Sidebar({
                   >
                     <Icon className={cn("h-5 w-5 shrink-0", active ? "text-white" : "text-[#6D44CC]/70")} />
                     {(!collapsed || isMobileOpen) && <span className="text-sm tracking-tight">{label}</span>}
-                  </Link>
+                  </Tag>
                 </li>
               );
             })}

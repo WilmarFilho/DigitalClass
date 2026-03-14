@@ -50,6 +50,27 @@ export class TeachersService {
     return (data ?? []).map((area) => this.formatArea(area));
   }
 
+  /** Detalhe de uma área específica (respeita RLS: áreas privadas só para o dono) */
+  async getAreaById(areaId: string) {
+    const { data, error } = await this.supabase()
+      .from('teacher_areas')
+      .select(`
+        id, title, description, color_code, monthly_price, banner_url, is_private, created_at,
+        profiles!teacher_id ( id, full_name, avatar_url )
+      `)
+      .eq('id', areaId)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(`getAreaById: ${error.message}`);
+      throw new NotFoundException('Área não encontrada');
+    }
+    if (!data) {
+      throw new NotFoundException('Área não encontrada');
+    }
+    return this.formatArea(data);
+  }
+
   /** Áreas que o aluno segue */
   async listFollowing(studentId: string) {
     const { data, error } = await this.supabase()

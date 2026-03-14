@@ -32,6 +32,11 @@ export class TeachersController {
     return this.teachersService.listAllAreas();
   }
 
+  @Get('areas/:areaId')
+  getAreaById(@Param('areaId') areaId: string) {
+    return this.teachersService.getAreaById(areaId);
+  }
+
   @Get('following')
   listFollowing(@Req() req: any) {
     return this.teachersService.listFollowing(req.user.id);
