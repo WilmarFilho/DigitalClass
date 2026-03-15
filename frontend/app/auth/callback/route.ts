@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
@@ -13,34 +13,15 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${base}/auth`);
   }
 
-  const cookiesToSet: { name: string; value: string; options?: object }[] = [];
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.headers.get("cookie")
-            ?.split(";")
-            .map((c) => {
-              const [name, ...value] = c.split("=");
-              return { name: name.trim(), value: value.join("=").trim() };
-            }) ?? [];
-        },
-        setAll(cookies) {
-          cookies.forEach((c) => cookiesToSet.push(c));
-        },
-      },
-    }
-  );
-
+  const supabase = await createClient();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    return NextResponse.redirect(`${base}/auth`);
+    console.error("Auth callback error:", error.message);
+    return NextResponse.redirect(`${base}/auth/error?error=${encodeURIComponent(error.message)}`);
   }
 
+  // Verifica se o usuário já tem perfil com role para decidir o redirect
   const { data: { user } } = await supabase.auth.getUser();
   let next = "/onboarding";
 
@@ -56,9 +37,5 @@ export async function GET(request: Request) {
     }
   }
 
-  const response = NextResponse.redirect(`${base}${next}`);
-  cookiesToSet.forEach(({ name, value, options }) =>
-    response.cookies.set(name, value, options)
-  );
-  return response;
+  return NextResponse.redirect(`${base}${next}`);
 }
