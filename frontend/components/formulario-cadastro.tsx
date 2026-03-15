@@ -42,19 +42,19 @@ export function SignUpForm({ className, onSwitch, ...props }: SignUpFormProps) {
   };
 
   return (
-    <div className={cn("flex flex-col gap-8", className)} {...props}>
-      <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-bold tracking-tight text-gray-900">Criar conta</h2>
-        <p className="text-sm text-gray-500">Comece sua jornada na Digital Class.</p>
+    <div className={cn("flex flex-col gap-4 md:gap-8", className)} {...props}>
+      <div className="flex flex-col gap-1 md:gap-2">
+        <h2 className="text-xl md:text-3xl font-bold tracking-tight text-gray-900">Criar conta</h2>
+        <p className="text-xs md:text-sm text-gray-500">Comece sua jornada na Digital Class.</p>
       </div>
 
-      <form onSubmit={handleSignUp} className="space-y-4">
+      <form onSubmit={handleSignUp} className="space-y-3 md:space-y-4">
         <div className="space-y-2">
           <Label className="text-xs uppercase font-bold text-gray-400">E-mail</Label>
           <Input
             type="email"
             placeholder="nome@exemplo.com"
-            className="h-12"
+            className="h-10 md:h-12 text-sm md:text-base"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
@@ -64,7 +64,7 @@ export function SignUpForm({ className, onSwitch, ...props }: SignUpFormProps) {
           <Label className="text-xs uppercase font-bold text-gray-400">Senha</Label>
           <Input
             type="password"
-            className="h-12"
+            className="h-10 md:h-12 text-sm md:text-base"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -73,12 +73,12 @@ export function SignUpForm({ className, onSwitch, ...props }: SignUpFormProps) {
 
         {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
 
-        <Button type="submit" disabled={isLoading} className="w-full h-12 bg-[#6D44CC] hover:bg-[#5a38a8]">
+        <Button type="submit" disabled={isLoading} className="w-full h-10 md:h-12 bg-[#6D44CC] hover:bg-[#5a38a8] text-sm md:text-base">
           {isLoading ? "Criando..." : "Cadastrar"}
         </Button>
       </form>
 
-      <p className="text-center text-sm text-gray-500">
+      <p className="text-center text-xs md:text-sm text-gray-500">
         Já tem uma conta?{" "}
         <button onClick={onSwitch} type="button" className="text-[#F38B4B] font-bold hover:underline">
           Fazer Login

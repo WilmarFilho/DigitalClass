@@ -32,9 +32,9 @@ export function LoginForm({ className, onSwitch, ...props }: LoginFormProps) {
         email,
         password,
       });
-      
+
       if (authError) throw authError;
-      
+
       router.push("/protected");
     } catch (err) {
       if (err instanceof AuthError) {
@@ -48,13 +48,13 @@ export function LoginForm({ className, onSwitch, ...props }: LoginFormProps) {
   };
 
   return (
-    <div className={cn("flex flex-col gap-8", className)} {...props}>
-      <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-bold tracking-tight text-gray-900">Bem-vindo de volta</h2>
-        <p className="text-sm text-gray-500">Acesse sua plataforma de estudos agora.</p>
+    <div className={cn("flex flex-col gap-4 md:gap-8", className)} {...props}>
+      <div className="flex flex-col gap-1 md:gap-2">
+        <h2 className="text-xl md:text-3xl font-bold tracking-tight text-gray-900">Bem-vindo de volta</h2>
+        <p className="text-xs md:text-sm text-gray-500">Acesse sua plataforma de estudos agora.</p>
       </div>
 
-      <form onSubmit={handleLogin} className="space-y-5">
+      <form onSubmit={handleLogin} className="space-y-3 md:space-y-5">
         <div className="space-y-2">
           <Label htmlFor="email" className="text-xs uppercase font-bold text-gray-400 tracking-wider">
             Endereço de E-mail
@@ -63,7 +63,7 @@ export function LoginForm({ className, onSwitch, ...props }: LoginFormProps) {
             id="email"
             type="email"
             placeholder="nome@exemplo.com"
-            className="h-12 border-gray-200 focus:ring-[#6D44CC] focus:border-[#6D44CC]"
+            className="h-10 md:h-12 text-sm md:text-base border-gray-200 focus:ring-[#6D44CC] focus:border-[#6D44CC]"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -76,7 +76,7 @@ export function LoginForm({ className, onSwitch, ...props }: LoginFormProps) {
               Senha
             </Label>
             {/* Link para recuperação de senha - Ajustado para não recarregar a página desnecessariamente */}
-            <button 
+            <button
               type="button"
               onClick={() => router.push("/auth/forgot-password")}
               className="text-xs font-semibold text-[#F38B4B] hover:opacity-80"
@@ -87,7 +87,7 @@ export function LoginForm({ className, onSwitch, ...props }: LoginFormProps) {
           <Input
             id="password"
             type="password"
-            className="h-12 border-gray-200 focus:ring-[#6D44CC] focus:border-[#6D44CC]"
+            className="h-10 md:h-12 text-sm md:text-base border-gray-200 focus:ring-[#6D44CC] focus:border-[#6D44CC]"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -96,10 +96,10 @@ export function LoginForm({ className, onSwitch, ...props }: LoginFormProps) {
 
         {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
 
-        <Button 
-          type="submit" 
+        <Button
+          type="submit"
           disabled={isLoading}
-          className="w-full h-12 bg-[#6D44CC] hover:bg-[#5a38a8] text-white font-bold text-base rounded-md transition-all"
+          className="w-full h-10 md:h-12 bg-[#6D44CC] hover:bg-[#5a38a8] text-white font-bold text-sm md:text-base rounded-md transition-all"
         >
           {isLoading ? "Entrando..." : "Entrar"}
         </Button>
@@ -114,26 +114,36 @@ export function LoginForm({ className, onSwitch, ...props }: LoginFormProps) {
         </div>
       </div>
 
-      <Button 
-        variant="outline" 
+      <Button
+        variant="outline"
         type="button"
-        onClick={() => {}} 
-        className="w-full h-12 border-gray-100 bg-gray-50/50 hover:bg-gray-100 text-gray-600 font-semibold"
+        // No componente LoginForm, troque o onClick do botão Google:
+        onClick={async () => {
+          const supabase = createClient();
+          await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+              redirectTo: `${window.location.origin}/auth/callback`,
+            },
+          });
+        }}
+
+        className="w-full h-10 md:h-12 border-gray-100 bg-gray-50/50 hover:bg-gray-100 text-gray-600 font-semibold text-sm md:text-base"
       >
         <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
         </svg>
         Continuar com Google
       </Button>
 
-      <p className="text-center text-sm text-gray-500">
+      <p className="text-center text-xs md:text-sm text-gray-500">
         Novo por aqui?{" "}
-        <button 
-          type="button" 
-          onClick={onSwitch} 
+        <button
+          type="button"
+          onClick={onSwitch}
           className="text-[#F38B4B] font-bold hover:underline"
         >
           Cadastre-se
