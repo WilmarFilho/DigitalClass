@@ -6,6 +6,8 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
 
+  console.log('teste')
+
   if (!code) {
     return NextResponse.redirect(`${origin}/auth`);
   }
