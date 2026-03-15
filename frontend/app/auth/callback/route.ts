@@ -6,14 +6,15 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
 
-  // AJUSTE DE ORIGEM: Força o uso do domínio real vindo dos headers do Proxy (Nginx)
-  // Se não houver headers, ele tenta usar o host da requisição ou o domínio padrão
+  // Pega o host real
   const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || "class.nkwflow.com";
-  const protocol = request.headers.get("x-forwarded-proto") || "https";
+
+  // FORÇA HTTPS em produção
+  const protocol = "https";
   const origin = `${protocol}://${host}`;
 
   console.log('--- AUTH CALLBACK INICIADO ---');
-  console.log('Origin Calculada:', origin);
+  console.log('Origin Corrigida:', origin);
   console.log('Code presente:', !!code);
 
   if (!code) {
