@@ -28,7 +28,9 @@ export function SignUpForm({ className, onSwitch, ...props }: SignUpFormProps) {
       const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/onboarding` },
+        options: {
+          emailRedirectTo: `https://class.nkwflow.com/auth/confirm`,
+        }
       });
       if (signUpError) throw signUpError;
       alert("Verifique seu e-mail para confirmar o cadastro!");
@@ -49,23 +51,23 @@ export function SignUpForm({ className, onSwitch, ...props }: SignUpFormProps) {
       <form onSubmit={handleSignUp} className="space-y-4">
         <div className="space-y-2">
           <Label className="text-xs uppercase font-bold text-gray-400">E-mail</Label>
-          <Input 
-            type="email" 
-            placeholder="nome@exemplo.com" 
+          <Input
+            type="email"
+            placeholder="nome@exemplo.com"
             className="h-12"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            required 
+            required
           />
         </div>
         <div className="space-y-2">
           <Label className="text-xs uppercase font-bold text-gray-400">Senha</Label>
-          <Input 
-            type="password" 
+          <Input
+            type="password"
             className="h-12"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            required 
+            required
           />
         </div>
 
