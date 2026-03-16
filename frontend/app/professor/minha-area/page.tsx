@@ -1,31 +1,24 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   MonitorPlay,
   Loader2,
   Plus,
-  Trash2,
-  Upload,
-  CheckCircle2,
-  Video,
-  FileText,
-  GripVertical,
-  Palette,
   Globe,
   Lock,
   AlertCircle,
   X,
-  Eye,
-  Settings2,
   LayoutDashboard,
+  Settings,
+  BookOpen
 } from "lucide-react";
-import { apiGet, apiPost, apiDelete } from "@/lib/api";
+import { apiGet } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
-// --- Interfaces (Mantidas conforme seu backend) ---
 interface TeacherArea {
   id: string;
   title: string;
@@ -36,150 +29,23 @@ interface TeacherArea {
   banner_url: string | null;
 }
 
-interface Lesson {
-  id: string;
-  title: string;
-  description: string | null;
-  type: "video" | "pdf";
-  content_url: string | null;
-  duration_minutes: number | null;
-  order_index: number;
-  created_at: string;
-}
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-
 export default function MinhaAreaPage() {
-  const [area, setArea] = useState<TeacherArea | null>(null);
-  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const router = useRouter();
+  const [areas, setAreas] = useState<TeacherArea[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const [areaForm, setAreaForm] = useState({
-    title: "",
-    description: "",
-    color_code: "#4F46E5",
-    monthly_price: 0,
-    is_private: false,
-  });
-  
-  const [savingArea, setSavingArea] = useState(false);
-  const [savedArea, setSavedArea] = useState(false);
-  const [editingArea, setEditingArea] = useState(false);
-  const [lessonModal, setLessonModal] = useState(false);
-  const [lessonForm, setLessonForm] = useState({
-    title: "",
-    description: "",
-    type: "video" as "video" | "pdf",
-    duration_minutes: "",
-  });
-  const [savingLesson, setSavingLesson] = useState(false);
-  const [uploadingLesson, setUploadingLesson] = useState<string | null>(null);
-  const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
     try {
-      const [a, l] = await Promise.all([
-        apiGet<TeacherArea | null>("/teachers/my-area").catch(() => null),
-        apiGet<Lesson[]>("/teachers/my-area/lessons").catch(() => []),
-      ]);
-      setArea(a);
-      if (a) {
-        setAreaForm({
-          title: a.title,
-          description: a.description ?? "",
-          color_code: a.color_code,
-          monthly_price: a.monthly_price,
-          is_private: a.is_private,
-        });
-      } else {
-        setEditingArea(true);
-      }
-      setLessons(l);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (e) {
-      setError("Não foi possível carregar os dados.");
+      const data = await apiGet<TeacherArea[]>("/teachers/my-areas");
+      setAreas(data);
+    } catch (e: any) {
+      setError("Não foi possível carregar suas áreas.");
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handleSaveArea() {
-    setSavingArea(true);
-    try {
-      const updated = await apiPost<TeacherArea>("/teachers/my-area", {
-        ...areaForm,
-        monthly_price: Number(areaForm.monthly_price),
-      });
-      setArea(updated);
-      setEditingArea(false);
-      setSavedArea(true);
-      setTimeout(() => setSavedArea(false), 2500);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (e: any) {
-      setError(e.message || "Erro ao salvar");
-    } finally {
-      setSavingArea(false);
-    }
-  }
-
-  async function handleCreateLesson() {
-    if (!lessonForm.title.trim()) return;
-    setSavingLesson(true);
-    try {
-      const created = await apiPost<Lesson>("/teachers/my-area/lessons", {
-        ...lessonForm,
-        duration_minutes: lessonForm.duration_minutes ? Number(lessonForm.duration_minutes) : null,
-        order_index: lessons.length,
-      });
-      setLessons((prev) => [...prev, created]);
-      setLessonModal(false);
-      setLessonForm({ title: "", description: "", type: "video", duration_minutes: "" });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (e: any) {
-      setError(e.message || "Erro ao criar aula");
-    } finally {
-      setSavingLesson(false);
-    }
-  }
-
-  async function handleDeleteLesson(id: string) {
-    if (!confirm("Remover esta aula permanentemente?")) return;
-    try {
-      await apiDelete(`/teachers/my-area/lessons/${id}`);
-      setLessons((prev) => prev.filter((l) => l.id !== id));
-    } catch {}
-  }
-
-  async function handleUpload(lessonId: string, file: File) {
-    setUploadingLesson(lessonId);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      
-      const { createClient } = await import("@/lib/supabase/client");
-      const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const res = await fetch(`${BASE_URL}/teachers/my-area/lessons/${lessonId}/upload`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${session?.access_token}` },
-        body: formData,
-      });
-      
-      if (!res.ok) throw new Error("Falha no upload");
-      const updated = await res.json() as Lesson;
-      setLessons((prev) => prev.map((l) => (l.id === lessonId ? updated : l)));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (e: any) {
-      setError(e.message || "Erro no upload");
-    } finally {
-      setUploadingLesson(null);
-      setPendingUploadId(null);
     }
   }
 
@@ -190,7 +56,7 @@ export default function MinhaAreaPage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-20">
+    <div className="max-w-6xl mx-auto space-y-8 pb-20 p-6 md:p-0">
       {/* Header */}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -199,23 +65,17 @@ export default function MinhaAreaPage() {
           </div>
           <div>
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">Painel do Professor</h1>
-            <p className="text-sm text-slate-500">Customize sua experiência e gerencie conteúdos.</p>
+            <p className="text-sm text-slate-500">Gerencie suas dezenas de áreas e cursos.</p>
           </div>
         </div>
         
         <div className="flex items-center gap-2">
-          {area && (
-            <Button variant="outline" className="rounded-xl" asChild>
-              <a href={`/area/${area.id}`} target="_blank">
-                <Eye className="h-4 w-4 mr-2" /> Visualizar como Aluno
-              </a>
-            </Button>
-          )}
-          {area && !editingArea && (
-            <Button className="rounded-xl bg-slate-900 hover:bg-slate-800" onClick={() => setEditingArea(true)}>
-              <Settings2 className="h-4 w-4 mr-2" /> Editar Configurações
-            </Button>
-          )}
+          <Button 
+            onClick={() => router.push("/professor/minha-area/nova")} 
+            className="rounded-xl bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100"
+          >
+            <Plus className="h-4 w-4 mr-2" /> Criar Nova Área
+          </Button>
         </div>
       </header>
 
@@ -227,331 +87,72 @@ export default function MinhaAreaPage() {
         </motion.div>
       )}
 
-      <div className="grid gap-8 lg:grid-cols-12">
-        {/* Coluna Esquerda: Configurações */}
-        <aside className="lg:col-span-4 space-y-6">
-          <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-50">
-              <h2 className="font-bold text-slate-800 flex items-center gap-2">
-                <Palette className="h-4 w-4 text-indigo-500" /> Identidade da Área
-              </h2>
+      {areas.length === 0 ? (
+         <div className="rounded-3xl border border-dashed border-slate-200 bg-white/50 p-20 text-center">
+            <div className="bg-white h-20 w-20 rounded-3xl shadow-xl flex items-center justify-center mx-auto mb-6 border border-slate-100">
+               <MonitorPlay className="h-10 w-10 text-slate-200" />
             </div>
-
-            {/* LIVE PREVIEW BANNER */}
-            <div className="px-6 pt-6">
-              <div 
-                className="h-28 rounded-2xl relative flex items-center justify-center overflow-hidden transition-all duration-500 group"
-                style={{ backgroundColor: areaForm.color_code }}
-              >
-                <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
-                <span className="relative z-10 text-white font-black text-xl drop-shadow-md text-center px-4 leading-tight">
-                  {areaForm.title || "Nome da sua Área"}
-                </span>
-                <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/20 backdrop-blur-md rounded text-[10px] text-white/80 font-bold uppercase tracking-widest">Preview</div>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-5">
-              <Field label="Nome da Área" required>
-                <input
-                  value={areaForm.title}
-                  onChange={(e) => setAreaForm(p => ({ ...p, title: e.target.value }))}
-                  disabled={!editingArea}
-                  placeholder="Ex: Formação em React"
-                  className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all disabled:opacity-50"
-                />
-              </Field>
-
-              <Field label="Preço da Mensalidade">
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm font-mono">R$</span>
-                  <input
-                    type="number"
-                    value={areaForm.monthly_price}
-                    onChange={(e) => setAreaForm(p => ({ ...p, monthly_price: Number(e.target.value) }))}
-                    disabled={!editingArea}
-                    className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 pl-11 pr-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all disabled:opacity-50"
-                  />
-                </div>
-              </Field>
-
-              {/* Fee Breakdown Card */}
-              {areaForm.monthly_price > 0 && (
-                <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-4 space-y-3">
-                  <div className="flex items-center gap-2 text-emerald-700">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                    <span className="text-[10px] font-black uppercase tracking-[0.15em]">Simulação de Ganhos</span>
-                  </div>
-                  
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 font-medium">Valor da Mensalidade</span>
-                      <span className="font-black text-slate-800">R$ {areaForm.monthly_price.toFixed(2)}</span>
-                    </div>
-                    <div className="h-px bg-slate-200" />
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 font-medium">Taxa Stripe (~3.99% + R$0,39)</span>
-                      <span className="font-bold text-red-500">
-                        - R$ {(areaForm.monthly_price * 0.0399 + 0.39).toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500 font-medium">Taxa Plataforma (20%)</span>
-                      <span className="font-bold text-red-500">
-                        - R$ {(areaForm.monthly_price * 0.20).toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="h-px bg-emerald-200" />
-                    <div className="flex justify-between items-center pt-1">
-                      <span className="font-black text-emerald-700 text-[11px] uppercase tracking-wider">Seu ganho líquido</span>
-                      <span className="font-black text-emerald-700 text-base">
-                        R$ {Math.max(0, areaForm.monthly_price - (areaForm.monthly_price * 0.0399 + 0.39) - (areaForm.monthly_price * 0.20)).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4">
-                 <Field label="Cor Identidade">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={areaForm.color_code}
-                        onChange={(e) => setAreaForm(p => ({ ...p, color_code: e.target.value }))}
-                        disabled={!editingArea}
-                        className="h-11 w-14 cursor-pointer rounded-xl border border-slate-200 p-1 bg-white disabled:opacity-50"
-                      />
-                      <span className="text-xs font-mono text-slate-500 uppercase">{areaForm.color_code}</span>
-                    </div>
-                 </Field>
-                 <Field label="Visibilidade">
-                    <button
-                      disabled={!editingArea}
-                      onClick={() => setAreaForm(p => ({ ...p, is_private: !p.is_private }))}
-                      className={cn(
-                        "h-11 w-full rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition-all uppercase tracking-tight disabled:opacity-50",
-                        areaForm.is_private ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-indigo-50 border-indigo-200 text-indigo-700"
-                      )}
-                    >
-                      {areaForm.is_private ? <Lock className="h-3.5 w-3.5" /> : <Globe className="h-3.5 w-3.5" />}
-                      {areaForm.is_private ? "Privada" : "Pública"}
-                    </button>
-                 </Field>
-              </div>
-
-              {editingArea && (
-                <div className="pt-2 flex flex-col gap-2">
-                  <Button 
-                    className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-100"
-                    disabled={!areaForm.title.trim() || savingArea}
-                    onClick={handleSaveArea}
-                  >
-                    {savingArea ? <Loader2 className="h-4 w-4 animate-spin" /> : savedArea ? <><CheckCircle2 className="h-4 w-4 mr-2" /> Salvo!</> : "Salvar Alterações"}
-                  </Button>
-                  {area && (
-                    <Button variant="ghost" className="text-slate-500 hover:bg-slate-100" onClick={() => setEditingArea(false)}>
-                      Descartar Mudanças
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </aside>
-
-        {/* Coluna Direita: Conteúdo */}
-        <main className="lg:col-span-8">
-          <div className="rounded-3xl border border-slate-200 bg-white shadow-sm min-h-[500px]">
-            <div className="p-6 border-b border-slate-50 flex items-center justify-between">
-              <div>
-                <h2 className="font-bold text-slate-800 flex items-center gap-2">
-                  <MonitorPlay className="h-4 w-4 text-indigo-500" /> Currículo do Curso
-                </h2>
-                <p className="text-xs text-slate-400 mt-1">{lessons.length} aulas cadastradas</p>
-              </div>
-              {area && (
-                <Button onClick={() => setLessonModal(true)} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100">
-                  <Plus className="h-4 w-4 mr-2" /> Nova Aula
-                </Button>
-              )}
-            </div>
-
-            <div className="p-6">
-              {!area ? (
-                <div className="py-20 text-center flex flex-col items-center">
-                  <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 border border-dashed border-slate-200 mb-4">
-                    <MonitorPlay className="h-8 w-8" />
-                  </div>
-                  <h3 className="text-slate-900 font-bold">Inicie sua área</h3>
-                  <p className="text-slate-400 text-sm max-w-[240px] mt-2">Você precisa salvar as configurações básicas antes de postar aulas.</p>
-                </div>
-              ) : lessons.length === 0 ? (
-                <div className="py-20 text-center flex flex-col items-center">
-                  <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-200 mb-4">
-                    <Upload className="h-8 w-8" />
-                  </div>
-                  <p className="text-slate-400 text-sm font-medium">Sua área ainda não possui aulas.</p>
-                  <Button variant="link" className="text-indigo-600" onClick={() => setLessonModal(true)}>Adicionar primeira aula agora</Button>
-                </div>
-              ) : (
-                <ul className="space-y-3">
-                  {lessons.map((lesson, i) => (
-                    <LessonRow
-                      key={lesson.id}
-                      lesson={lesson}
-                      index={i + 1}
-                      uploading={uploadingLesson === lesson.id}
-                      onDelete={() => handleDeleteLesson(lesson.id)}
-                      onUpload={() => {
-                        setPendingUploadId(lesson.id);
-                        fileInputRef.current?.click();
-                      }}
-                    />
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </main>
-      </div>
-
-      <input ref={fileInputRef} type="file" accept="video/*,.pdf" className="hidden" onChange={(e) => {
-        const file = e.target.files?.[0];
-        if (file && pendingUploadId) handleUpload(pendingUploadId, file);
-        e.target.value = "";
-      }} />
-
-      {/* Modal Nova Aula */}
-      <AnimatePresence>
-        {lessonModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-lg rounded-[2.5rem] bg-white shadow-2xl p-8">
-              <div className="flex items-center justify-between mb-8">
-                <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                   <Plus className="h-6 w-6" />
-                </div>
-                <button onClick={() => setLessonModal(false)} className="h-10 w-10 rounded-full hover:bg-slate-100 flex items-center justify-center transition-colors">
-                  <X className="h-5 w-5 text-slate-400" />
-                </button>
-              </div>
-
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-black text-slate-900 leading-tight">Adicionar Aula</h3>
-                  <p className="text-sm text-slate-500">Defina o título e o tipo de conteúdo para seus alunos.</p>
-                </div>
-
-                <div className="space-y-4">
-                  <Field label="Título da Aula" required>
-                    <input
-                      value={lessonForm.title}
-                      onChange={(e) => setLessonForm(p => ({ ...p, title: e.target.value }))}
-                      placeholder="Ex: Módulo 1 - Primeiros Passos"
-                      className="w-full h-12 rounded-xl border border-slate-200 px-4 font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                    />
-                  </Field>
-
-                  <Field label="Tipo de Conteúdo">
-                    <div className="grid grid-cols-2 gap-3">
-                      {(["video", "pdf"] as const).map((t) => (
-                        <button
-                          key={t}
-                          onClick={() => setLessonForm(p => ({ ...p, type: t }))}
-                          className={cn(
-                            "h-12 rounded-xl border flex items-center justify-center gap-3 text-sm font-bold transition-all uppercase tracking-tight",
-                            lessonForm.type === t ? "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
-                          )}
-                        >
-                          {t === "video" ? <Video className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
-                          {t === "video" ? "Vídeo Aula" : "Material PDF"}
-                        </button>
-                      ))}
-                    </div>
-                  </Field>
-                </div>
-
-                <div className="pt-4 flex gap-3">
-                  <Button variant="ghost" className="flex-1 h-12 rounded-xl text-slate-500" onClick={() => setLessonModal(false)}>Cancelar</Button>
-                  <Button className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100" disabled={!lessonForm.title.trim() || savingLesson} onClick={handleCreateLesson}>
-                    {savingLesson ? <Loader2 className="h-4 w-4 animate-spin" /> : "Criar Aula"}
-                  </Button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Você ainda não tem áreas criadas</h3>
+            <p className="text-slate-400 text-xs mt-2 font-bold uppercase tracking-widest mb-6">Crie sua primeira área de membros para começar a ensinar.</p>
+            <Button onClick={() => router.push("/professor/minha-area/nova")} className="rounded-xl bg-indigo-600 hover:bg-indigo-700">
+               <Plus className="h-4 w-4 mr-2" /> Criar Área Agora
+            </Button>
+         </div>
+      ) : (
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {areas.map((area) => (
+            <AreaCard key={area.id} area={area} onClick={() => router.push(`/professor/minha-area/${area.id}`)} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-// --- Subcomponentes Refatorados ---
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function LessonRow({ lesson, index, uploading, onDelete, onUpload }: any) {
+function AreaCard({ area, onClick }: { area: TeacherArea, onClick: () => void }) {
   return (
-    <motion.li 
-      initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-      className="group flex items-center gap-4 rounded-2xl border border-slate-100 bg-white p-4 hover:border-indigo-100 hover:shadow-md hover:shadow-indigo-500/5 transition-all"
+    <div 
+      onClick={onClick}
+      className="group relative cursor-pointer rounded-[28px] border border-slate-200 bg-white p-2 shadow-sm transition-all duration-500 hover:shadow-2xl hover:shadow-slate-200 hover:-translate-y-1 overflow-hidden"
     >
-      <div className="cursor-grab active:cursor-grabbing text-slate-300 group-hover:text-indigo-300 transition-colors">
-        <GripVertical className="h-5 w-5" />
-      </div>
-
-      <div className={cn(
-        "h-12 w-12 shrink-0 rounded-xl flex items-center justify-center transition-colors",
-        lesson.content_url ? "bg-emerald-50 text-emerald-600" : "bg-slate-50 text-slate-400"
-      )}>
-        {lesson.type === "video" ? <Video className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">#{index}</span>
-          <h4 className="text-sm font-bold text-slate-800 truncate">{lesson.title}</h4>
-        </div>
-        <div className="flex items-center gap-3 mt-1">
-          {lesson.content_url ? (
-             <span className="text-[10px] font-black text-emerald-600 uppercase flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3" /> Conteúdo Pronto
-             </span>
-          ) : (
-             <span className="text-[10px] font-black text-amber-500 uppercase flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" /> Aguardando Upload
-             </span>
-          )}
-          <span className="h-1 w-1 rounded-full bg-slate-200" />
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{lesson.type}</span>
+      <div
+        className="h-32 rounded-[22px] relative overflow-hidden transition-transform duration-700 group-hover:scale-[1.02]"
+        style={{
+          background: area.banner_url
+            ? `url(${area.banner_url}) center/cover`
+            : `linear-gradient(135deg, ${area.color_code}, ${area.color_code}88)`,
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+        <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-white/90 backdrop-blur-sm px-3 py-1 text-[9px] font-black uppercase tracking-widest shadow-sm">
+           {area.is_private ? (
+               <><Lock className="h-3 w-3 text-amber-500" /><span className="text-amber-600">Privada</span></>
+           ) : (
+               <><Globe className="h-3 w-3 text-indigo-500" /><span className="text-indigo-600">Pública</span></>
+           )}
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <Button 
-          size="sm" 
-          variant={lesson.content_url ? "outline" : "default"} 
-          className={cn("h-9 rounded-lg text-xs font-bold", !lesson.content_url && "bg-indigo-600 hover:bg-indigo-700")} 
-          disabled={uploading} 
-          onClick={onUpload}
-        >
-          {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Upload className="h-3.5 w-3.5 mr-1.5" /> {lesson.content_url ? "Trocar" : "Upload"}</>}
-        </Button>
-        <button onClick={onDelete} className="h-9 w-9 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all">
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
-    </motion.li>
-  );
-}
+      <div className="px-4 pb-4 pt-4 flex flex-col flex-1">
+        <h3 className="font-black text-slate-900 text-sm leading-tight tracking-tight group-hover:text-indigo-600 transition-colors">
+          {area.title}
+        </h3>
+        {area.description && (
+          <p className="text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed font-medium">
+            {area.description}
+          </p>
+        )}
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function Field({ label, required, children }: any) {
-  return (
-    <div className="space-y-2">
-      <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      {children}
+        <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
+           <span className="text-xs font-black tracking-tighter text-slate-700">
+             {area.monthly_price === 0 ? "GRÁTIS" : `R$ ${area.monthly_price.toFixed(2)} /mês`}
+           </span>
+           <div className="flex items-center gap-1.5 text-slate-400 group-hover:text-indigo-500 transition-colors">
+              <span className="text-[10px] font-bold uppercase tracking-widest">Editar</span>
+              <Settings className="h-3.5 w-3.5" />
+           </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -146,7 +146,7 @@ export function FlashcardPanel({ sessionId, subjectColor = "#6D44CC" }: Flashcar
           </div>
         )}
 
-        {/* Estado Vazio */}
+        {/* Estado Vazio — nunca gerou */}
         {!hasContent && !loading && (
           <div className="flex flex-1 flex-col items-center justify-center gap-6 py-8 text-center">
             <div className="p-6 bg-slate-50 rounded-full">
@@ -161,6 +161,29 @@ export function FlashcardPanel({ sessionId, subjectColor = "#6D44CC" }: Flashcar
               className="bg-slate-900 hover:bg-black text-white rounded-xl px-8 font-bold text-xs uppercase tracking-widest shadow-lg shadow-slate-200"
             >
               Gerar agora
+            </Button>
+          </div>
+        )}
+
+        {/* Estado Concluído — revisou e pode gerar mais */}
+        {!loading && !currentBatch && batches.length > 0 && (
+          <div className="flex flex-1 flex-col items-center justify-center gap-6 py-8 text-center">
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }}
+              className="p-6 bg-emerald-50 rounded-full"
+            >
+              <Sparkles className="h-12 w-12 text-emerald-300" />
+            </motion.div>
+            <div>
+              <p className="text-sm font-bold text-slate-800 uppercase tracking-tight">Revisão concluída!</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-[220px]">Ótimo trabalho! Gere mais flashcards para continuar fixando o conteúdo.</p>
+            </div>
+            <Button 
+              onClick={handleGenerate} 
+              className="bg-slate-900 hover:bg-black text-white rounded-xl px-8 font-bold text-xs uppercase tracking-widest shadow-lg shadow-slate-200"
+            >
+              Gerar mais
             </Button>
           </div>
         )}

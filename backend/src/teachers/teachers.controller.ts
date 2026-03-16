@@ -48,6 +48,16 @@ export class TeachersController {
     return this.teachersService.getAreaLessons(areaId, req.user.id);
   }
 
+  @Get('areas/:areaId/sections')
+  getStudentAreaSections(@Req() req: any, @Param('areaId') areaId: string) {
+    return this.teachersService.getAreaSections(req.user.id, areaId);
+  }
+
+  @Get('areas/:areaId/notices')
+  getStudentAreaNotices(@Req() req: any, @Param('areaId') areaId: string) {
+    return this.teachersService.getAreaNotices(req.user.id, areaId);
+  }
+
   @Post('areas/:areaId/subscribe')
   subscribe(@Req() req: any, @Param('areaId') areaId: string) {
     return this.teachersService.subscribe(req.user.id, areaId);
@@ -67,14 +77,24 @@ export class TeachersController {
 
   // ── Professor: minha área ─────────────────────────────────────────────────
 
-  @Get('my-area')
-  getMyArea(@Req() req: any) {
-    return this.teachersService.getMyArea(req.user.id);
+  @Get('my-areas')
+  getMyAreas(@Req() req: any) {
+    return this.teachersService.getMyAreas(req.user.id);
   }
 
-  @Post('my-area')
-  upsertMyArea(@Req() req: any, @Body() dto: CreateTeacherAreaDto) {
+  @Get('my-areas/:areaId')
+  getMyAreaById(@Req() req: any, @Param('areaId') areaId: string) {
+    return this.teachersService.getMyAreaById(req.user.id, areaId);
+  }
+
+  @Post('my-areas')
+  createMyArea(@Req() req: any, @Body() dto: CreateTeacherAreaDto) {
     return this.teachersService.upsertMyArea(req.user.id, dto);
+  }
+
+  @Post('my-areas/:areaId')
+  updateMyArea(@Req() req: any, @Param('areaId') areaId: string, @Body() dto: CreateTeacherAreaDto) {
+    return this.teachersService.upsertMyArea(req.user.id, dto, areaId);
   }
 
   // ── Simulação de taxas ─────────────────────────────────────────────────────
@@ -87,22 +107,22 @@ export class TeachersController {
 
   // ── Professor: aulas ──────────────────────────────────────────────────────
 
-  @Get('my-area/lessons')
-  getMyLessons(@Req() req: any) {
-    return this.teachersService.getMyLessons(req.user.id);
+  @Get('my-areas/:areaId/lessons')
+  getMyLessons(@Req() req: any, @Param('areaId') areaId: string) {
+    return this.teachersService.getMyLessons(req.user.id, areaId);
   }
 
-  @Post('my-area/lessons')
-  createLesson(@Req() req: any, @Body() dto: CreateLessonDto) {
-    return this.teachersService.createLesson(req.user.id, dto);
+  @Post('my-areas/:areaId/lessons')
+  createLesson(@Req() req: any, @Param('areaId') areaId: string, @Body() dto: CreateLessonDto) {
+    return this.teachersService.createLesson(req.user.id, areaId, dto);
   }
 
-  @Delete('my-area/lessons/:lessonId')
+  @Delete('my-areas/:areaId/lessons/:lessonId')
   deleteLesson(@Req() req: any, @Param('lessonId') lessonId: string) {
     return this.teachersService.deleteLesson(req.user.id, lessonId);
   }
 
-  @Post('my-area/lessons/:lessonId/upload')
+  @Post('my-areas/:areaId/lessons/:lessonId/upload')
   @UseInterceptors(FileInterceptor('file'))
   uploadLessonFile(
     @Req() req: any,
@@ -123,10 +143,78 @@ export class TeachersController {
     );
   }
 
+  @Post('my-areas/:areaId/banner')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadAreaBanner(
+    @Req() req: any,
+    @Param('areaId') areaId: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [new MaxFileSizeValidator({ maxSize: 10 * 1024 * 1024 })],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    return this.teachersService.uploadAreaBanner(
+      req.user.id,
+      areaId,
+      file.buffer,
+      file.mimetype,
+      file.originalname,
+    );
+  }
+
   // ── Professor: alunos ─────────────────────────────────────────────────────
 
   @Get('my-students')
   getMyStudents(@Req() req: any) {
     return this.teachersService.getMyStudents(req.user.id);
+  }
+
+  // ── Professor: Sections, Modules, and Notices ──────────────────────────────
+
+  @Get('my-areas/:areaId/sections')
+  getAreaSections(@Req() req: any, @Param('areaId') areaId: string) {
+    return this.teachersService.getAreaSections(req.user.id, areaId);
+  }
+
+  @Post('my-areas/:areaId/sections')
+  createSection(@Req() req: any, @Param('areaId') areaId: string, @Body() dto: any) {
+    return this.teachersService.createSection(req.user.id, areaId, dto);
+  }
+
+  @Delete('sections/:sectionId')
+  deleteSection(@Req() req: any, @Param('sectionId') sectionId: string) {
+    return this.teachersService.deleteSection(req.user.id, sectionId);
+  }
+
+  @Get('sections/:sectionId/modules')
+  getSectionModules(@Req() req: any, @Param('sectionId') sectionId: string) {
+    return this.teachersService.getSectionModules(req.user.id, sectionId);
+  }
+
+  @Post('sections/:sectionId/modules')
+  createModule(@Req() req: any, @Param('sectionId') sectionId: string, @Body() dto: any) {
+    return this.teachersService.createModule(req.user.id, sectionId, dto);
+  }
+
+  @Delete('modules/:moduleId')
+  deleteModule(@Req() req: any, @Param('moduleId') moduleId: string) {
+    return this.teachersService.deleteModule(req.user.id, moduleId);
+  }
+
+  @Get('my-areas/:areaId/notices')
+  getAreaNotices(@Req() req: any, @Param('areaId') areaId: string) {
+    return this.teachersService.getAreaNotices(req.user.id, areaId);
+  }
+
+  @Post('my-areas/:areaId/notices')
+  createNotice(@Req() req: any, @Param('areaId') areaId: string, @Body() dto: any) {
+    return this.teachersService.createNotice(req.user.id, areaId, dto);
+  }
+
+  @Delete('notices/:noticeId')
+  deleteNotice(@Req() req: any, @Param('noticeId') noticeId: string) {
+    return this.teachersService.deleteNotice(req.user.id, noticeId);
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Mail,
   Clock,
@@ -12,21 +12,33 @@ import {
   Loader2,
   CheckCircle2,
   Hash,
+  Camera,
+  ImagePlus,
+  Pencil,
+  Plus,
+  X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { apiGet, apiPost } from "@/lib/api";
+import { apiGet, apiPost, apiPatch, apiUpload } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/contexts/RoleContext";
 import { motion, AnimatePresence } from "framer-motion";
+import { TeacherBankDetailsModal } from "@/components/perfil/TeacherBankDetailsModal";
 
 interface Profile {
   id: string;
   role: "student" | "teacher";
   full_name: string | null;
+  avatar_url: string | null;
+  banner_url: string | null;
   learning_goals: string[] | null;
   interests: string[] | null;
   hours_per_day: number | null;
+  conta_bancaria?: string | null;
+  chave_pix?: string | null;
+  dia_repasse?: number | null;
+  preferencia_repasse?: "pix" | "transferencia_bancaria" | null;
 }
 
 interface AuthUser {
@@ -42,6 +54,16 @@ export default function PerfilPage() {
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
   const [switched, setSwitched] = useState(false);
+  const [isBankModalOpen, setIsBankModalOpen] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [editingHours, setEditingHours] = useState(false);
+  const [hoursValue, setHoursValue] = useState(2);
+  const [savingHours, setSavingHours] = useState(false);
+  const [hoursSaved, setHoursSaved] = useState(false);
+
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const bannerInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function load() {
@@ -59,6 +81,7 @@ export default function PerfilPage() {
       try {
         const p = await apiGet<Profile>("/profiles/me");
         setProfile(p);
+        setHoursValue(p?.hours_per_day ?? 2);
       } catch (err) {
         console.error("Erro ao carregar perfil", err);
       } finally {
@@ -68,9 +91,81 @@ export default function PerfilPage() {
     load();
   }, []);
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const updated = await apiUpload<Profile>("/profiles/me/avatar", file);
+      setProfile(updated);
+    } catch (err) {
+      console.error("Erro no upload do avatar", err);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingBanner(true);
+    try {
+      const updated = await apiUpload<Profile>("/profiles/me/banner", file);
+      setProfile(updated);
+    } catch (err) {
+      console.error("Erro no upload do banner", err);
+    } finally {
+      setUploadingBanner(false);
+    }
+  };
+
+  const saveHours = useCallback(async (value: number) => {
+    setSavingHours(true);
+    try {
+      const updated = await apiPatch<Profile>("/profiles/me", { hours_per_day: value });
+      setProfile(updated);
+      setHoursSaved(true);
+      setTimeout(() => setHoursSaved(false), 2000);
+    } catch (err) {
+      console.error("Erro ao salvar meta", err);
+    } finally {
+      setSavingHours(false);
+      setEditingHours(false);
+    }
+  }, []);
+
   const handleSwitchRole = async () => {
     if (!profile) return;
     const newRole = profile.role === "student" ? "teacher" : "student";
+    if (newRole === "teacher" && (!profile.conta_bancaria || !profile.chave_pix)) {
+      setIsBankModalOpen(true);
+      return;
+    }
+    await performSwitch(newRole);
+  };
+
+  const submitBankDetailsAndSwitch = async (bankData: any) => {
+    if (!profile) return;
+    setSwitching(true);
+    try {
+      const updated = await apiPost<Profile>("/profiles", {
+        ...profile,
+        ...bankData,
+        role: "teacher",
+      });
+      setProfile(updated);
+      setRole("teacher");
+      setIsBankModalOpen(false);
+      setSwitched(true);
+      setTimeout(() => setSwitched(false), 3000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  const performSwitch = async (newRole: "student" | "teacher") => {
     setSwitching(true);
     try {
       const updated = await apiPost<Profile>("/profiles", {
@@ -92,6 +187,7 @@ export default function PerfilPage() {
 
   const displayName = profile?.full_name || authUser?.full_name || "Usuário";
   const initials = displayName.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
+  const avatarSrc = profile?.avatar_url || authUser?.avatar_url;
 
   return (
     <motion.div 
@@ -111,22 +207,64 @@ export default function PerfilPage() {
         {/* Coluna Esquerda */}
         <div className="lg:col-span-4 space-y-6">
           <div className="group relative rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-all hover:shadow-md">
-            <div className="h-32 bg-slate-900 relative">
-               <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
+            {/* Banner com upload */}
+            <div 
+              className="h-32 relative cursor-pointer group/banner"
+              onClick={() => bannerInputRef.current?.click()}
+              style={{
+                background: profile?.banner_url 
+                  ? `url(${profile.banner_url}) center / cover no-repeat`
+                  : 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+              }}
+            >
+              <div className="absolute inset-0 bg-black/0 group-hover/banner:bg-black/40 transition-all flex items-center justify-center">
+                <div className="opacity-0 group-hover/banner:opacity-100 transition-opacity flex items-center gap-2 text-white text-xs font-bold bg-black/50 px-4 py-2 rounded-full backdrop-blur-sm">
+                  {uploadingBanner ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <ImagePlus className="h-4 w-4" />
+                      Alterar Banner
+                    </>
+                  )}
+                </div>
+              </div>
+              {!profile?.banner_url && (
+                <div className="absolute inset-0 opacity-20 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
+              )}
             </div>
+            <input ref={bannerInputRef} type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
+
             <div className="px-6 pb-8">
+              {/* Avatar com upload */}
               <div className="-mt-14 mb-5 relative inline-block">
-                {authUser?.avatar_url ? (
-                  <img
-                    src={authUser.avatar_url}
-                    alt={displayName}
-                    className="h-28 w-28 rounded-2xl border-4 border-white shadow-xl object-cover"
-                  />
-                ) : (
-                  <div className="h-28 w-28 rounded-2xl border-4 border-white shadow-xl bg-gradient-to-tr from-slate-800 to-slate-600 flex items-center justify-center">
-                    <span className="text-4xl font-bold text-white">{initials}</span>
+                <div 
+                  className="relative cursor-pointer group/avatar"
+                  onClick={() => avatarInputRef.current?.click()}
+                >
+                  {avatarSrc ? (
+                    <img
+                      src={avatarSrc}
+                      alt={displayName}
+                      className="h-28 w-28 rounded-2xl border-4 border-white shadow-xl object-cover"
+                    />
+                  ) : (
+                    <div className="h-28 w-28 rounded-2xl border-4 border-white shadow-xl bg-gradient-to-tr from-slate-800 to-slate-600 flex items-center justify-center">
+                      <span className="text-4xl font-bold text-white">{initials}</span>
+                    </div>
+                  )}
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover/avatar:bg-black/40 transition-all flex items-center justify-center border-4 border-transparent">
+                    <div className="opacity-0 group-hover/avatar:opacity-100 transition-opacity">
+                      {uploadingAvatar ? (
+                        <Loader2 className="h-6 w-6 animate-spin text-white" />
+                      ) : (
+                        <Camera className="h-6 w-6 text-white drop-shadow-lg" /> 
+                      )}
+                    </div>
                   </div>
-                )}
+                </div>
+                <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
                 <div className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-white shadow border border-slate-100 flex items-center justify-center text-slate-400">
                    <Sparkles className="h-4 w-4" />
                 </div>
@@ -150,7 +288,7 @@ export default function PerfilPage() {
             </div>
           </div>
 
-          {/* Meta Diária com design minimalista */}
+          {/* Meta Diária Editável */}
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
@@ -159,24 +297,87 @@ export default function PerfilPage() {
                 </div>
                 <h4 className="font-bold text-slate-800 text-sm">Meta de Estudo</h4>
               </div>
-              <span className="text-2xl font-black text-slate-900">
-                {profile?.hours_per_day ?? 0}<span className="text-sm font-medium text-slate-400">h</span>
-              </span>
+              <div className="flex items-center gap-2">
+                <AnimatePresence>
+                  {hoursSaved && (
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      className="flex items-center gap-1 text-emerald-600 text-xs font-bold"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Salvo
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                {!editingHours ? (
+                  <button 
+                    onClick={() => setEditingHours(true)}
+                    className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-50"
+                    title="Editar meta"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                ) : null}
+                <span className="text-2xl font-black text-slate-900">
+                  {editingHours ? hoursValue : (profile?.hours_per_day ?? 0)}<span className="text-sm font-medium text-slate-400">h</span>
+                </span>
+              </div>
             </div>
             
-            <div className="space-y-3">
-              <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(((profile?.hours_per_day || 0) / 12) * 100, 100)}%` }}
-                  className="h-full bg-orange-500 rounded-full"
+            {editingHours ? (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                className="space-y-4"
+              >
+                <input
+                  type="range"
+                  min={1}
+                  max={12}
+                  step={1}
+                  value={hoursValue}
+                  onChange={(e) => setHoursValue(Number(e.target.value))}
+                  className="w-full h-2 bg-slate-100 rounded-full appearance-none cursor-pointer accent-orange-500"
                 />
+                <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+                  <span>1h mínimo</span>
+                  <span>12h limite</span>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-bold text-xs"
+                    onClick={() => saveHours(hoursValue)}
+                    disabled={savingHours}
+                  >
+                    {savingHours ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar Meta"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl font-bold text-xs"
+                    onClick={() => { setEditingHours(false); setHoursValue(profile?.hours_per_day ?? 2); }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </motion.div>
+            ) : (
+              <div className="space-y-3">
+                <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(((profile?.hours_per_day || 0) / 12) * 100, 100)}%` }}
+                    className="h-full bg-orange-500 rounded-full"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 flex items-center justify-between font-medium">
+                  <span>0h sugerido</span>
+                  <span>12h limite</span>
+                </p>
               </div>
-              <p className="text-[11px] text-slate-400 flex items-center justify-between font-medium">
-                <span>0h sugerido</span>
-                <span>12h limite</span>
-              </p>
-            </div>
+            )}
           </div>
         </div>
 
@@ -189,35 +390,27 @@ export default function PerfilPage() {
             </h3>
 
             <div className="grid gap-8 md:grid-cols-2">
-              <div className="space-y-4">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Objetivos Atuais</label>
-                <div className="flex flex-wrap gap-2">
-                  {profile?.learning_goals?.length ? (
-                    profile.learning_goals.map(goal => (
-                      <span key={goal} className="px-3 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 text-xs font-semibold border border-indigo-100/50">
-                        {goal}
-                      </span>
-                    ))
-                  ) : (
-                    <EmptyTag label="Nenhum objetivo definido" />
-                  )}
-                </div>
-              </div>
+              <EditableTagList
+                label="Objetivos Atuais"
+                items={profile?.learning_goals ?? []}
+                colorScheme="indigo"
+                placeholder="Ex: Passar no ENEM"
+                onSave={async (items) => {
+                  const updated = await apiPatch<Profile>("/profiles/me", { learning_goals: items });
+                  setProfile(updated);
+                }}
+              />
 
-              <div className="space-y-4">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-400">Áreas de Interesse</label>
-                <div className="flex flex-wrap gap-2">
-                  {profile?.interests?.length ? (
-                    profile.interests.map(interest => (
-                      <span key={interest} className="px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 text-xs font-semibold border border-purple-100/50">
-                        {interest}
-                      </span>
-                    ))
-                  ) : (
-                    <EmptyTag label="Nenhum interesse listado" />
-                  )}
-                </div>
-              </div>
+              <EditableTagList
+                label="Áreas de Interesse"
+                items={profile?.interests ?? []}
+                colorScheme="purple"
+                placeholder="Ex: Física Quântica"
+                onSave={async (items) => {
+                  const updated = await apiPatch<Profile>("/profiles/me", { interests: items });
+                  setProfile(updated);
+                }}
+              />
             </div>
           </div>
 
@@ -277,6 +470,13 @@ export default function PerfilPage() {
           </div>
         </div>
       </div>
+
+      <TeacherBankDetailsModal 
+        isOpen={isBankModalOpen} 
+        onOpenChange={setIsBankModalOpen} 
+        onSubmit={submitBankDetailsAndSwitch} 
+        isLoading={switching} 
+      />
     </motion.div>
   );
 }
@@ -314,6 +514,104 @@ function RoleSelectorCard({ active, type, title, desc }: { active: boolean, type
       <h5 className="font-bold text-slate-900 mb-1">{title}</h5>
       <p className="text-xs text-slate-500 leading-relaxed">{desc}</p>
       {active && <div className="absolute top-3 right-3 h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />}
+    </div>
+  );
+}
+
+function EditableTagList({ label, items, colorScheme, placeholder, onSave }: {
+  label: string;
+  items: string[];
+  colorScheme: "indigo" | "purple";
+  placeholder: string;
+  onSave: (items: string[]) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [localItems, setLocalItems] = useState<string[]>(items);
+  const [newTag, setNewTag] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const bgClass = colorScheme === "indigo" ? "bg-indigo-50 text-indigo-700 border-indigo-100/50" : "bg-purple-50 text-purple-700 border-purple-100/50";
+  const btnClass = colorScheme === "indigo" ? "bg-indigo-100 text-indigo-600 hover:bg-indigo-200" : "bg-purple-100 text-purple-600 hover:bg-purple-200";
+
+  const handleAdd = () => {
+    const tag = newTag.trim();
+    if (tag && !localItems.includes(tag)) {
+      setLocalItems([...localItems, tag]);
+      setNewTag("");
+    }
+  };
+
+  const handleRemove = (tag: string) => {
+    setLocalItems(localItems.filter(t => t !== tag));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(localItems);
+      setEditing(false);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</label>
+        {!editing && (
+          <button onClick={() => { setEditing(true); setLocalItems(items); }} className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-50">
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {localItems.map(tag => (
+              <span key={tag} className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border", bgClass)}>
+                {tag}
+                <button onClick={() => handleRemove(tag)} className="hover:opacity-70 transition-opacity">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={newTag}
+              onChange={e => setNewTag(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && (e.preventDefault(), handleAdd())}
+              placeholder={placeholder}
+              className="flex-1 h-9 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/10 transition-all"
+            />
+            <button onClick={handleAdd} className={cn("h-9 w-9 rounded-xl flex items-center justify-center transition-colors", btnClass)}>
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" className="flex-1 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-xs" onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Salvar"}
+            </Button>
+            <Button size="sm" variant="outline" className="rounded-xl text-xs font-bold" onClick={() => setEditing(false)}>
+              Cancelar
+            </Button>
+          </div>
+        </motion.div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {items.length > 0 ? items.map(tag => (
+            <span key={tag} className={cn("px-3 py-1.5 rounded-xl text-xs font-semibold border", bgClass)}>
+              {tag}
+            </span>
+          )) : (
+            <EmptyTag label={colorScheme === "indigo" ? "Nenhum objetivo definido" : "Nenhum interesse listado"} />
+          )}
+        </div>
+      )}
     </div>
   );
 }

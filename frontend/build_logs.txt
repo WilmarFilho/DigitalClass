@@ -1,0 +1,40 @@
+
+> build
+> next build
+
+Ôû▓ Next.js 16.1.6 (Turbopack)
+- Environments: .env.production, .env
+
+  Creating an optimized production build ...
+
+> Build error occurred
+Error: Turbopack build failed with 1 errors:
+./components/perfil/TeacherBankDetailsModal.tsx:4:1
+Module not found: Can't resolve '@/components/ui/dialog'
+  2 | import { motion, AnimatePresence } from "framer-motion";
+  3 | import { Copy, AlertCircle, Building, Wallet, Check, ChevronDown } from "lucide-react";
+> 4 | import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  5 | import { Button } from "@/components/ui/button";
+  6 |
+  7 | interface BankDetailsModalProps {
+
+Import map: aliased to relative './components/ui/dialog' inside of [project]/
+
+
+Import traces:
+  Client Component Browser:
+    ./components/perfil/TeacherBankDetailsModal.tsx [Client Component Browser]
+    ./app/protected/perfil/page.tsx [Client Component Browser]
+    ./app/protected/perfil/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./components/perfil/TeacherBankDetailsModal.tsx [Client Component SSR]
+    ./app/protected/perfil/page.tsx [Client Component SSR]
+    ./app/protected/perfil/page.tsx [Server Component]
+
+https://nextjs.org/docs/messages/module-not-found
+
+
+    at <unknown> (./components/perfil/TeacherBankDetailsModal.tsx:4:1)
+    at <unknown> (https://nextjs.org/docs/messages/module-not-found)

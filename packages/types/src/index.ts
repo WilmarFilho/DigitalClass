@@ -4,10 +4,15 @@ export interface Profile {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
+  banner_url: string | null;
   role: Role;
   learning_goals: string[] | null;
   interests: string[] | null;
   hours_per_day: number | null;
+  conta_bancaria?: string | null;
+  chave_pix?: string | null;
+  dia_repasse?: number | null;
+  preferencia_repasse?: 'pix' | 'transferencia_bancaria' | null;
   created_at: string;
 }
 
@@ -43,4 +48,8 @@ export interface CompleteProfileDto {
   learning_goals?: string[];
   interests?: string[];
   hours_per_day?: number;
+  conta_bancaria?: string;
+  chave_pix?: string;
+  dia_repasse?: number;
+  preferencia_repasse?: 'pix' | 'transferencia_bancaria';
 }

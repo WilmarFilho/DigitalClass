@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Send, Loader2, Bot } from "lucide-react";
+import { MessageCircle, Send, Loader2, Bot, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiGet, apiPost } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -11,6 +12,11 @@ interface ChatPanelProps {
   sessionId: string;
   subjectColor?: string;
   subjectTitle?: string;
+}
+
+interface SessionHighlight {
+  id: string;
+  text: string;
 }
 
 interface ChatMessage {
@@ -24,10 +30,21 @@ export function ChatPanel({
   subjectTitle = "este tema",
 }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [highlights, setHighlights] = useState<SessionHighlight[]>([]);
   const [input, setInput] = useState("");
   const [loadingIntro, setLoadingIntro] = useState(true);
+  const [savingHighlight, setSavingHighlight] = useState(false);
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Floating reference button state
+  const [selectionRange, setSelectionRange] = useState<{
+    text: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [quotedText, setQuotedText] = useState<string | null>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -39,17 +56,99 @@ export function ChatPanel({
   }, [messages]);
 
   useEffect(() => {
+    const dismissPopup = () => setSelectionRange(null);
+    document.addEventListener("mousedown", dismissPopup);
+    return () => document.removeEventListener("mousedown", dismissPopup);
+  }, []);
+
+  const handleTextSelection = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    setTimeout(async () => {
+      const selection = window.getSelection();
+      if (!selection) return;
+      
+      const text = selection.toString().trim();
+      if (!text || text.length < 3) return;
+
+      const anchorNode = selection.anchorNode;
+      if (anchorNode && anchorNode.parentElement && !anchorNode.parentElement.closest('.assistant-message')) {
+        return;
+      }
+
+      const exists = highlights.some(h => h.text.includes(text) || text.includes(h.text));
+      if (!exists && !savingHighlight) {
+        setSavingHighlight(true);
+        try {
+          const newHighlight = await apiPost<SessionHighlight>(
+            `/study/sessions/${sessionId}/chat/highlights`,
+            { text }
+          );
+          setHighlights(prev => [...prev, newHighlight]);
+          selection.removeAllRanges();
+        } catch (err) {
+          console.error("Failed to save highlight:", err);
+        } finally {
+          setSavingHighlight(false);
+        }
+      }
+    }, 0);
+  };
+
+  const handleMouseEnterHighlight = (e: React.MouseEvent, textString: string) => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    const rect = e.currentTarget.getBoundingClientRect();
+    setSelectionRange({
+      text: textString,
+      x: rect.left + rect.width / 2,
+      y: rect.top - 10,
+    });
+  };
+
+  const handleMouseLeaveHighlight = () => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setSelectionRange(null);
+    }, 150);
+  };
+
+  const handleMouseEnterPopup = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+  };
+
+  const handleMouseLeavePopup = () => {
+    handleMouseLeaveHighlight();
+  };
+
+  const handleQuoteInChat = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (selectionRange) {
+      setQuotedText(selectionRange.text);
+      setSelectionRange(null);
+      window.getSelection()?.removeAllRanges();
+      
+      // Focus input
+      setTimeout(() => {
+        const inputEl = document.getElementById("chat-input");
+        if (inputEl) inputEl.focus();
+      }, 0);
+    }
+  };
+
+  useEffect(() => {
     async function loadChat() {
       setLoadingIntro(true);
       try {
-        const existing = await apiGet<Array<{ role: string; content: string }>>(
-          "/study/sessions/" + sessionId + "/chat/messages"
-        );
-        if (existing && existing.length > 0) {
-          setMessages(existing as ChatMessage[]);
+        const sessionDetailPromise = apiGet<any>("/study/sessions/" + sessionId + "/detail").catch(() => null);
+        const detail = await sessionDetailPromise;
+        if (detail && detail.highlights) {
+          setHighlights(detail.highlights);
+        }
+        if (detail && detail.chat_messages && detail.chat_messages.length > 0) {
+          setMessages(detail.chat_messages);
           setLoadingIntro(false);
           return;
         }
+
         const { message } = await apiGet<{ message: string }>(
           "/study/sessions/" + sessionId + "/chat/intro"
         );
@@ -73,14 +172,19 @@ export function ChatPanel({
     if (!text || sending) return;
 
     setInput("");
-    setMessages((m) => [...m, { role: "user", content: text }]);
+    
+    // Construct the payload with quoted text if present
+    const fullText = quotedText ? `> "${quotedText}"\n\n${text}` : text;
+    setQuotedText(null);
+    
+    setMessages((m) => [...m, { role: "user", content: fullText }]);
     setSending(true);
 
     try {
       const { message } = await apiPost<{ message: string }>(
         "/study/sessions/" + sessionId + "/chat",
         {
-          message: text,
+          message: fullText,
           history: messages.map((m) => ({ role: m.role, content: m.content })),
         }
       );
@@ -96,7 +200,40 @@ export function ChatPanel({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-xl shadow-slate-200/50 overflow-hidden">
+    <div className="flex relative h-full min-h-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-xl shadow-slate-200/50 overflow-hidden">
+      
+      {/* Pop-up de Citação */}
+      {typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {selectionRange && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 10 }}
+              className="fixed z-50 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-800 p-1.5 shadow-xl pointer-events-auto"
+              onMouseEnter={handleMouseEnterPopup}
+              onMouseLeave={handleMouseLeavePopup}
+              style={{
+                left: selectionRange.x,
+                top: selectionRange.y - 10,
+                transform: 'translateX(-50%)'
+              }}
+            >
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 px-3 text-xs font-bold text-white hover:bg-slate-700 hover:text-white"
+                onClick={handleQuoteInChat}
+              >
+                <MessageCircle className="mr-2 h-3.5 w-3.5" />
+                Adicionar ao Chat
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
       {/* Header com Gradiente Sutil */}
       <div 
         className="shrink-0 px-6 py-5 border-b border-slate-100"
@@ -120,6 +257,7 @@ export function ChatPanel({
       {/* Área de Mensagens */}
       <div
         ref={scrollRef}
+        onMouseUp={handleTextSelection}
         className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:20px_20px] [background-position:center]"
       >
         {loadingIntro && (
@@ -130,39 +268,98 @@ export function ChatPanel({
         )}
 
         <AnimatePresence initial={false}>
-          {messages.map((msg, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              className={cn(
-                "flex gap-3 items-end",
-                msg.role === "user" ? "flex-row-reverse" : "flex-row"
-              )}
-            >
-              <div
-                className={cn(
-                  "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-black text-[10px] shadow-sm mb-1",
-                  msg.role === "assistant" 
-                    ? "bg-white border border-slate-200 text-slate-400" 
-                    : "bg-slate-900 text-white"
-                )}
-              >
-                {msg.role === "assistant" ? <Bot className="h-4 w-4 text-[#6D44CC]" /> : "EU"}
-              </div>
+          {messages.map((msg, i) => {
+            let renderedContent = <>{msg.content}</>;
+            
+            if (msg.role === "assistant" && highlights.length > 0) {
+              let text = msg.content;
+              const substrings: { start: number; end: number; match: string }[] = [];
               
-              <div
+              highlights.forEach(h => {
+                let startIndex = 0;
+                let idx;
+                while ((idx = text.indexOf(h.text, startIndex)) > -1) {
+                  substrings.push({ start: idx, end: idx + h.text.length, match: h.text });
+                  startIndex = idx + h.text.length;
+                }
+              });
+
+              if (substrings.length > 0) {
+                substrings.sort((a, b) => a.start - b.start);
+                
+                // Merge overlapping or adjacent ranges
+                const mergedRanges = [substrings[0]];
+                for (let j = 1; j < substrings.length; j++) {
+                  const last = mergedRanges[mergedRanges.length - 1];
+                  const curr = substrings[j];
+                  if (curr.start <= last.end) {
+                    last.end = Math.max(last.end, curr.end);
+                  } else {
+                    mergedRanges.push(curr);
+                  }
+                }
+
+                const parts = [];
+                let lastEnd = 0;
+                mergedRanges.forEach((range, rmIdx) => {
+                  if (range.start > lastEnd) {
+                    parts.push(<span key={`t-${rmIdx}`}>{text.slice(lastEnd, range.start)}</span>);
+                  }
+                  parts.push(
+                    <mark 
+                      key={`m-${rmIdx}`} 
+                      className="bg-yellow-200 text-slate-900 rounded-sm px-0.5 shadow-sm cursor-pointer relative transition-colors hover:bg-yellow-300"
+                      onMouseEnter={(e) => handleMouseEnterHighlight(e, text.slice(range.start, range.end))}
+                      onMouseLeave={handleMouseLeaveHighlight}
+                    >
+                      {text.slice(range.start, range.end)}
+                    </mark>
+                  );
+                  lastEnd = range.end;
+                });
+                
+                if (lastEnd < text.length) {
+                  parts.push(<span key={`t-end`}>{text.slice(lastEnd)}</span>);
+                }
+                
+                renderedContent = <>{parts}</>;
+              }
+            }
+
+            return (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
                 className={cn(
-                  "max-w-[85%] rounded-[20px] px-5 py-3 text-sm leading-relaxed shadow-sm font-medium",
-                  msg.role === "user"
-                    ? "bg-[#6D44CC] text-white rounded-br-none"
-                    : "bg-white border border-slate-100 text-slate-700 rounded-bl-none"
+                  "flex gap-3 items-end",
+                  msg.role === "user" ? "flex-row-reverse" : "flex-row"
                 )}
               >
-                <p className="whitespace-pre-wrap">{msg.content}</p>
-              </div>
-            </motion.div>
-          ))}
+                <div
+                  className={cn(
+                    "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-black text-[10px] shadow-sm mb-1",
+                    msg.role === "assistant" 
+                      ? "bg-white border border-slate-200 text-slate-400" 
+                      : "bg-slate-900 text-white"
+                  )}
+                >
+                  {msg.role === "assistant" ? <Bot className="h-4 w-4 text-[#6D44CC]" /> : "EU"}
+                </div>
+                
+                <div
+                  className={cn(
+                    "max-w-[85%] rounded-[20px] px-5 py-3 text-sm leading-relaxed shadow-sm font-medium",
+                    msg.role === "user"
+                      ? "bg-[#6D44CC] text-white rounded-br-none"
+                      : "bg-white border border-slate-100 text-slate-700 rounded-bl-none assistant-message"
+                  )}
+                >
+                  <p className="whitespace-pre-wrap">{renderedContent}</p>
+                </div>
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
         
         {sending && (
@@ -175,7 +372,26 @@ export function ChatPanel({
       </div>
 
       {/* Input de Mensagem */}
-      <div className="shrink-0 p-4 bg-white border-t border-slate-100">
+      <div className="shrink-0 p-4 bg-white border-t border-slate-100 flex flex-col gap-3">
+        {quotedText && (
+          <div className="relative flex items-start gap-3 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 shadow-sm mx-1">
+            <div className="flex-1 min-w-0">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-yellow-600 mb-1">
+                Respondendo a citação
+              </span>
+              <p className="text-xs font-medium text-slate-700 leading-snug line-clamp-2 italic">
+                "{quotedText}"
+              </p>
+            </div>
+            <button 
+              onClick={() => setQuotedText(null)}
+              className="mt-0.5 text-yellow-600 hover:text-yellow-800 transition-colors p-1 rounded-md hover:bg-yellow-100/50"
+              title="Remover citação"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         <div className="relative flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1.5 focus-within:border-[#6D44CC] transition-all focus-within:ring-4 focus-within:ring-[#6D44CC]/5">
           <input
             type="text"

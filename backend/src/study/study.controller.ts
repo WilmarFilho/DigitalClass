@@ -79,6 +79,15 @@ export class StudyController {
     return { message: text };
   }
 
+  @Post('sessions/:id/chat/highlights')
+  async saveHighlight(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() body: { text: string },
+  ) {
+    return this.studyService.saveHighlight(req.user.id, id, body.text);
+  }
+
   @Post('sessions/:id/quiz/generate')
   async generateQuiz(
     @Req() req: any,

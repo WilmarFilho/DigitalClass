@@ -1,0 +1,54 @@
+
+> build
+> next build
+
+Ôû▓ Next.js 16.1.6 (Turbopack)
+- Environments: .env.production, .env
+
+  Creating an optimized production build ...
+Ô£ô Compiled successfully in 4.5s
+  Running TypeScript ...
+  Collecting page data using 19 workers ...
+  Generating static pages using 19 workers (0/25) ...
+  Generating static pages using 19 workers (6/25) 
+  Generating static pages using 19 workers (12/25) 
+  Generating static pages using 19 workers (18/25) 
+Ô£ô Generating static pages using 19 workers (25/25) in 413.7ms
+  Finalizing page optimization ...
+
+Route (app)
+Ôöî ãÆ /
+Ôö£ Ôùï /_not-found
+Ôö£ ãÆ /api/proxy/[...path]
+Ôö£ Ôùï /auth
+Ôö£ ãÆ /auth/callback
+Ôö£ ãÆ /auth/confirm
+Ôö£ ãÆ /auth/error
+Ôö£ Ôùï /auth/forgot-password
+Ôö£ Ôùï /auth/sign-up-success
+Ôö£ Ôùï /auth/update-password
+Ôö£ Ôùï /onboarding
+Ôö£ ãÆ /professor
+Ôö£ ãÆ /professor/meus-alunos
+Ôö£ ãÆ /professor/minha-area
+Ôö£ ãÆ /professor/minha-area/[id]
+Ôö£ ãÆ /professor/minha-area/nova
+Ôö£ ãÆ /protected
+Ôö£ ãÆ /protected/calendario
+Ôö£ ãÆ /protected/configuracoes
+Ôö£ ãÆ /protected/estudos
+Ôö£ ãÆ /protected/estudos/detalhe
+Ôö£ ãÆ /protected/estudos/sessao
+Ôö£ ãÆ /protected/materias
+Ôö£ ãÆ /protected/perfil
+Ôö£ ãÆ /protected/professores
+Ôö£ ãÆ /protected/professores/area/[areaId]
+Ôö£ ãÆ /protected/professores/checkout/cancelado
+Ôöö ãÆ /protected/professores/checkout/sucesso
+
+
+ãÆ Proxy (Middleware)
+
+Ôùï  (Static)   prerendered as static content
+ãÆ  (Dynamic)  server-rendered on demand
+

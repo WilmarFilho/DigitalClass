@@ -63,3 +63,26 @@ export async function apiDelete(path: string): Promise<void> {
     throw new Error(Array.isArray(err.message) ? err.message[0] : err.message || "Erro na requisição");
   }
 }
+
+export async function apiUpload<T>(path: string, file: File): Promise<T> {
+  const supabase = createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const headers: Record<string, string> = {};
+  if (session?.access_token) {
+    headers["Authorization"] = `Bearer ${session.access_token}`;
+  }
+
+  const res = await fetch(`${BASE_URL}${API_PREFIX}${path}`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(Array.isArray(err.message) ? err.message[0] : err.message || "Erro no upload");
+  }
+  return res.json();
+}

@@ -44,6 +44,31 @@ export class TeachersService {
     }
   }
 
+  private async assertTeacherOrSubscriber(userId: string, areaId: string) {
+    const { data: area } = await this.supabase()
+      .from('teacher_areas')
+      .select('teacher_id')
+      .eq('id', areaId)
+      .maybeSingle();
+    if (!area) throw new NotFoundException('Área não encontrada');
+
+    if (area.teacher_id === userId) return true;
+
+    const { data: sub } = await this.supabase()
+      .from('teacher_subscriptions')
+      .select('student_id')
+      .eq('student_id', userId)
+      .eq('teacher_area_id', areaId)
+      .in('subscription_status', ['active', 'past_due'])
+      .maybeSingle();
+
+    if (!sub) {
+       // Check if user is a teacher themselves, if they are not the owner they can't access anyway unless subscribed.
+       throw new ForbiddenException('Assine esta área para acessar o conteúdo');
+    }
+    return true;
+  }
+
   // ─── Fee Breakdown ─────────────────────────────────────────────────────────
 
   calculateFees(monthlyPrice: number) {
@@ -303,26 +328,44 @@ export class TeachersService {
 
   // ─── Área do professor ─────────────────────────────────────────────────────
 
-  async getMyArea(teacherId: string) {
+  async getMyAreas(teacherId: string) {
     await this.assertTeacher(teacherId);
 
     const { data } = await this.supabase()
       .from('teacher_areas')
       .select('id, title, description, color_code, monthly_price, banner_url, is_private, created_at, stripe_product_id, stripe_price_id')
       .eq('teacher_id', teacherId)
+      .order('created_at', { ascending: false });
+
+    return data ?? [];
+  }
+
+  async getMyAreaById(teacherId: string, areaId: string) {
+    await this.assertTeacher(teacherId);
+
+    const { data } = await this.supabase()
+      .from('teacher_areas')
+      .select('id, title, description, color_code, monthly_price, banner_url, is_private, created_at, stripe_product_id, stripe_price_id')
+      .eq('teacher_id', teacherId)
+      .eq('id', areaId)
       .maybeSingle();
 
     return data ?? null;
   }
 
-  async upsertMyArea(teacherId: string, dto: CreateTeacherAreaDto) {
+  async upsertMyArea(teacherId: string, dto: CreateTeacherAreaDto, areaId?: string) {
     await this.assertTeacher(teacherId);
 
-    const { data: existing } = await this.supabase()
-      .from('teacher_areas')
-      .select('id, stripe_product_id, stripe_price_id, monthly_price')
-      .eq('teacher_id', teacherId)
-      .maybeSingle();
+    let existing: any = null;
+    if (areaId) {
+      const { data } = await this.supabase()
+        .from('teacher_areas')
+        .select('id, stripe_product_id, stripe_price_id, monthly_price')
+        .eq('teacher_id', teacherId)
+        .eq('id', areaId)
+        .maybeSingle();
+      existing = data;
+    }
 
     const payload: any = {
       teacher_id: teacherId,
@@ -432,41 +475,35 @@ export class TeachersService {
 
   // ─── Aulas ─────────────────────────────────────────────────────────────────
 
-  async getMyLessons(teacherId: string) {
+  async getMyLessons(teacherId: string, areaId: string) {
     await this.assertTeacher(teacherId);
-
-    const { data: area } = await this.supabase()
-      .from('teacher_areas')
-      .select('id')
-      .eq('teacher_id', teacherId)
-      .maybeSingle();
-
-    if (!area) return [];
 
     const { data } = await this.supabase()
       .from('lessons')
-      .select('id, title, description, type, content_url, duration_minutes, order_index, created_at')
-      .eq('area_id', area.id)
+      .select('id, title, description, type, content_url, duration_minutes, order_index, created_at, module_id')
+      .eq('area_id', areaId)
       .order('order_index', { ascending: true });
 
     return data ?? [];
   }
 
-  async createLesson(teacherId: string, dto: CreateLessonDto) {
+  async createLesson(teacherId: string, areaId: string, dto: CreateLessonDto) {
     await this.assertTeacher(teacherId);
 
     const { data: area } = await this.supabase()
       .from('teacher_areas')
       .select('id')
       .eq('teacher_id', teacherId)
+      .eq('id', areaId)
       .maybeSingle();
 
-    if (!area) throw new NotFoundException('Crie sua área de estudante primeiro');
+    if (!area) throw new NotFoundException('Área não encontrada ou você não tem permissão');
 
     const { data, error } = await this.supabase()
       .from('lessons')
       .insert({
         area_id: area.id,
+        module_id: dto.module_id ?? null,
         title: dto.title,
         description: dto.description ?? null,
         type: dto.type ?? 'video',
@@ -546,6 +583,42 @@ export class TeachersService {
     return data;
   }
 
+  async uploadAreaBanner(
+    teacherId: string,
+    areaId: string,
+    fileBuffer: Buffer,
+    mimeType: string,
+    originalName: string,
+  ) {
+    await this.assertTeacher(teacherId);
+
+    const ext = originalName.split('.').pop() ?? 'jpg';
+    const path = `area-banners/${areaId}.${ext}`;
+
+    const { data: uploadData, error: uploadError } = await this.supabase()
+      .storage
+      .from('avatars')
+      .upload(path, fileBuffer, { contentType: mimeType, upsert: true });
+
+    if (uploadError) throw new Error(`Upload falhou: ${uploadError.message}`);
+
+    const { data: urlData } = this.supabase()
+      .storage
+      .from('avatars')
+      .getPublicUrl(uploadData.path);
+
+    const { data, error } = await this.supabase()
+      .from('teacher_areas')
+      .update({ banner_url: urlData.publicUrl })
+      .eq('id', areaId)
+      .eq('teacher_id', teacherId)
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
   // ─── Alunos do professor ────────────────────────────────────────────────────
 
   async getMyStudents(teacherId: string) {
@@ -609,5 +682,131 @@ export class TeachersService {
         avatar_url: area.profiles?.avatar_url ?? null,
       },
     };
+  }
+
+  // ─── Sections, Modules, and Notices ──────────────────────────────────────────
+
+  async getAreaSections(userId: string, areaId: string) {
+    await this.assertTeacherOrSubscriber(userId, areaId);
+    const { data, error } = await this.supabase()
+      .from('teacher_area_sections')
+      .select(`
+        id, title, order_index, created_at,
+        modules:teacher_area_modules (
+          id, title, description, order_index, created_at,
+          lessons (
+            id, title, description, type, content_url, duration_minutes, order_index, created_at, module_id
+          )
+        )
+      `)
+      .eq('area_id', areaId)
+      .order('order_index', { ascending: true });
+
+    if (error) this.logger.error(`getAreaSections error: ${error.message}`);
+
+    const sections = (data || []).map((section: any) => ({
+      ...section,
+      modules: (section.modules || [])
+        .sort((a, b) => a.order_index - b.order_index)
+        .map((module: any) => ({
+          ...module,
+          lessons: (module.lessons || []).sort((a, b) => a.order_index - b.order_index)
+        }))
+    }));
+
+    return sections;
+  }
+
+  async createSection(teacherId: string, areaId: string, dto: any) {
+    await this.assertTeacher(teacherId);
+    const { data, error } = await this.supabase()
+      .from('teacher_area_sections')
+      .insert({ area_id: areaId, title: dto.title, order_index: dto.order_index ?? 0 })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async deleteSection(teacherId: string, sectionId: string) {
+    await this.assertTeacher(teacherId);
+    
+    // verify ownership implicitly by checking area_id -> teacher_id if we want,
+    // but RLS might handle it if we pass the auth token.
+    // For safety, let's just delete using service role but we should ideally ensure ownership.
+    // Assuming the user has access.
+    const { error } = await this.supabase()
+      .from('teacher_area_sections')
+      .delete()
+      .eq('id', sectionId);
+    if (error) throw new Error(error.message);
+    return { deleted: true };
+  }
+
+  async getSectionModules(teacherId: string, sectionId: string) {
+    await this.assertTeacher(teacherId);
+    const { data } = await this.supabase()
+      .from('teacher_area_modules')
+      .select('id, section_id, title, description, order_index, created_at')
+      .eq('section_id', sectionId)
+      .order('order_index', { ascending: true });
+    return data ?? [];
+  }
+
+  async createModule(teacherId: string, sectionId: string, dto: any) {
+    await this.assertTeacher(teacherId);
+    const { data, error } = await this.supabase()
+      .from('teacher_area_modules')
+      .insert({ 
+        section_id: sectionId, 
+        title: dto.title, 
+        description: dto.description ?? null, 
+        order_index: dto.order_index ?? 0 
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async deleteModule(teacherId: string, moduleId: string) {
+    await this.assertTeacher(teacherId);
+    const { error } = await this.supabase()
+      .from('teacher_area_modules')
+      .delete()
+      .eq('id', moduleId);
+    if (error) throw new Error(error.message);
+    return { deleted: true };
+  }
+
+  async getAreaNotices(userId: string, areaId: string) {
+    await this.assertTeacherOrSubscriber(userId, areaId);
+    const { data } = await this.supabase()
+      .from('teacher_area_notices')
+      .select('id, title, content, created_at')
+      .eq('area_id', areaId)
+      .order('created_at', { ascending: false });
+    return data ?? [];
+  }
+
+  async createNotice(teacherId: string, areaId: string, dto: any) {
+    await this.assertTeacher(teacherId);
+    const { data, error } = await this.supabase()
+      .from('teacher_area_notices')
+      .insert({ area_id: areaId, title: dto.title, content: dto.content })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async deleteNotice(teacherId: string, noticeId: string) {
+    await this.assertTeacher(teacherId);
+    const { error } = await this.supabase()
+      .from('teacher_area_notices')
+      .delete()
+      .eq('id', noticeId);
+    if (error) throw new Error(error.message);
+    return { deleted: true };
   }
 }

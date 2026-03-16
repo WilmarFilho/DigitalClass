@@ -6,6 +6,10 @@ export class CreateLessonDto {
 
   @IsString()
   @IsOptional()
+  module_id?: string;
+
+  @IsString()
+  @IsOptional()
   description?: string;
 
   @IsIn(['video', 'pdf'])

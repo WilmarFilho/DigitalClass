@@ -4,6 +4,13 @@ import { randomUUID } from 'crypto';
 import OpenAI from 'openai';
 import { SupabaseService } from '../supabase/supabase.service';
 
+export interface SessionHighlight {
+  id: string;
+  session_id: string;
+  text: string;
+  created_at: string;
+}
+
 export interface SessionWithSubject {
   id: string;
   subject_id: string | null;
@@ -13,6 +20,7 @@ export interface SessionWithSubject {
   mood_rating: number | null;
   created_at: string;
   subjects: { id: string; title: string; color_code: string } | null;
+  highlights?: SessionHighlight[];
 }
 
 @Injectable()
@@ -448,9 +456,16 @@ PAPEL:
       .eq('session_id', sessionId)
       .order('created_at', { ascending: true });
 
+    const { data: highlights } = await supabase
+      .from('study_session_highlights')
+      .select('id, session_id, text, created_at')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: true });
+
     return {
       ...session,
       chat_messages: chatMessages ?? [],
+      highlights: highlights ?? [],
       ...assetsData,
     };
   }
@@ -475,5 +490,26 @@ PAPEL:
       .eq('id', sessionId)
       .eq('student_id', userId);
     if (error) throw new Error(error.message);
+  }
+
+  async saveHighlight(userId: string, sessionId: string, text: string): Promise<SessionHighlight> {
+    await this.getSession(userId, sessionId); // check if session exists and belongs to user
+    const supabase = this.supabaseService.getClient();
+    
+    const { data, error } = await supabase
+      .from('study_session_highlights')
+      .insert({
+        session_id: sessionId,
+        text,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      this.logger.error(`Error saving highlight for session ${sessionId}: ${error.message}`);
+      throw new Error(error.message);
+    }
+
+    return data;
   }
 }

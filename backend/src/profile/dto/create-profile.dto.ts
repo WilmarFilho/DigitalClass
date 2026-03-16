@@ -7,6 +7,14 @@ export class CreateProfileDto implements CompleteProfileDto {
   full_name?: string;
 
   @IsString()
+  @IsOptional()
+  avatar_url?: string;
+
+  @IsString()
+  @IsOptional()
+  banner_url?: string;
+
+  @IsString()
   @IsIn(['student', 'teacher'])
   role!: Role;
 
@@ -23,4 +31,22 @@ export class CreateProfileDto implements CompleteProfileDto {
   @IsNumber()
   @IsOptional()
   hours_per_day?: number;
+
+  @IsString()
+  @IsOptional()
+  conta_bancaria?: string;
+
+  @IsString()
+  @IsOptional()
+  chave_pix?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @IsIn([5, 10, 15])
+  dia_repasse?: number;
+
+  @IsString()
+  @IsOptional()
+  @IsIn(['pix', 'transferencia_bancaria'])
+  preferencia_repasse?: 'pix' | 'transferencia_bancaria';
 }
