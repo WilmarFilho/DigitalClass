@@ -62,7 +62,7 @@ export class TeachersController {
 
   @Post('areas/:areaId/checkout')
   createCheckoutSession(@Req() req: any, @Param('areaId') areaId: string) {
-    return this.teachersService.createCheckoutSession(req.user.id, areaId);
+    return this.teachersService.createCheckoutSession(req.user.id, req.user.email, areaId);
   }
 
   // ── Professor: minha área ─────────────────────────────────────────────────

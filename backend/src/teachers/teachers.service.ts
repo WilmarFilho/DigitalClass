@@ -229,7 +229,7 @@ export class TeachersService {
 
   // ─── Stripe Checkout ───────────────────────────────────────────────────────
 
-  async createCheckoutSession(studentId: string, areaId: string) {
+  async createCheckoutSession(studentId: string, studentEmail: string, areaId: string) {
     // 1. Get the area and its Stripe price
     const { data: area } = await this.supabase()
       .from('teacher_areas')
@@ -257,21 +257,19 @@ export class TeachersService {
       throw new ForbiddenException('Você já possui uma assinatura ativa nesta área.');
     }
 
-    // 3. Get or create Stripe customer
+    // 3. Get or create Stripe customer (email from JWT, name from profiles)
     const { data: profile } = await this.supabase()
       .from('profiles')
-      .select('id, full_name, email, stripe_customer_id')
+      .select('id, full_name, stripe_customer_id')
       .eq('id', studentId)
       .maybeSingle();
 
-    if (!profile) throw new NotFoundException('Perfil do aluno não encontrado');
-
-    let stripeCustomerId = profile.stripe_customer_id;
+    let stripeCustomerId = profile?.stripe_customer_id;
 
     if (!stripeCustomerId) {
       const customer = await this.stripeService.getOrCreateCustomer(
-        profile.email ?? `${studentId}@estudy.app`,
-        profile.full_name ?? 'Aluno',
+        studentEmail || `${studentId}@estudy.app`,
+        profile?.full_name ?? 'Aluno',
         { supabase_user_id: studentId },
       );
       stripeCustomerId = customer.id;
