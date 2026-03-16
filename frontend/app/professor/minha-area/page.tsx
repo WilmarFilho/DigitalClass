@@ -275,6 +275,43 @@ export default function MinhaAreaPage() {
                 </div>
               </Field>
 
+              {/* Fee Breakdown Card */}
+              {areaForm.monthly_price > 0 && (
+                <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    <span className="text-[10px] font-black uppercase tracking-[0.15em]">Simulação de Ganhos</span>
+                  </div>
+                  
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-medium">Valor da Mensalidade</span>
+                      <span className="font-black text-slate-800">R$ {areaForm.monthly_price.toFixed(2)}</span>
+                    </div>
+                    <div className="h-px bg-slate-200" />
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-medium">Taxa Stripe (~3.99% + R$0,39)</span>
+                      <span className="font-bold text-red-500">
+                        - R$ {(areaForm.monthly_price * 0.0399 + 0.39).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-medium">Taxa Plataforma (20%)</span>
+                      <span className="font-bold text-red-500">
+                        - R$ {(areaForm.monthly_price * 0.20).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="h-px bg-emerald-200" />
+                    <div className="flex justify-between items-center pt-1">
+                      <span className="font-black text-emerald-700 text-[11px] uppercase tracking-wider">Seu ganho líquido</span>
+                      <span className="font-black text-emerald-700 text-base">
+                        R$ {Math.max(0, areaForm.monthly_price - (areaForm.monthly_price * 0.0399 + 0.39) - (areaForm.monthly_price * 0.20)).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                  <Field label="Cor Identidade">
                     <div className="flex items-center gap-2">

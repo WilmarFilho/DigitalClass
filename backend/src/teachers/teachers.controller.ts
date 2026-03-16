@@ -5,6 +5,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   Req,
   UseGuards,
   UseInterceptors,
@@ -23,7 +24,7 @@ const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 @Controller('teachers')
 @UseGuards(SupabaseJwtGuard)
 export class TeachersController {
-  constructor(private readonly teachersService: TeachersService) {}
+  constructor(private readonly teachersService: TeachersService) { }
 
   // ── Aluno: navegar áreas ──────────────────────────────────────────────────
 
@@ -57,6 +58,13 @@ export class TeachersController {
     return this.teachersService.unsubscribe(req.user.id, areaId);
   }
 
+  // ── Stripe Checkout (Aluno: assinar área paga) ─────────────────────────────
+
+  @Post('areas/:areaId/checkout')
+  createCheckoutSession(@Req() req: any, @Param('areaId') areaId: string) {
+    return this.teachersService.createCheckoutSession(req.user.id, areaId);
+  }
+
   // ── Professor: minha área ─────────────────────────────────────────────────
 
   @Get('my-area')
@@ -67,6 +75,14 @@ export class TeachersController {
   @Post('my-area')
   upsertMyArea(@Req() req: any, @Body() dto: CreateTeacherAreaDto) {
     return this.teachersService.upsertMyArea(req.user.id, dto);
+  }
+
+  // ── Simulação de taxas ─────────────────────────────────────────────────────
+
+  @Get('fees')
+  calculateFees(@Query('price') price: string) {
+    const numericPrice = Number(price) || 0;
+    return this.teachersService.calculateFees(numericPrice);
   }
 
   // ── Professor: aulas ──────────────────────────────────────────────────────

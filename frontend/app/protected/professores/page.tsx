@@ -77,9 +77,19 @@ export default function ProfessoresPage() {
   const handleSubscribe = async (area: TeacherArea) => {
     setSubscribing(area.id);
     try {
-      await apiPost(`/teachers/areas/${area.id}/subscribe`, {});
-      const updated = await apiGet<FollowingArea[]>("/teachers/following");
-      setFollowing(updated);
+      if (area.monthly_price > 0) {
+        // Paid area → redirect to Stripe Checkout
+        const result = await apiPost<{ url: string }>(`/teachers/areas/${area.id}/checkout`, {});
+        if (result.url) {
+          window.location.href = result.url;
+          return;
+        }
+      } else {
+        // Free area → direct subscribe
+        await apiPost(`/teachers/areas/${area.id}/subscribe`, {});
+        const updated = await apiGet<FollowingArea[]>("/teachers/following");
+        setFollowing(updated);
+      }
     } catch {
       // erro silencioso
     } finally {

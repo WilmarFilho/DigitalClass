@@ -9,6 +9,7 @@ import { CalendarModule } from './calendar/calendar.module';
 import { StudyModule } from './study/study.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { TeachersModule } from './teachers/teachers.module';
+import { StripeModule } from './stripe/stripe.module';
 import { SupabaseStrategy } from './auth/strategies/supabase.strategy';
 
 @Module({
@@ -21,6 +22,7 @@ import { SupabaseStrategy } from './auth/strategies/supabase.strategy';
     StudyModule,
     DashboardModule,
     TeachersModule,
+    StripeModule,
   ],
   controllers: [AppController],
   providers: [AppService, SupabaseStrategy],

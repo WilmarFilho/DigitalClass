@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { TeachersController } from './teachers.controller';
 import { TeachersService } from './teachers.service';
 import { SupabaseModule } from '../supabase/supabase.module';
+import { StripeModule } from '../stripe/stripe.module';
 
 @Module({
-  imports: [SupabaseModule],
+  imports: [SupabaseModule, StripeModule],
   controllers: [TeachersController],
   providers: [TeachersService],
 })
