@@ -52,17 +52,11 @@ export function SessionTimer({
         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
         <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
       </div>
-      
+
       <div className="flex items-center gap-2">
         <Timer className="h-4 w-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
         <span className="font-mono text-sm font-black tabular-nums text-slate-700 tracking-tight">
           {display}
-        </span>
-      </div>
-      
-      <div className="hidden sm:block border-l border-slate-100 h-4 ml-1 pl-3">
-        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-          Em sessão
         </span>
       </div>
     </div>
