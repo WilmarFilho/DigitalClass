@@ -356,36 +356,36 @@ export default function EditAreaPage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-20 p-6 md:p-0">
+    <div className="max-w-6xl mx-auto space-y-6 md:space-y-8 pb-20 px-4 sm:px-6 lg:px-0">
       <Button variant="ghost" className="mb-4 text-slate-500" onClick={() => router.push("/professor/minha-area")}>
         <ArrowLeft className="h-4 w-4 mr-2" /> Voltar para Áreas
       </Button>
 
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <header className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
           <div
-            className="h-12 w-12 rounded-2xl flex items-center justify-center text-white shadow-lg"
+            className="h-10 w-10 sm:h-12 sm:w-12 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0"
             style={{ backgroundColor: areaForm.color_code }}
           >
-            <BookOpen className="h-6 w-6" />
+            <BookOpen className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">{area?.title || "Carregando..."}</h1>
-            <p className="text-sm text-slate-500">Gerencie configurações, módulos e aulas.</p>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate">{area?.title || "Carregando..."}</h1>
+            <p className="text-xs sm:text-sm text-slate-500">Gerencie configurações, módulos e aulas.</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {area && (
-            <Button variant="outline" className="rounded-xl" asChild>
+            <Button variant="outline" className="rounded-xl text-xs sm:text-sm" asChild>
               <a href={`/protected/professores/area/${area.id}`} target="_blank">
-                <Eye className="h-4 w-4 mr-2" /> Visualizar como Aluno
+                <Eye className="h-4 w-4 mr-1 sm:mr-2" /> <span className="hidden sm:inline">Visualizar como</span> Aluno
               </a>
             </Button>
           )}
           {!editingArea && (
-            <Button className="rounded-xl bg-slate-900 hover:bg-slate-800" onClick={() => setEditingArea(true)}>
-              <Settings2 className="h-4 w-4 mr-2" /> Editar Configurações
+            <Button className="rounded-xl bg-slate-900 hover:bg-slate-800 text-xs sm:text-sm" onClick={() => setEditingArea(true)}>
+              <Settings2 className="h-4 w-4 mr-1 sm:mr-2" /> <span className="hidden sm:inline">Editar</span> Configurações
             </Button>
           )}
         </div>
@@ -399,17 +399,17 @@ export default function EditAreaPage() {
         </motion.div>
       )}
 
-      <div className="grid gap-8 lg:grid-cols-12">
+      <div className="grid gap-6 xl:grid-cols-12">
         {/* Coluna Esquerda: Configurações */}
-        <aside className="lg:col-span-4 space-y-6">
+        <aside className="xl:col-span-4 space-y-6">
           <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-50">
-              <h2 className="font-bold text-slate-800 flex items-center gap-2">
+            <div className="p-4 sm:p-6 border-b border-slate-50">
+              <h2 className="font-bold text-slate-800 flex items-center gap-2 text-sm sm:text-base">
                 <Palette className="h-4 w-4 text-indigo-500" /> Identidade da Área
               </h2>
             </div>
 
-            <div className="px-6 pt-6">
+            <div className="px-4 sm:px-6 pt-4 sm:pt-6">
               <div
                 className="h-28 rounded-2xl relative flex items-center justify-center overflow-hidden transition-all duration-500 group cursor-pointer"
                 style={area?.banner_url ? { backgroundImage: `url(${area.banner_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : { backgroundColor: areaForm.color_code }}
@@ -455,7 +455,7 @@ export default function EditAreaPage() {
               }} />
             </div>
 
-            <div className="p-6 space-y-5">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
               <Field label="Nome da Área" required>
                 <input
                   value={areaForm.title}
@@ -583,27 +583,27 @@ export default function EditAreaPage() {
         </aside>
 
         {/* Coluna Direita: Conteúdo */}
-        <main className="lg:col-span-8">
-          <div className="flex bg-slate-100/50 p-1.5 rounded-2xl w-fit border border-slate-200/60 mb-6">
-            <button onClick={() => setActiveTab("curriculum")} className={cn("px-6 py-2.5 rounded-xl text-sm font-bold transition-all", activeTab === "curriculum" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}>Conteúdo e Módulos</button>
-            <button onClick={() => setActiveTab("notices")} className={cn("px-6 py-2.5 rounded-xl text-sm font-bold transition-all", activeTab === "notices" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}>Mural de Avisos</button>
+        <main className="xl:col-span-8 min-w-0">
+          <div className="flex bg-slate-100/50 p-1 sm:p-1.5 rounded-2xl w-full sm:w-fit border border-slate-200/60 mb-4 sm:mb-6">
+            <button onClick={() => setActiveTab("curriculum")} className={cn("flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all", activeTab === "curriculum" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}>Conteúdo e Módulos</button>
+            <button onClick={() => setActiveTab("notices")} className={cn("flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all", activeTab === "notices" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}>Mural de Avisos</button>
           </div>
 
           {activeTab === "curriculum" ? (
-            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm min-h-[500px]">
-              <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+            <div className="rounded-2xl sm:rounded-3xl border border-slate-200 bg-white shadow-sm min-h-[400px] sm:min-h-[500px]">
+              <div className="p-4 sm:p-6 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-bold text-slate-800 flex items-center gap-2">
+                  <h2 className="font-bold text-slate-800 flex items-center gap-2 text-sm sm:text-base">
                     <MonitorPlay className="h-4 w-4 text-indigo-500" /> Currículo do Curso
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">Organize em Seções e Módulos</p>
                 </div>
-                <Button onClick={() => setSectionModal(true)} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100">
+                <Button onClick={() => setSectionModal(true)} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 w-full sm:w-auto">
                   <Plus className="h-4 w-4 mr-2" /> Nova Seção
                 </Button>
               </div>
 
-              <div className="p-6">
+              <div className="p-3 sm:p-6">
                 {sections.length === 0 ? (
                   <div className="py-20 text-center flex flex-col items-center">
                     <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-200 mb-4">
@@ -616,14 +616,14 @@ export default function EditAreaPage() {
                   <div className="space-y-6">
                     {sections.map((section, sIndex) => (
                       <div key={section.id} className="rounded-2xl border border-slate-200 bg-slate-50/50 overflow-hidden">
-                        <div className="flex items-center justify-between p-4 bg-white border-b border-slate-100">
-                          <h3 className="font-black text-slate-800 flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs">{sIndex + 1}</div>
-                            {section.title}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 bg-white border-b border-slate-100 gap-2">
+                          <h3 className="font-black text-slate-800 flex items-center gap-2 text-sm sm:text-base min-w-0">
+                            <div className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs shrink-0">{sIndex + 1}</div>
+                            <span className="truncate">{section.title}</span>
                           </h3>
-                          <div className="flex items-center gap-2">
-                            <Button size="sm" variant="ghost" className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 h-8" onClick={() => setModuleModal({ sectionId: section.id })}>
-                              <Plus className="h-3 w-3 mr-1" /> Novo Módulo
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button size="sm" variant="ghost" className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 h-8 text-xs" onClick={() => setModuleModal({ sectionId: section.id })}>
+                              <Plus className="h-3 w-3 mr-1" /> <span className="hidden sm:inline">Novo </span>Módulo
                             </Button>
                             <button onClick={() => handleDeleteSection(section.id)} className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
                               <Trash2 className="h-4 w-4" />
@@ -631,17 +631,17 @@ export default function EditAreaPage() {
                           </div>
                         </div>
 
-                        <div className="p-4 space-y-4">
+                        <div className="p-2 sm:p-4 space-y-3 sm:space-y-4">
                           {(!section.modules || section.modules.length === 0) ? (
                             <div className="text-center py-6 text-sm text-slate-400 font-medium">Esta seção não tem módulos.</div>
                           ) : (
                             section.modules.map((module, mIndex) => (
                               <div key={module.id} className="rounded-xl border border-slate-200 bg-white">
-                                <div className="flex items-center justify-between p-3 border-b border-slate-50">
-                                  <h4 className="font-bold text-sm text-slate-800">Módulo {mIndex + 1}: {module.title}</h4>
-                                  <div className="flex items-center gap-1">
-                                    <Button size="sm" variant="ghost" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-7 text-xs px-2" onClick={() => setLessonModal({ moduleId: module.id })}>
-                                      <Plus className="h-3 w-3 mr-1" /> Aula
+                                <div className="flex items-center justify-between p-2 sm:p-3 border-b border-slate-50 gap-2">
+                                  <h4 className="font-bold text-xs sm:text-sm text-slate-800 truncate min-w-0">Módulo {mIndex + 1}: {module.title}</h4>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <Button size="sm" variant="ghost" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-7 text-xs px-1.5 sm:px-2" onClick={() => setLessonModal({ moduleId: module.id })}>
+                                      <Plus className="h-3 w-3 sm:mr-1" /> <span className="hidden sm:inline">Aula</span>
                                     </Button>
                                     <button onClick={() => handleDeleteModule(section.id, module.id)} className="h-7 w-7 flex items-center justify-center rounded-md text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all">
                                       <Trash2 className="h-3 w-3" />
@@ -649,7 +649,7 @@ export default function EditAreaPage() {
                                   </div>
                                 </div>
 
-                                <div className="p-3">
+                                <div className="p-2 sm:p-3">
                                   {(!module.lessons || module.lessons.length === 0) ? (
                                     <div className="text-center py-4 text-xs text-slate-400 font-medium">Módulo vazio.</div>
                                   ) : (
@@ -681,20 +681,20 @@ export default function EditAreaPage() {
               </div>
             </div>
           ) : (
-            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm min-h-[500px]">
-              <div className="p-6 border-b border-slate-50 flex items-center justify-between">
+            <div className="rounded-2xl sm:rounded-3xl border border-slate-200 bg-white shadow-sm min-h-[400px] sm:min-h-[500px]">
+              <div className="p-4 sm:p-6 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-bold text-slate-800 flex items-center gap-2">
+                  <h2 className="font-bold text-slate-800 flex items-center gap-2 text-sm sm:text-base">
                     <Megaphone className="h-4 w-4 text-indigo-500" /> Mural de Avisos
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">Comunique-se com seus alunos</p>
                 </div>
-                <Button onClick={() => setNoticeModal(true)} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100">
+                <Button onClick={() => setNoticeModal(true)} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 w-full sm:w-auto">
                   <Plus className="h-4 w-4 mr-2" /> Novo Aviso
                 </Button>
               </div>
 
-              <div className="p-6">
+              <div className="p-3 sm:p-6">
                 {notices.length === 0 ? (
                   <div className="py-20 text-center flex flex-col items-center">
                     <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-200 mb-4">
@@ -896,51 +896,47 @@ function LessonRow({ lesson, index, uploading, onDelete, onUpload }: any) {
   return (
     <motion.li
       initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-      className="group flex items-center gap-4 rounded-xl border border-slate-100 bg-slate-50 p-3 hover:bg-white hover:border-indigo-100 hover:shadow-md hover:shadow-indigo-500/5 transition-all"
+      className="group flex items-center gap-2 sm:gap-4 rounded-xl border border-slate-100 bg-slate-50 p-2 sm:p-3 hover:bg-white hover:border-indigo-100 hover:shadow-md hover:shadow-indigo-500/5 transition-all"
     >
-      <div className="cursor-grab active:cursor-grabbing text-slate-300 group-hover:text-indigo-300 transition-colors">
+      <div className="hidden sm:block cursor-grab active:cursor-grabbing text-slate-300 group-hover:text-indigo-300 transition-colors">
         <GripVertical className="h-4 w-4" />
       </div>
 
       <div className={cn(
-        "h-10 w-10 shrink-0 rounded-lg flex items-center justify-center transition-colors",
+        "h-8 w-8 sm:h-10 sm:w-10 shrink-0 rounded-lg flex items-center justify-center transition-colors",
         lesson.content_url ? "bg-emerald-50 text-emerald-600" : "bg-slate-200 text-slate-400"
       )}>
-        {lesson.type === "video" ? <Video className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+        {lesson.type === "video" ? <Video className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
       </div>
 
-      <div className="flex-1 min-w-0 flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h4 className="text-sm font-bold text-slate-800 truncate">{lesson.title}</h4>
-          </div>
-          <div className="flex items-center gap-3 mt-0.5">
-            {lesson.content_url ? (
-              <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3" /> Conteúdo Pronto
-              </span>
-            ) : (
-              <span className="text-[9px] font-black text-amber-500 uppercase flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" /> Aguardando Upload
-              </span>
-            )}
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{lesson.type}</span>
-          </div>
+      <div className="flex-1 min-w-0">
+        <h4 className="text-xs sm:text-sm font-bold text-slate-800 truncate">{lesson.title}</h4>
+        <div className="flex items-center gap-2 sm:gap-3 mt-0.5">
+          {lesson.content_url ? (
+            <span className="text-[8px] sm:text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1">
+              <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> <span className="hidden xs:inline">Conteúdo </span>Pronto
+            </span>
+          ) : (
+            <span className="text-[8px] sm:text-[9px] font-black text-amber-500 uppercase flex items-center gap-1">
+              <AlertCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> <span className="hidden sm:inline">Aguardando </span>Upload
+            </span>
+          )}
+          <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{lesson.type}</span>
         </div>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 shrink-0">
         <Button
           size="sm"
           variant={lesson.content_url ? "outline" : "default"}
-          className={cn("h-8 rounded-md text-[11px] font-bold", !lesson.content_url && "bg-indigo-600 hover:bg-indigo-700")}
+          className={cn("h-7 sm:h-8 rounded-md text-[10px] sm:text-[11px] font-bold px-2 sm:px-3", !lesson.content_url && "bg-indigo-600 hover:bg-indigo-700")}
           disabled={uploading}
           onClick={onUpload}
         >
-          {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Upload className="h-3 w-3 mr-1" /> {lesson.content_url ? "Trocar" : "Upload"}</>}
+          {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Upload className="h-3 w-3 sm:mr-1" /> <span className="hidden sm:inline">{lesson.content_url ? "Trocar" : "Upload"}</span></>}
         </Button>
-        <button onClick={onDelete} className="h-8 w-8 flex items-center justify-center rounded-md text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all">
-          <Trash2 className="h-4 w-4" />
+        <button onClick={onDelete} className="h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center rounded-md text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all">
+          <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         </button>
       </div>
     </motion.li>
