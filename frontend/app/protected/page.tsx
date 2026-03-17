@@ -11,15 +11,16 @@ import { LastAssets } from "@/components/dashboard/LastAssets";
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  
+
   if (!user) redirect("/auth");
 
-  // Extração robusta do nome para o Banner
-  const userName =
-    user.user_metadata?.full_name ||
-    user.user_metadata?.name ||
-    user.email?.split("@")[0] ||
-    "Estudante";
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role, full_name")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const userName = profile?.full_name;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
