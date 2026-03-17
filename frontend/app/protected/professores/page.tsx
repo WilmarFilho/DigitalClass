@@ -311,11 +311,11 @@ function AreaCard({
 
         <div className="mt-5 pt-4 border-t border-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-slate-900">
-            <DollarSign className="h-3 w-3 text-slate-400" />
+            {area.monthly_price === 0 ? null : <DollarSign className="h-3 w-3 text-slate-400" />}
             <span className="text-xs font-black tracking-tighter">
-              {area.monthly_price === 0 ? "FREE" : `R$ ${area.monthly_price.toFixed(2)}`}
+              {area.monthly_price === 0 ? "GRÁTIS" : `R$ ${area.monthly_price.toFixed(2)}`}
             </span>
-            <span className="text-[9px] font-bold text-slate-400 uppercase">/mês</span>
+            {area.monthly_price === 0 ? null : <span className="text-[9px] font-bold text-slate-400 uppercase">/mês</span>}
           </div>
         </div>
 
