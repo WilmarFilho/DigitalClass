@@ -69,7 +69,7 @@ export default function PerfilPage() {
     async function load() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       if (user) {
         setAuthUser({
           email: user.email ?? "",
@@ -190,7 +190,7 @@ export default function PerfilPage() {
   const avatarSrc = profile?.avatar_url || authUser?.avatar_url;
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className="max-w-6xl mx-auto space-y-8 pb-12"
@@ -208,11 +208,11 @@ export default function PerfilPage() {
         <div className="lg:col-span-4 space-y-6">
           <div className="group relative rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden transition-all hover:shadow-md">
             {/* Banner com upload */}
-            <div 
+            <div
               className="h-32 relative cursor-pointer group/banner"
               onClick={() => bannerInputRef.current?.click()}
               style={{
-                background: profile?.banner_url 
+                background: profile?.banner_url
                   ? `url(${profile.banner_url}) center / cover no-repeat`
                   : 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
               }}
@@ -238,7 +238,7 @@ export default function PerfilPage() {
             <div className="px-6 pb-8">
               {/* Avatar com upload */}
               <div className="-mt-14 mb-5 relative inline-block">
-                <div 
+                <div
                   className="relative cursor-pointer group/avatar"
                   onClick={() => avatarInputRef.current?.click()}
                 >
@@ -259,14 +259,14 @@ export default function PerfilPage() {
                       {uploadingAvatar ? (
                         <Loader2 className="h-6 w-6 animate-spin text-white" />
                       ) : (
-                        <Camera className="h-6 w-6 text-white drop-shadow-lg" /> 
+                        <Camera className="h-6 w-6 text-white drop-shadow-lg" />
                       )}
                     </div>
                   </div>
                 </div>
                 <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
                 <div className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-white shadow border border-slate-100 flex items-center justify-center text-slate-400">
-                   <Sparkles className="h-4 w-4" />
+                  <Sparkles className="h-4 w-4" />
                 </div>
               </div>
 
@@ -300,7 +300,7 @@ export default function PerfilPage() {
               <div className="flex items-center gap-2">
                 <AnimatePresence>
                   {hoursSaved && (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.8 }}
@@ -311,7 +311,7 @@ export default function PerfilPage() {
                   )}
                 </AnimatePresence>
                 {!editingHours ? (
-                  <button 
+                  <button
                     onClick={() => setEditingHours(true)}
                     className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-50"
                     title="Editar meta"
@@ -324,9 +324,9 @@ export default function PerfilPage() {
                 </span>
               </div>
             </div>
-            
+
             {editingHours ? (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 className="space-y-4"
@@ -366,7 +366,7 @@ export default function PerfilPage() {
             ) : (
               <div className="space-y-3">
                 <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <motion.div 
+                  <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${Math.min(((profile?.hours_per_day || 0) / 12) * 100, 100)}%` }}
                     className="h-full bg-orange-500 rounded-full"
@@ -423,8 +423,8 @@ export default function PerfilPage() {
                   Modo de Acesso
                 </h3>
                 <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-                  Sua conta é híbrida. Você pode alternar sua visão entre 
-                  <strong className="text-slate-700"> Mentor</strong> e 
+                  Sua conta é híbrida. Você pode alternar sua visão entre
+                  <strong className="text-slate-700"> Mentor</strong> e
                   <strong className="text-slate-700"> Aluno</strong> instantaneamente.
                 </p>
               </div>
@@ -446,7 +446,7 @@ export default function PerfilPage() {
                     </motion.div>
                   ) : (
                     <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2">
-                      Alternar para {profile?.role === "student" ? "Professor" : "Estudante"}
+                      Alternar
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -454,13 +454,13 @@ export default function PerfilPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <RoleSelectorCard 
+              <RoleSelectorCard
                 active={profile?.role === "student"}
                 type="student"
                 title="Visão Aluno"
                 desc="Consuma conteúdos, responda quizzes e acompanhe seu progresso."
               />
-              <RoleSelectorCard 
+              <RoleSelectorCard
                 active={profile?.role === "teacher"}
                 type="teacher"
                 title="Visão Professor"
@@ -471,11 +471,11 @@ export default function PerfilPage() {
         </div>
       </div>
 
-      <TeacherBankDetailsModal 
-        isOpen={isBankModalOpen} 
-        onOpenChange={setIsBankModalOpen} 
-        onSubmit={submitBankDetailsAndSwitch} 
-        isLoading={switching} 
+      <TeacherBankDetailsModal
+        isOpen={isBankModalOpen}
+        onOpenChange={setIsBankModalOpen}
+        onSubmit={submitBankDetailsAndSwitch}
+        isLoading={switching}
       />
     </motion.div>
   );
@@ -501,8 +501,8 @@ function RoleSelectorCard({ active, type, title, desc }: { active: boolean, type
   return (
     <div className={cn(
       "p-5 rounded-2xl border-2 transition-all duration-300 relative overflow-hidden",
-      active 
-        ? "bg-white border-slate-900 shadow-md translate-y-[-2px]" 
+      active
+        ? "bg-white border-slate-900 shadow-md translate-y-[-2px]"
         : "bg-transparent border-slate-200 opacity-60 grayscale hover:grayscale-0 hover:opacity-100 hover:border-slate-300"
     )}>
       <div className={cn(
@@ -530,28 +530,42 @@ function EditableTagList({ label, items, colorScheme, placeholder, onSave }: {
   const [newTag, setNewTag] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Sincroniza o estado local quando os itens originais mudam (ex: carregamento inicial)
+  useEffect(() => {
+    setLocalItems(items);
+  }, [items]);
+
   const bgClass = colorScheme === "indigo" ? "bg-indigo-50 text-indigo-700 border-indigo-100/50" : "bg-purple-50 text-purple-700 border-purple-100/50";
   const btnClass = colorScheme === "indigo" ? "bg-indigo-100 text-indigo-600 hover:bg-indigo-200" : "bg-purple-100 text-purple-600 hover:bg-purple-200";
 
-  const handleAdd = () => {
+  const handleAdd = useCallback(() => {
     const tag = newTag.trim();
     if (tag && !localItems.includes(tag)) {
-      setLocalItems([...localItems, tag]);
+      setLocalItems(prev => [...prev, tag]);
       setNewTag("");
     }
-  };
+  }, [newTag, localItems]);
 
   const handleRemove = (tag: string) => {
-    setLocalItems(localItems.filter(t => t !== tag));
+    setLocalItems(prev => prev.filter(t => t !== tag));
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await onSave(localItems);
+      // Se houver algo digitado no input, adiciona antes de salvar
+      let finalItems = [...localItems];
+      const pendingTag = newTag.trim();
+
+      if (pendingTag && !finalItems.includes(pendingTag)) {
+        finalItems.push(pendingTag);
+      }
+
+      await onSave(finalItems);
+      setNewTag(""); // Limpa o input
       setEditing(false);
     } catch (err) {
-      console.error(err);
+      console.error("Erro ao salvar tags:", err);
     } finally {
       setSaving(false);
     }
@@ -562,7 +576,13 @@ function EditableTagList({ label, items, colorScheme, placeholder, onSave }: {
       <div className="flex items-center justify-between">
         <label className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</label>
         {!editing && (
-          <button onClick={() => { setEditing(true); setLocalItems(items); }} className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-50">
+          <button
+            onClick={() => {
+              setLocalItems(items); // Garante que começa com o que está no banco
+              setEditing(true);
+            }}
+            className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-50"
+          >
             <Pencil className="h-3.5 w-3.5" />
           </button>
         )}
@@ -584,26 +604,48 @@ function EditableTagList({ label, items, colorScheme, placeholder, onSave }: {
             <input
               value={newTag}
               onChange={e => setNewTag(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && (e.preventDefault(), handleAdd())}
+              onKeyDown={e => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAdd();
+                }
+              }}
               placeholder={placeholder}
               className="flex-1 h-9 rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-xs font-medium outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/10 transition-all"
             />
-            <button onClick={handleAdd} className={cn("h-9 w-9 rounded-xl flex items-center justify-center transition-colors", btnClass)}>
+            <button
+              type="button"
+              onClick={handleAdd}
+              className={cn("h-9 w-9 rounded-xl flex items-center justify-center transition-colors", btnClass)}
+            >
               <Plus className="h-4 w-4" />
             </button>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" className="flex-1 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-xs" onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Salvar"}
+            <Button
+              size="sm"
+              className="flex-1 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-xs"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Confirmar Alterações"}
             </Button>
-            <Button size="sm" variant="outline" className="rounded-xl text-xs font-bold" onClick={() => setEditing(false)}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl text-xs font-bold"
+              onClick={() => {
+                setEditing(false);
+                setNewTag("");
+              }}
+            >
               Cancelar
             </Button>
           </div>
         </motion.div>
       ) : (
         <div className="flex flex-wrap gap-2">
-          {items.length > 0 ? items.map(tag => (
+          {items && items.length > 0 ? items.map(tag => (
             <span key={tag} className={cn("px-3 py-1.5 rounded-xl text-xs font-semibold border", bgClass)}>
               {tag}
             </span>

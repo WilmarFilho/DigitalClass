@@ -8,9 +8,10 @@ const AVATARS_BUCKET = 'avatars';
 export class ProfileService {
   private readonly logger = new Logger(ProfileService.name);
 
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(private readonly supabaseService: SupabaseService) { }
 
   async getProfile(userId: string) {
+    console.log(userId);
     const supabase = this.supabaseService.getClient();
     const { data, error } = await supabase
       .from('profiles')
@@ -27,7 +28,7 @@ export class ProfileService {
 
   async createOrUpdateProfile(userId: string, data: CreateProfileDto) {
     const supabase = this.supabaseService.getClient();
-    
+
     const { data: profile, error } = await supabase
       .from('profiles')
       .upsert({
@@ -57,7 +58,7 @@ export class ProfileService {
     const supabase = this.supabaseService.getClient();
 
     // Only allow certain fields to be patched
-    const allowedFields = ['hours_per_day', 'full_name', 'avatar_url', 'banner_url', 'learning_goals', 'interests'];
+    const allowedFields = ['hours_per_day', 'full_name', 'avatar_url', 'banner_url', 'learning_goals', 'interests', 'conta_bancaria', 'chave_pix', 'dia_repasse', 'preferencia_repasse'];
     const patch: Record<string, any> = {};
     for (const key of allowedFields) {
       if (fields[key] !== undefined) {

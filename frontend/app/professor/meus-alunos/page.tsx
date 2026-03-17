@@ -12,10 +12,19 @@ import {
   MoreHorizontal,
   ArrowUpRight,
   Filter,
+  Pencil,
+  Building,
+  Copy,
+  Wallet,
+  ChevronDown,
+  Check,
+  X,
+  User,
 } from "lucide-react";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPatch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/button";
 
 interface Student {
   id: string;
@@ -31,17 +40,71 @@ interface StudentsData {
   total_revenue: number;
 }
 
+interface TeacherProfile {
+  full_name: string | null;
+  conta_bancaria: string | null;
+  chave_pix: string | null;
+  dia_repasse: number | null;
+  preferencia_repasse: string | null;
+}
+
 export default function MeusAlunosPage() {
   const [data, setData] = useState<StudentsData | null>(null);
+  const [profile, setProfile] = useState<TeacherProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
+  // Edit payment state
+  const [editingPayment, setEditingPayment] = useState(false);
+  const [editFullName, setEditFullName] = useState("");
+  const [editConta, setEditConta] = useState("");
+  const [editPix, setEditPix] = useState("");
+  const [editDia, setEditDia] = useState<number>(5);
+  const [editPref, setEditPref] = useState<string>("pix");
+  const [savingPayment, setSavingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+
   useEffect(() => {
-    apiGet<StudentsData>("/teachers/my-students")
-      .then(setData)
-      .catch(() => setData({ students: [], active_count: 0, monthly_revenue: 0, total_revenue: 0 }))
-      .finally(() => setLoading(false));
+    Promise.all([
+      apiGet<StudentsData>("/teachers/my-students").catch(() => ({ students: [], active_count: 0, monthly_revenue: 0, total_revenue: 0 } as StudentsData)),
+      apiGet<TeacherProfile>("/profiles/me").catch(() => null),
+    ]).then(([studentsData, profileData]) => {
+      setData(studentsData);
+      setProfile(profileData);
+      console.log(profileData);
+    }).finally(() => setLoading(false));
   }, []);
+
+  const openPaymentEdit = () => {
+    setEditFullName(profile?.full_name || "");
+    setEditConta(profile?.conta_bancaria || "");
+    setEditPix(profile?.chave_pix || "");
+    setEditDia(profile?.dia_repasse || 5);
+    setEditPref(profile?.preferencia_repasse || "pix");
+    setPaymentError(null);
+    setEditingPayment(true);
+  };
+
+  const savePaymentDetails = async () => {
+    setSavingPayment(true);
+    setPaymentError(null);
+    try {
+      const updated = await apiPatch<TeacherProfile>("/profile", {
+        full_name: editFullName,
+        conta_bancaria: editConta,
+        chave_pix: editPix,
+        dia_repasse: editDia,
+        preferencia_repasse: editPref,
+      });
+      setProfile(updated);
+      setEditingPayment(false);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      setPaymentError(e.message || "Erro ao salvar");
+    } finally {
+      setSavingPayment(false);
+    }
+  };
 
   const filtered = (data?.students ?? []).filter((s) =>
     s.full_name.toLowerCase().includes(search.toLowerCase())
@@ -56,12 +119,12 @@ export default function MeusAlunosPage() {
   }
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }} 
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className="max-w-7xl mx-auto space-y-8 pb-12"
     >
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <header className="flex flex-col md:flex-column md:items-start md:align-start md:justify-start lg:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <UsersRound className="h-7 w-7 text-indigo-600" />
@@ -69,7 +132,7 @@ export default function MeusAlunosPage() {
           </h1>
           <p className="text-sm text-slate-500 mt-1 ml-9">Acompanhe seu crescimento e faturamento em tempo real.</p>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <div className="relative group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
@@ -87,7 +150,7 @@ export default function MeusAlunosPage() {
       </header>
 
       {/* Cards de métricas com design de Dashboard Financeiro */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           icon={UsersRound}
           label="Total de Alunos"
@@ -134,7 +197,7 @@ export default function MeusAlunosPage() {
         <div className="flex-1">
           <p className="text-sm text-indigo-900 font-semibold leading-none">Módulo de Pagamento Digital Class</p>
           <p className="text-xs text-indigo-700/70 mt-1">
-            Os dados acima são baseados na sua configuração de precificação. A integração com Checkout direto está sendo finalizada.
+            Os dados acima são baseados na sua configuração de precificação. Em breve teremos repasses de forma automática, por enquanto entre em contato com o suporte para realizar o saque.
           </p>
         </div>
         <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-indigo-200">
@@ -152,7 +215,7 @@ export default function MeusAlunosPage() {
 
         <AnimatePresence mode="wait">
           {filtered.length === 0 ? (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }}
               className="py-20 text-center"
             >
@@ -185,16 +248,139 @@ export default function MeusAlunosPage() {
         </AnimatePresence>
       </div>
 
+      {/* Seção: Dados de Pagamento do Professor */}
+      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-2xl bg-emerald-100 flex items-center justify-center border border-emerald-200">
+              <Wallet className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-800 tracking-tight">Dados de Pagamento</h2>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Informações para repasse</p>
+            </div>
+          </div>
+          {!editingPayment && (
+            <button
+              onClick={openPaymentEdit}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all"
+            >
+              <Pencil className="h-3.5 w-3.5" /> Editar
+            </button>
+          )}
+        </div>
+
+        <AnimatePresence mode="wait">
+          {editingPayment ? (
+            <motion.div
+              key="edit"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-6 space-y-5"
+            >
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Nome Completo</label>
+                <div className="relative flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition-all">
+                  <div className="pl-3 text-slate-400"><User className="h-4 w-4" /></div>
+                  <input type="text" value={editFullName} onChange={e => setEditFullName(e.target.value)} placeholder="Seu nome completo" className="w-full bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-800 outline-none" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Conta Bancária (Agência + Conta)</label>
+                <div className="relative flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition-all">
+                  <div className="pl-3 text-slate-400"><Building className="h-4 w-4" /></div>
+                  <input type="text" value={editConta} onChange={e => setEditConta(e.target.value)} placeholder="Ex: Ag 0001 Cc 1234567-8" className="w-full bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-800 outline-none" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Chave PIX Principal</label>
+                <div className="relative flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition-all">
+                  <div className="pl-3 text-slate-400"><Copy className="h-4 w-4" /></div>
+                  <input type="text" value={editPix} onChange={e => setEditPix(e.target.value)} placeholder="E-mail, CPF ou Celular" className="w-full bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-800 outline-none" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Dia do Repasse</label>
+                  <div className="relative">
+                    <select value={editDia} onChange={e => setEditDia(Number(e.target.value))} className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all cursor-pointer">
+                      <option value={5}>Dia 5</option>
+                      <option value={10}>Dia 10</option>
+                      <option value={15}>Dia 15</option>
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400"><ChevronDown className="h-4 w-4" /></div>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Preferência</label>
+                  <div className="relative">
+                    <select value={editPref} onChange={e => setEditPref(e.target.value)} className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all cursor-pointer">
+                      <option value="pix">PIX</option>
+                      <option value="transferencia_bancaria">Transf. Bancária</option>
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400"><ChevronDown className="h-4 w-4" /></div>
+                  </div>
+                </div>
+              </div>
+              {paymentError && (
+                <p className="text-xs font-bold text-red-500 flex items-center gap-1"><AlertCircle className="h-3.5 w-3.5" /> {paymentError}</p>
+              )}
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setEditingPayment(false)}
+                  className="flex-1 h-12 rounded-xl font-bold border-slate-200"
+                >
+                  <X className="h-4 w-4 mr-2" /> Cancelar
+                </Button>
+                <Button
+                  onClick={savePaymentDetails}
+                  disabled={savingPayment}
+                  className="flex-1 h-12 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20"
+                >
+                  {savingPayment ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Check className="h-4 w-4 mr-2" /> Salvar Alterações</>}
+                </Button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="view"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-6"
+            >
+              {!profile?.conta_bancaria && !profile?.chave_pix ? (
+                <div className="py-8 text-center">
+                  <Wallet className="h-10 w-10 text-slate-200 mx-auto mb-3" />
+                  <p className="text-sm font-bold text-slate-400">Nenhum dado de pagamento cadastrado</p>
+                  <p className="text-xs text-slate-400 mt-1">Clique em "Editar" para configurar seus dados bancários.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <PaymentField icon={User} label="Nome Completo" value={profile?.full_name} />
+                  <PaymentField icon={Building} label="Conta Bancária" value={profile?.conta_bancaria} />
+                  <PaymentField icon={Copy} label="Chave PIX" value={profile?.chave_pix} />
+                  <PaymentField icon={Calendar} label="Dia do Repasse" value={profile?.dia_repasse ? `Dia ${profile.dia_repasse}` : null} />
+                  <PaymentField icon={Wallet} label="Preferência" value={profile?.preferencia_repasse === "transferencia_bancaria" ? "Transf. Bancária" : "PIX"} />
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       {/* Seções de Expansão (Mock) */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <ExpansionCard 
-          title="Faturamento & Checkout" 
-          description="Em breve você poderá emitir cobranças, criar cupons de desconto e gerenciar assinaturas recorrentes direto por aqui."
+        <ExpansionCard
+          title="Cupons"
+          description="Em breve você poderá criar cupons de desconto direto por aqui."
           icon={ArrowUpRight}
         />
-        <ExpansionCard 
-          title="Relatórios de Engajamento" 
-          description="Métricas de conclusão de aulas por aluno, tempo de estudo e desempenho em quizzes para identificar alunos em risco."
+        <ExpansionCard
+          title="Relatórios"
+          description="Métricas de conclusão de aulas por aluno, tempo de estudo e desempenho."
           icon={TrendingUp}
         />
       </div>
@@ -245,7 +431,7 @@ function StudentTableRow({ student }: { student: Student }) {
   });
 
   return (
-    <motion.tr 
+    <motion.tr
       initial={{ opacity: 0 }} animate={{ opacity: 1 }}
       className="group hover:bg-slate-50/80 transition-colors"
     >
@@ -291,6 +477,21 @@ function ExpansionCard({ title, description, icon: Icon }: any) {
       </div>
       <h3 className="font-bold text-slate-800 text-base mb-2">{title}</h3>
       <p className="text-xs text-slate-500 leading-relaxed max-w-sm">{description}</p>
+    </div>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function PaymentField({ icon: Icon, label, value }: { icon: any; label: string; value: string | null | undefined }) {
+  return (
+    <div className="flex items-center gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+      <div className="h-10 w-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
+        <p className="text-sm font-bold text-slate-800 truncate">{value || "—"}</p>
+      </div>
     </div>
   );
 }

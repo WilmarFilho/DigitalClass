@@ -133,7 +133,7 @@ export default function ProfessoresPage() {
   return (
     <div className="max-w-[1600px] mx-auto pb-20">
       {/* Header com Design de Marca */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+      <div className="flex flex-col lg:flex-column lg:items-start xl:flex-row xl:items-end justify-between gap-6 mb-8">
         <div>
           <div className="flex items-center gap-2 mb-2">
             <div className="h-1 w-8 bg-indigo-600 rounded-full" />
@@ -145,7 +145,7 @@ export default function ProfessoresPage() {
           </h1>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-4 ">
+        <div className="flex flex-col lg:flex-column lg:items-start xl:flex-row xl:items-end gap-4 ">
           {tab === "explore" && (
             <div className="relative w-full sm:w-64 group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
@@ -158,7 +158,7 @@ export default function ProfessoresPage() {
             </div>
           )}
 
-          <div className="flex p-1.5 bg-slate-200/50 backdrop-blur-sm rounded-2xl w-full sm:w-auto">
+          <div className="flex p-1.5 bg-slate-200/50 backdrop-blur-sm rounded-2xl w-fit">
             {(
               [
                 { value: "following", label: `Meus Mentores (${following.length})` },
@@ -212,7 +212,7 @@ export default function ProfessoresPage() {
               )}
             </div>
           ) : (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
               {displayList.map((area) => (
                 <AreaCard
                   key={area.id}

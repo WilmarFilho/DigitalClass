@@ -16,7 +16,7 @@ import { SupabaseJwtGuard } from '../auth/guards/supabase-jwt.guard';
 
 @Controller('profiles')
 export class ProfileController {
-  constructor(private readonly profileService: ProfileService) {}
+  constructor(private readonly profileService: ProfileService) { }
 
   @Get('me')
   @UseGuards(SupabaseJwtGuard)

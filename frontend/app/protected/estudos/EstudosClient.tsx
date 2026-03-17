@@ -61,7 +61,7 @@ export function EstudosClient() {
         setSubjects(subjectsData.map((s) => ({ ...s, color_code: s.color_code || "#6D44CC" })));
         setSessions(sessionsData);
         setTodayEvents(calendarData.filter(e => e.scheduled_date === todayStr));
-        
+
         // Calculate week events
         const startOfWeek = new Date(now);
         startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
@@ -69,8 +69,8 @@ export function EstudosClient() {
         endOfWeek.setDate(now.getDate() - now.getDay() + 6); // Saturday
         const startStr = startOfWeek.toISOString().slice(0, 10);
         const endStr = endOfWeek.toISOString().slice(0, 10);
-        
-        setWeekEvents(calendarData.filter(e => e.scheduled_date >= startStr && e.scheduled_date <= endStr).sort((a,b) => a.scheduled_date.localeCompare(b.scheduled_date)));
+
+        setWeekEvents(calendarData.filter(e => e.scheduled_date >= startStr && e.scheduled_date <= endStr).sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date)));
       } catch {
         setSessions([]);
         setSubjects([]);
@@ -127,7 +127,7 @@ export function EstudosClient() {
     <div className="max-w-6xl mx-auto space-y-10 pb-10 animate-in fade-in duration-700">
       {/* Header com Glassmorphism */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-8 rounded-3xl border border-[#E6E0F8] shadow-sm">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 max-[870px]:hidden">
           <div className="p-3 bg-[#F5F3FF] rounded-2xl border border-[#E6E0F8] shadow-inner">
             <Brain className="h-7 w-7 text-[#6D44CC]" />
           </div>

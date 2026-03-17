@@ -17,7 +17,7 @@ export function DashboardLayout({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#F8F7FF] font-poppins flex">
+    <div className="min-h-screen bg-[#F8F7FF] dark:bg-slate-950 font-poppins flex">
       {/* Sidebar fixa */}
       <Sidebar
         userName={userName}
@@ -37,7 +37,7 @@ export function DashboardLayout({
         style={{ width: "-webkit-fill-available" }}
       >
         {/* Header Superior */}
-        <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-[#E6E0F8] bg-white/80 backdrop-blur-md px-8">
+        <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-[#E6E0F8] dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md px-8">
           <div className="flex flex-col">
             <p className="text-[10px] text-slate-400 font-medium hidden sm:block">
               quinta-feira, 12 de março de 2026
