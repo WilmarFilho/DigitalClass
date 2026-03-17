@@ -74,3 +74,16 @@
     @apply flex h-9 w-full rounded-md border border-slate-200 bg-white text-slate-900 px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-400;
   }
 }
+
+/* Remove o ícone de relógio nativo no Chrome/Safari/Edge */
+input[type="time"]::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
+}
+
+/* Garante que não haja espaço reservado para o ícone */
+input[type="time"]::-webkit-inner-spin-button,
+input[type="time"]::-webkit-clear-button {
+  display: none;
+  -webkit-appearance: none;
+}

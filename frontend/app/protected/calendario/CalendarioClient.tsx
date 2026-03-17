@@ -1,7 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Plus, Loader2, Trash2, Sparkles, Maximize2, Calendar as CalendarIcon } from "lucide-react";
+import {
+  ChevronLeft, ChevronRight, Plus, Loader2, Trash2,
+  Sparkles, Maximize2, Calendar as CalendarIcon,
+  BookOpen, Clock, Target, CheckCircle2
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,7 +51,6 @@ export function CalendarioClient() {
   const [suggestions, setSuggestions] = useState<CalendarSuggestion[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
-  const [, setLoadingSuggestions] = useState(true);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [dayDetailModalOpen, setDayDetailModalOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState<{ date: string; day: number } | null>(null);
@@ -63,7 +66,6 @@ export function CalendarioClient() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    setLoadingSuggestions(true);
     try {
       const [eventsData, suggestionsData, subjectsData] = await Promise.all([
         apiGet<CalendarEvent[]>(`/calendar/events?month=${monthKey}`),
@@ -78,7 +80,6 @@ export function CalendarioClient() {
       setSuggestions([]);
     } finally {
       setLoading(false);
-      setLoadingSuggestions(false);
     }
   }, [monthKey]);
 
@@ -99,20 +100,14 @@ export function CalendarioClient() {
     if (!selectedDay || !formSubjectId) return setFormError("Selecione uma matéria");
     setSubmitting(true);
     try {
-      const duration = parseInt(formDuration);
-      if (isNaN(duration) || duration <= 0) {
-        setFormError("A duração deve ser maior que 0 minutos");
-        return;
-      }
       await apiPost("/calendar/events", {
         subject_id: formSubjectId,
         scheduled_date: selectedDay.date,
         scheduled_time: formTime,
-        duration_minutes: duration,
+        duration_minutes: parseInt(formDuration),
       });
       setAddModalOpen(false);
       loadData();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) { setFormError(err.message); } finally { setSubmitting(false); }
   };
 
@@ -130,207 +125,266 @@ export function CalendarioClient() {
   };
 
   return (
-    <div className="flex flex-col space-y-6 animate-in fade-in duration-500">
-      {/* Header Profissional */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-[#E6E0F8] shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-[#F5F3FF] rounded-xl border border-[#E6E0F8]">
-            <CalendarIcon className="h-6 w-6 text-[#6D44CC]" />
+    <div className="flex flex-col space-y-6 animate-in fade-in duration-700 overflow-x-hidden w-full max-w-full">
+
+      {/* Header Profissional com Glassmorphism */}
+      <div className="flex flex-row items-center justify-between gap-6 bg-white p-8 rounded-[32px] border border-[#E6E0F8] shadow-sm">
+
+        {/* Lado Esquerdo: Título e Ícone (Esconde abaixo de 1075px) */}
+        <div className="flex items-center gap-4 max-[1075px]:hidden">
+          <div className="p-3 bg-[#F5F3FF] rounded-2xl border border-[#E6E0F8] shadow-inner">
+            <CalendarIcon className="h-7 w-7 text-[#6D44CC]" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-[#1A1A1A]">Meu Cronograma</h1>
-            <p className="text-xs font-medium text-slate-400">Gerencie seus horários e metas de estudo</p>
+            <h1 className="text-2xl font-black text-[#1A1A1A] tracking-tight uppercase">Meu Cronograma</h1>
+            <p className="text-sm font-bold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
+              <BookOpen className="h-3.5 w-3.5 text-[#6D44CC]" /> Estudos & Metas
+            </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 self-center md:self-auto">
-          <div className="flex items-center bg-[#F8F7FF] rounded-xl border border-[#E6E0F8] p-1 shadow-inner">
-            <Button variant="ghost" size="icon" onClick={() => setCurrentDate(new Date(year, month - 1))} className="h-8 w-8 hover:bg-white text-[#6D44CC]">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <span className="text-xs font-bold text-[#4A4A4A] min-w-[140px] text-center uppercase tracking-widest">
-              {MONTHS[month]} {year}
-            </span>
-            <Button variant="ghost" size="icon" onClick={() => setCurrentDate(new Date(year, month + 1))} className="h-8 w-8 hover:bg-white text-[#6D44CC]">
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+        {/* Lado Direito: Seletor de Mês (Sempre visível, centralizado no mobile) */}
+        <div className="flex items-center bg-[#F8F7FF] rounded-2xl border border-[#E6E0F8] p-1.5 shadow-inner max-[1075px]:w-full max-[1075px]:justify-between">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setCurrentDate(new Date(year, month - 1))}
+            className="h-10 w-10 hover:bg-white text-[#6D44CC] rounded-xl transition-all"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+
+          <span className="text-[12px] font-black text-[#4A4A4A] min-w-[170px] text-center uppercase tracking-[0.2em]">
+            {MONTHS[month]} {year}
+          </span>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setCurrentDate(new Date(year, month + 1))}
+            className="h-10 w-10 hover:bg-white text-[#6D44CC] rounded-xl transition-all"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </Button>
         </div>
       </div>
 
-      {/* Grid do Calendário */}
-      <div className="bg-white rounded-2xl border border-[#E6E0F8] shadow-lg overflow-hidden flex flex-col min-h-[700px]">
-        {/* Cabeçalho do Grid */}
-        <div className="grid grid-cols-7 bg-[#F8F7FF] border-b border-[#E6E0F8]">
-          {DAYS.map((d) => (
-            <div key={d} className="py-4 text-center text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
-              {d}
-            </div>
-          ))}
-        </div>
+      {/* Wrapper de Scroll Horizontal Corrigido */}
+      <div className="w-full bg-white rounded-[32px] border border-[#E6E0F8] overflow-hidden relative">
+        <div className="w-full overflow-x-auto scrollbar-hide"> {/* Classes para ocultar scrollbar opcional */}
+          {/* Força a largura mínima para o grid não achatar */}
+          <div className="min-w-[950px] w-full flex flex-col">
 
-        {/* Células */}
-        <div className="flex-1 grid grid-cols-7 grid-rows-6 relative">
-          {loading && (
-            <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center rounded-b-2xl">
-              <Loader2 className="h-8 w-8 text-[#6D44CC] animate-spin mb-4" />
-              <p className="text-sm font-bold text-[#6D44CC] animate-pulse">Carregando cronograma...</p>
-            </div>
-          )}
-          {[...padding, ...days].map((day, i) => {
-            if (day === null) return <div key={`pad-${i}`} className="border-b border-r border-[#F0EDFF] bg-[#FBFBFF]" />;
-
-            const dayEvents = getEventsForDay(day);
-            const daySugs = getSuggestionsForDay(day).filter(s => !alreadyHasEvent(s.date, s.subject_id));
-            const isToday = year === today.getFullYear() && month === today.getMonth() && day === today.getDate();
-
-            return (
-              <div
-                key={day}
-                className={cn(
-                  "min-h-[120px] border-b border-r border-[#F0EDFF] p-2 transition-all flex flex-col group relative",
-                  isToday ? "bg-[#F5F3FF]/50" : "bg-white hover:bg-slate-50/50"
-                )}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className={cn(
-                    "w-7 h-7 flex items-center justify-center text-xs font-bold rounded-lg transition-colors",
-                    isToday ? "bg-[#6D44CC] text-white shadow-md shadow-[#6D44CC]/20" : "text-[#4A4A4A] group-hover:text-[#6D44CC]"
-                  )}>
-                    {day}
-                  </span>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => { setSelectedDay({ date: dateStr(day), day }); setDayDetailModalOpen(true); }}
-                      className="p-1 hover:bg-[#E6E0F8] rounded-md text-[#6D44CC]"
-                    >
-                      <Maximize2 className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => { setSelectedDay({ date: dateStr(day), day }); setAddModalOpen(true); }}
-                      className="p-1 hover:bg-[#E6E0F8] rounded-md text-[#6D44CC]"
-                    >
-                      <Plus className="h-3 w-3" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Eventos na célula */}
-                <div className="space-y-1.5 overflow-hidden">
-                  {dayEvents.slice(0, 2).map(ev => (
-                    <div
-                      key={ev.id}
-                      className="text-[10px] px-2 py-1 rounded-md text-white font-bold truncate shadow-sm"
-                      style={{ backgroundColor: ev.subjects?.color_code || "#6D44CC" }}
-                    >
-                      {ev.subjects?.title}
-                    </div>
-                  ))}
-                  {daySugs.length > 0 && dayEvents.length < 2 && (
-                    <div className="flex items-center gap-1 text-[10px] text-amber-600 font-bold bg-amber-50 px-2 py-1 rounded-md border border-amber-200 border-dashed">
-                      <Sparkles className="h-2 w-2" />
-                      IA Sugere
-                    </div>
-                  )}
-                  {(dayEvents.length + (daySugs.length > 0 ? 1 : 0)) > 2 && (
-                    <div className="text-[9px] text-center font-bold text-slate-400 pt-1">
-                      + {(dayEvents.length + daySugs.length) - 2} ITENS
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Modal de Detalhes do Dia */}
-      <Modal open={dayDetailModalOpen} onClose={() => setDayDetailModalOpen(false)} title="Programação do Dia" className="max-w-md">
-        {selectedDay && (
-          <div className="space-y-6">
-            <div className="space-y-3">
-              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Matérias Confirmadas</h4>
-              {getEventsForDay(selectedDay.day).map(ev => (
-                <div key={ev.id} className="flex items-center justify-between p-3 rounded-2xl border border-[#E6E0F8] bg-white group">
-                  <div className="flex items-center gap-3">
-                    <div className="w-1.5 h-8 rounded-full" style={{ backgroundColor: ev.subjects?.color_code }} />
-                    <div>
-                      <p className="text-sm font-bold text-[#1A1A1A]">{ev.subjects?.title}</p>
-                      <p className="text-[10px] font-medium text-slate-400 uppercase">{ev.scheduled_time || "00:00"} • {ev.duration_minutes}min</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        apiPost<{ id: string }>("/study/sessions", {
-                          subject_id: ev.subject_id,
-                          calendar_event_id: ev.id
-                        }).then(session => {
-                          window.location.href = `/protected/estudos/sessao?sessionId=${session.id}&subjectId=${ev.subject_id}`;
-                        });
-                      }}
-                      className="bg-[#6D44CC] hover:bg-[#5B39A8] h-7 text-[10px] font-bold rounded-lg"
-                    >
-                      INICIAR SESSÃO
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => apiDelete(`/calendar/events/${ev.id}`).then(loadData)} className="opacity-0 group-hover:opacity-100 text-red-400">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+            {/* Dias da Semana */}
+            <div className="grid grid-cols-7 bg-[#F8F7FF] border-b border-[#E6E0F8]">
+              {DAYS.map((d) => (
+                <div key={d} className="py-5 text-center text-[11px] font-black text-slate-400 uppercase tracking-[0.25em]">
+                  {d}
                 </div>
               ))}
             </div>
 
-            {getSuggestionsForDay(selectedDay.day).length > 0 && (
+            {/* Grid de Dias */}
+            <div className="grid grid-cols-7 relative divide-x divide-y divide-[#F0EDFF] border-b border-[#F0EDFF]">
+              {loading && (
+                <div className="absolute inset-0 z-20 bg-white/60 backdrop-blur-[2px] flex items-center justify-center">
+                  <Loader2 className="h-10 w-10 text-[#6D44CC] animate-spin mb-4" />
+                  <p className="text-sm font-black text-[#6D44CC] animate-pulse uppercase tracking-widest">Sincronizando...</p>
+                </div>
+              )}
+
+              {[...padding, ...days].map((day, i) => {
+                if (day === null) return <div key={`pad-${i}`} className="min-h-[140px] bg-[#FBFBFF]" />;
+
+                const dayEvents = getEventsForDay(day);
+                const daySugs = getSuggestionsForDay(day).filter(s => !alreadyHasEvent(s.date, s.subject_id));
+                const isToday = year === today.getFullYear() && month === today.getMonth() && day === today.getDate();
+
+                return (
+                  <div
+                    key={day}
+                    className={cn(
+                      "min-h-[140px] p-4 transition-all flex flex-col group relative",
+                      isToday ? "bg-[#F5F3FF]/40" : "bg-white hover:bg-[#FDFDFF]"
+                    )}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <span className={cn(
+                        "w-9 h-9 flex items-center justify-center text-xs font-black rounded-2xl transition-all",
+                        isToday ? "bg-[#6D44CC] text-white" : "bg-slate-50 text-slate-400 group-hover:bg-[#E6E0F8] group-hover:text-[#6D44CC]"
+                      )}>
+                        {day}
+                      </span>
+
+                      <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all translate-y-1 group-hover:translate-y-0">
+                        <button
+                          onClick={() => { setSelectedDay({ date: dateStr(day), day }); setDayDetailModalOpen(true); }}
+                          className="p-1.5 bg-white border border-[#E6E0F8] hover:border-[#6D44CC] rounded-xl text-[#6D44CC] transition-colors"
+                        >
+                          <Maximize2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {dayEvents.slice(0, 2).map(ev => (
+                        <div
+                          key={ev.id}
+                          className="text-[9px] px-2.5 py-1.5 rounded-lg text-white font-black truncate  border-l-4 border-black/10"
+                          style={{ backgroundColor: ev.subjects?.color_code || "#6D44CC" }}
+                        >
+                          {ev.subjects?.title}
+                        </div>
+                      ))}
+
+                      {daySugs.length > 0 && dayEvents.length < 2 && (
+                        <div className="flex items-center gap-1.5 text-[9px] text-amber-600 font-black bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 border-dashed animate-pulse">
+                          <Sparkles className="h-3.5 w-3.5" />
+                          SUGESTÃO IA
+                        </div>
+                      )}
+
+                      {dayEvents.length > 2 && (
+                        <div className="text-[9px] text-center font-black text-slate-400 pt-1 tracking-tighter">
+                          +{(dayEvents.length) - 2} MATÉRIAS
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal Detalhes do Dia */}
+      <Modal open={dayDetailModalOpen} onClose={() => setDayDetailModalOpen(false)} title="Cronograma Diário" className="max-w-md p-0 overflow-hidden">
+        {selectedDay && (
+          <div className="space-y-8 p-8">
+            <div className="space-y-4">
               <div className="space-y-3">
-                <h4 className="text-[10px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-1">
-                  <Sparkles className="h-3 w-3" /> Sugestões da IA
+                {getEventsForDay(selectedDay.day).length === 0 && (
+                  <p className="text-xs font-medium text-slate-400 italic py-2 text-center">Nenhum estudo agendado para hoje.</p>
+                )}
+                {getEventsForDay(selectedDay.day).map(ev => (
+                  <div key={ev.id} className="flex items-center justify-between p-4 rounded-2xl border-2 border-[#F5F3FF] bg-white group hover:border-[#E6E0F8] transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="w-2 h-10 rounded-full" style={{ backgroundColor: ev.subjects?.color_code }} />
+                      <div>
+                        <p className="text-sm font-black text-[#1A1A1A]">{ev.subjects?.title}</p>
+                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                          <Clock className="h-3 w-3" /> {ev.scheduled_time || "00:00"} • {ev.duration_minutes} MINUTOS
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          apiPost<{ id: string }>("/study/sessions", {
+                            subject_id: ev.subject_id,
+                            calendar_event_id: ev.id
+                          }).then(session => {
+                            window.location.href = `/protected/estudos/sessao?sessionId=${session.id}&subjectId=${ev.subject_id}`;
+                          });
+                        }}
+                        className="bg-[#6D44CC] hover:bg-[#5B39A8] h-8 text-[10px] font-black rounded-xl px-4"
+                      >
+                        INICIAR
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => apiDelete(`/calendar/events/${ev.id}`).then(loadData)} className="h-8 w-8 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {getSuggestionsForDay(selectedDay.day).length > 0 && (
+              <div className="space-y-4">
+                <h4 className="text-[11px] font-black text-amber-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" /> Otimização Recomendada
                 </h4>
                 {getSuggestionsForDay(selectedDay.day).filter(s => !alreadyHasEvent(s.date, s.subject_id)).map((s, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-2xl bg-amber-50/50 border border-dashed border-amber-200">
-                    <div className="flex items-center gap-3">
-                      <div className="w-1.5 h-8 rounded-full bg-amber-400" />
-                      <p className="text-sm font-bold text-amber-900">{s.subject.title}</p>
+                  <div key={i} className="flex items-center justify-between p-4 rounded-2xl bg-amber-50/50 border-2 border-dashed border-amber-200 shadow-inner">
+                    <div className="flex items-center gap-4">
+                      <div className="w-2 h-10 rounded-full bg-amber-400" />
+                      <div>
+                        <p className="text-sm font-black text-amber-900">{s.subject.title}</p>
+                        <p className="text-[10px] font-bold text-amber-600/70 uppercase">Duração Sugerida: {s.suggested_duration_minutes}m</p>
+                      </div>
                     </div>
-                    <Button size="sm" onClick={() => handleAddSuggestion(s)} className="bg-amber-500 hover:bg-amber-600 h-7 text-[10px] font-black">ADICIONAR</Button>
+                    <Button size="sm" onClick={() => handleAddSuggestion(s)} className="bg-amber-500 hover:bg-amber-600 h-8 text-[10px] font-black rounded-xl px-4">ACEITAR</Button>
                   </div>
                 ))}
               </div>
             )}
-            <Button onClick={() => { setDayDetailModalOpen(false); setAddModalOpen(true); }} className="w-full bg-[#6D44CC] hover:bg-[#5B39A8] rounded-xl py-6 font-bold">
-              <Plus className="h-4 w-4 mr-2" /> NOVA MATÉRIA
+
+            <Button onClick={() => { setDayDetailModalOpen(false); setAddModalOpen(true); }} className="w-full bg-[#F5F3FF] hover:bg-[#6D44CC] text-[#6D44CC] hover:text-white rounded-[20px] py-7 font-black transition-all border-2 border-[#E6E0F8] border-dashed text-sm">
+              <Plus className="h-5 w-5 mr-2" /> ADICIONAR NOVA MATÉRIA
             </Button>
           </div>
         )}
       </Modal>
 
-      {/* Modal Adicionar Evento (Simpificado) */}
-      <Modal open={addModalOpen} onClose={() => setAddModalOpen(false)} title="Novo Agendamento">
-        <form onSubmit={handleAddEvent} className="space-y-5">
-          <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Matéria de Estudo</Label>
-            <select
-              value={formSubjectId}
-              onChange={e => setFormSubjectId(e.target.value)}
-              className="w-full rounded-xl border border-[#E6E0F8] p-3 text-sm focus:ring-2 focus:ring-[#6D44CC] outline-none"
-            >
-              <option value="">Selecione a matéria...</option>
-              {subjects.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
-            </select>
+      {/* Modal Adicionar com Select Visual de Matérias */}
+      <Modal open={addModalOpen} onClose={() => setAddModalOpen(false)} title="Novo Agendamento" className="p-0 overflow-hidden">
+        <form onSubmit={handleAddEvent} className="p-8 space-y-8">
+          <div className="space-y-4">
+            <Label className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-400 flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-[#6D44CC]" /> Disciplina de Estudo
+            </Label>
+
+            {/* Seletor Customizado Visual para melhor UX */}
+            <div className="grid grid-cols-1 gap-2.5 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
+              {subjects.length === 0 && <p className="text-xs text-slate-400 italic text-center py-2">Nenhuma matéria cadastrada.</p>}
+              {subjects.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setFormSubjectId(s.id)}
+                  className={cn(
+                    "flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200 text-left",
+                    formSubjectId === s.id
+                      ? "border-[#6D44CC] bg-[#F5F3FF] "
+                      : "border-[#F5F3FF] bg-white hover:border-[#E6E0F8]"
+                  )}
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: s.color_code }} />
+                    <span className={cn("text-sm font-bold", formSubjectId === s.id ? "text-[#6D44CC]" : "text-slate-700")}>
+                      {s.title}
+                    </span>
+                  </div>
+                  {formSubjectId === s.id && <CheckCircle2 className="h-5 w-5 text-[#6D44CC]" />}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+
+          <div className="grid grid-cols-2 gap-5">
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Início</Label>
-              <Input type="time" value={formTime} onChange={e => setFormTime(e.target.value)} className="rounded-xl border-[#E6E0F8]" />
+              <Label className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-400">Horário de Início</Label>
+              <div className="relative group">
+                <Clock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300 group-focus-within:text-[#6D44CC] transition-colors" />
+                <Input type="time" value={formTime} onChange={e => setFormTime(e.target.value)} className="rounded-2xl border-2 border-[#F5F3FF] h-14 pl-12 font-bold focus-visible:ring-[#6D44CC] text-sm focus:border-[#6D44CC] transition-all" />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Duração (min)</Label>
-              <Input type="number" step="15" value={formDuration} onChange={e => setFormDuration(e.target.value)} className="rounded-xl border-[#E6E0F8]" />
+              <Label className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-400">Duração (Min)</Label>
+              <div className="relative group">
+                <Target className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-300 group-focus-within:text-[#6D44CC] transition-colors" />
+                <Input type="number" step="15" value={formDuration} onChange={e => setFormDuration(e.target.value)} className="rounded-2xl border-2 border-[#F5F3FF] h-14 pl-12 font-bold focus-visible:ring-[#6D44CC] text-sm focus:border-[#6D44CC] transition-all" />
+              </div>
             </div>
           </div>
-          <Button type="submit" disabled={submitting} className="w-full bg-[#6D44CC] hover:bg-[#5B39A8] rounded-xl h-12 font-bold">
-            {submitting ? <Loader2 className="animate-spin h-5 w-5" /> : "CONFIRMAR AGENDAMENTO"}
+
+          {formError && <p className="text-[11px] font-black text-red-500 uppercase text-center animate-bounce">{formError}</p>}
+
+          <Button type="submit" disabled={submitting} className="w-full bg-[#6D44CC] hover:bg-[#5B39A8] rounded-3xl h-16 font-black shadow-lg shadow-[#6D44CC]/30 transition-all text-base active:scale-[0.98]">
+            {submitting ? <Loader2 className="animate-spin h-7 w-7" /> : "CONFIRMAR AGENDAMENTO"}
           </Button>
         </form>
       </Modal>

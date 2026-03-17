@@ -29,11 +29,12 @@ export function DashboardLayout({
       <main
         className={cn(
           "flex-1 flex flex-col min-h-screen transition-all duration-500 ease-[0.22, 1, 0.36, 1]",
-          // No Desktop: Adiciona margem esquerda IGUAL à largura da sidebar
+          // No Desktop: Margem baseada no estado da sidebar
           sidebarCollapsed ? "md:ml-[80px]" : "md:ml-72",
-          // No Mobile: Ocupa a tela toda pois a sidebar vira um overlay (gaveta)
-          "w-full"
+          // No Mobile: Ocupa a tela toda
+          "w-full md:w-auto" // w-auto no desktop permite que a margem funcione sem estourar
         )}
+        style={{ width: "-webkit-fill-available" }}
       >
         {/* Header Superior */}
         <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-[#E6E0F8] bg-white/80 backdrop-blur-md px-8">

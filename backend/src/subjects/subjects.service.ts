@@ -4,6 +4,7 @@ import OpenAI from 'openai';
 import { SupabaseService } from '../supabase/supabase.service';
 import { ProfileService } from '../profile/profile.service';
 import { CreateSubjectDto } from './dto/create-subject.dto';
+import { UpdateSubjectDto } from './dto/update-subject.dto';
 
 export interface RecommendedSubject {
   title: string;
@@ -149,5 +150,46 @@ Retorne APENAS um JSON array, sem markdown, sem explicação. Cada objeto deve t
       throw new Error(error.message);
     }
     return data;
+  }
+
+  async update(userId: string, subjectId: string, dto: UpdateSubjectDto) {
+    const supabase = this.supabaseService.getClient();
+
+    const updatePayload: Record<string, any> = {};
+    if (dto.title !== undefined) updatePayload.title = dto.title;
+    if (dto.color_code !== undefined) updatePayload.color_code = dto.color_code;
+    if (dto.target_hours !== undefined) updatePayload.target_hours = dto.target_hours;
+    if (dto.deadline !== undefined) updatePayload.deadline = dto.deadline || null;
+    if (dto.difficulty_level !== undefined) updatePayload.difficulty_level = dto.difficulty_level;
+
+    const { data, error } = await supabase
+      .from('subjects')
+      .update(updatePayload)
+      .eq('id', subjectId)
+      .eq('student_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      this.logger.error(`Error updating subject: ${error.message}`);
+      throw new Error(error.message);
+    }
+    return data;
+  }
+
+  async delete(userId: string, subjectId: string) {
+    const supabase = this.supabaseService.getClient();
+
+    const { error } = await supabase
+      .from('subjects')
+      .delete()
+      .eq('id', subjectId)
+      .eq('student_id', userId);
+
+    if (error) {
+      this.logger.error(`Error deleting subject: ${error.message}`);
+      throw new Error(error.message);
+    }
+    return { deleted: true };
   }
 }
