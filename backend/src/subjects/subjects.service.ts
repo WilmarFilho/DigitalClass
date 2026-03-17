@@ -117,7 +117,7 @@ Retorne APENAS um JSON array, sem markdown, sem explicação. Cada objeto deve t
     const supabase = this.supabaseService.getClient();
     const { data, error } = await supabase
       .from('subjects')
-      .select('id, title, color_code, target_hours, completed_hours, deadline, difficulty_level, is_custom, created_at')
+      .select('id, title, color_code, target_hours, completed_hours, completed_minutes, deadline, difficulty_level, is_custom, created_at')
       .eq('student_id', userId)
       .order('created_at', { ascending: false });
 

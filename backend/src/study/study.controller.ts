@@ -22,7 +22,7 @@ export class StudyController {
 
   @Post('sessions')
   async createSession(@Req() req: any, @Body() dto: CreateSessionDto): Promise<SessionWithSubject> {
-    return this.studyService.createSession(req.user.id, dto.subject_id);
+    return this.studyService.createSession(req.user.id, dto.subject_id, dto.calendar_event_id);
   }
 
   @Get('sessions')
@@ -55,7 +55,7 @@ export class StudyController {
     @Param('id') id: string,
     @Body() dto: UpdateSessionDto,
   ) {
-    return this.studyService.updateSessionDuration(req.user.id, id, dto.duration_minutes);
+    return this.studyService.updateSessionDuration(req.user.id, id, dto.duration_minutes, dto.is_finished);
   }
 
   @Get('sessions/:id/chat/intro')

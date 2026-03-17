@@ -15,6 +15,7 @@ interface Session {
   id: string;
   subject_id: string | null;
   subjects: { id: string; title: string; color_code: string } | null;
+  calendar_events?: { id: string; duration_minutes: number } | null;
 }
 
 export default function SessaoPage() {
@@ -26,10 +27,13 @@ export default function SessaoPage() {
   const [error, setError] = useState<string | null>(null);
 
   const elapsedRef = useRef(0);
-  const saveDuration = useCallback(() => {
+  const saveDuration = useCallback((isFinished = false) => {
     const mins = Math.floor(elapsedRef.current / 60);
-    if (mins > 0 && sessionId) {
-      apiPatch("/study/sessions/" + sessionId, { duration_minutes: mins }).catch(() => {});
+    if ((mins > 0 || isFinished) && sessionId) {
+      apiPatch("/study/sessions/" + sessionId, { 
+        duration_minutes: mins, 
+        is_finished: isFinished 
+      }).catch(() => {});
     }
   }, [sessionId]);
 
@@ -46,9 +50,9 @@ export default function SessaoPage() {
   }, [sessionId]);
 
   useEffect(() => {
-    const handleBeforeUnload = () => saveDuration();
+    const handleBeforeUnload = () => saveDuration(false);
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") saveDuration();
+      if (document.visibilityState === "hidden") saveDuration(false);
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -97,7 +101,7 @@ export default function SessaoPage() {
             size="sm"
             className="rounded-xl font-bold text-xs uppercase tracking-widest text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all"
             onClick={() => {
-              saveDuration();
+              saveDuration(true);
               router.push("/protected/estudos");
             }}
           >
@@ -126,11 +130,18 @@ export default function SessaoPage() {
         </div>
 
         <div className="flex items-center gap-4">
-          <SessionTimer
-            className="hidden md:flex border-none shadow-none bg-transparent"
-            initialSeconds={((session as { duration_minutes?: number }).duration_minutes ?? 0) * 60}
-            onTick={(s) => { elapsedRef.current = s; }}
-          />
+          <div className="flex flex-col items-end gap-1">
+            <SessionTimer
+              className="hidden md:flex border-none shadow-none bg-transparent"
+              initialSeconds={((session as { duration_minutes?: number }).duration_minutes ?? 0) * 60}
+              onTick={(s) => { elapsedRef.current = s; }}
+            />
+            {session.calendar_events && session.calendar_events.duration_minutes > 0 && (
+              <div className="text-[10px] font-bold text-slate-400 uppercase mr-4">
+                Meta: {session.calendar_events.duration_minutes} min
+              </div>
+            )}
+          </div>
           <div className="h-10 w-10 rounded-2xl bg-slate-900 flex items-center justify-center shadow-lg shadow-slate-200">
             <LayoutDashboard className="h-5 w-5 text-white" />
           </div>

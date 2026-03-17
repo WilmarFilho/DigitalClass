@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Play, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 import { Modal } from "@/components/ui/modal";
 
 const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -12,6 +13,7 @@ const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Jul
 
 interface CalendarEvent {
   id: string;
+  subject_id: string;
   scheduled_date: string;
   duration_minutes: number;
   subjects: { title: string; color_code?: string } | null;
@@ -20,9 +22,11 @@ interface CalendarEvent {
 const today = new Date();
 
 export function CalendarPreview() {
+  const router = useRouter();
   const [currentDate, setCurrentDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [startingSessionId, setStartingSessionId] = useState<string | null>(null);
   
   // Modal state
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -162,9 +166,8 @@ export function CalendarPreview() {
           ) : (
             <div className="grid gap-3">
               {todayEvents.map((e) => (
-                <Link
+                <div
                   key={e.id}
-                  href="/protected/calendario"
                   className="group flex items-center gap-4 p-3 rounded-2xl bg-white border border-[#E6E0F8] hover:border-[#6D44CC] hover:shadow-md transition-all"
                 >
                   <div 
@@ -179,10 +182,38 @@ export function CalendarPreview() {
                       Duração: {formatDuration(e.duration_minutes)}
                     </p>
                   </div>
-                  <button className="text-[11px] font-bold text-[#6D44CC] opacity-0 group-hover:opacity-100 transition-opacity pr-2">
-                    DETALHES
-                  </button>
-                </Link>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={async () => {
+                        setStartingSessionId(e.id);
+                        try {
+                          const session = await apiPost<{ id: string }>("/study/sessions", { 
+                            subject_id: e.subject_id,
+                            calendar_event_id: e.id 
+                          });
+                          router.push(`/protected/estudos/sessao?sessionId=${session.id}&subjectId=${e.subject_id}`);
+                        } catch (err) {
+                          console.error(err);
+                          setStartingSessionId(null);
+                        }
+                      }}
+                      disabled={startingSessionId !== null}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#6D44CC] text-white text-[10px] font-black uppercase tracking-wider hover:bg-[#5B39A8] transition-all disabled:opacity-50"
+                    >
+                      {startingSessionId === e.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Play className="h-3 w-3" />
+                      )}
+                      ESTUDAR
+                    </button>
+                    <Link href="/protected/calendario">
+                      <button className="text-[10px] font-bold text-slate-400 hover:text-[#6D44CC] transition-colors uppercase tracking-wider px-2">
+                        DETALHES
+                      </button>
+                    </Link>
+                  </div>
+                </div>
               ))}
             </div>
           )}

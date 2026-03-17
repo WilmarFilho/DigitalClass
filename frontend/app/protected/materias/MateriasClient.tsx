@@ -23,6 +23,7 @@ interface Subject {
   color_code: string;
   target_hours: number;
   completed_hours: number;
+  completed_minutes?: number;
   deadline: string | null;
   difficulty_level: number | null;
   is_custom: boolean;
@@ -95,8 +96,18 @@ export function MateriasClient() {
 
   return (
     <div className="space-y-10 pb-10 animate-in fade-in duration-700">
-      {/* Header Central */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-8 rounded-3xl border border-[#E6E0F8] shadow-sm">
+      
+      {/* Loading de Tela Inicial */}
+      {(loadingRecs && loadingSubjects) ? (
+        <div className="flex flex-col items-center justify-center min-h-[60vh]">
+          <Loader2 className="h-12 w-12 text-[#6D44CC] animate-spin mb-4" />
+          <h2 className="text-[#1A1A1A] font-black text-lg">Carregando Materiais e Sugestões da IA</h2>
+          <p className="text-slate-400 font-medium text-sm mt-1">Isso pode levar alguns segundos...</p>
+        </div>
+      ) : (
+        <>
+          {/* Header Central */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-8 rounded-3xl border border-[#E6E0F8] shadow-sm">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-[#F5F3FF] rounded-2xl border border-[#E6E0F8]">
             <BookOpen className="h-7 w-7 text-[#6D44CC]" />
@@ -122,9 +133,7 @@ export function MateriasClient() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {loadingRecs ? (
-            Array(3).fill(0).map((_, i) => <div key={i} className="h-32 rounded-3xl bg-slate-100 animate-pulse" />)
-          ) : recommendations.map((rec) => {
+          {recommendations.map((rec) => {
             const added = alreadyAdded(rec.title);
             return (
               <div
@@ -174,15 +183,17 @@ export function MateriasClient() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {loadingSubjects ? (
-             Array(3).fill(0).map((_, i) => <div key={i} className="h-40 rounded-3xl bg-slate-100 animate-pulse" />)
-          ) : mySubjects.length === 0 ? (
+          {mySubjects.length === 0 ? (
             <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed border-[#E6E0F8]">
               <BookOpen className="h-12 w-12 text-slate-200 mx-auto mb-4" />
               <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Sua grade está vazia</p>
             </div>
           ) : mySubjects.map((s) => {
-            const progress = Math.min(Math.round((s.completed_hours / s.target_hours) * 100), 100);
+            const completedMinutes = s.completed_minutes || 0;
+            const targetMinutes = Math.max(s.target_hours * 60, 1);
+            const progress = Math.min(Math.round((completedMinutes / targetMinutes) * 100), 100);
+            const completedHoursRounded = Math.floor(completedMinutes / 60);
+
             return (
               <div key={s.id} className="bg-white rounded-3xl border border-[#E6E0F8] p-6 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-between mb-6">
@@ -212,7 +223,7 @@ export function MateriasClient() {
                     />
                   </div>
                   <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-tighter">
-                    <span>{s.completed_hours}H Concluídas</span>
+                    <span>{completedHoursRounded}H Concluídas</span>
                     <span>Meta: {s.target_hours}H</span>
                   </div>
                 </div>
@@ -282,6 +293,8 @@ export function MateriasClient() {
           </form>
         )}
       </Modal>
+      </>
+      )}
     </div>
   );
 }

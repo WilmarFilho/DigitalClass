@@ -19,6 +19,8 @@ interface Subject {
   id: string;
   title: string;
   color_code: string;
+  target_hours: number;
+  completed_minutes: number;
 }
 
 interface CalendarEvent {
@@ -44,7 +46,7 @@ export function CalendarioClient() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [suggestions, setSuggestions] = useState<CalendarSuggestion[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [, setLoadingSuggestions] = useState(true);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [dayDetailModalOpen, setDayDetailModalOpen] = useState(false);
@@ -52,7 +54,7 @@ export function CalendarioClient() {
   const [formSubjectId, setFormSubjectId] = useState("");
   const [formTime, setFormTime] = useState("09:00");
   const [formDuration, setFormDuration] = useState("60");
-  const [, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const year = currentDate.getFullYear();
@@ -97,15 +99,20 @@ export function CalendarioClient() {
     if (!selectedDay || !formSubjectId) return setFormError("Selecione uma matéria");
     setSubmitting(true);
     try {
+      const duration = parseInt(formDuration);
+      if (isNaN(duration) || duration <= 0) {
+        setFormError("A duração deve ser maior que 0 minutos");
+        return;
+      }
       await apiPost("/calendar/events", {
         subject_id: formSubjectId,
         scheduled_date: selectedDay.date,
         scheduled_time: formTime,
-        duration_minutes: parseInt(formDuration),
+        duration_minutes: duration,
       });
       setAddModalOpen(false);
       loadData();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) { setFormError(err.message); } finally { setSubmitting(false); }
   };
 
@@ -119,7 +126,7 @@ export function CalendarioClient() {
         duration_minutes: s.suggested_duration_minutes,
       });
       loadData();
-    } catch {} finally { setSubmitting(false); }
+    } catch { } finally { setSubmitting(false); }
   };
 
   return (
@@ -163,10 +170,16 @@ export function CalendarioClient() {
         </div>
 
         {/* Células */}
-        <div className="flex-1 grid grid-cols-7 grid-rows-6">
+        <div className="flex-1 grid grid-cols-7 grid-rows-6 relative">
+          {loading && (
+            <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center rounded-b-2xl">
+              <Loader2 className="h-8 w-8 text-[#6D44CC] animate-spin mb-4" />
+              <p className="text-sm font-bold text-[#6D44CC] animate-pulse">Carregando cronograma...</p>
+            </div>
+          )}
           {[...padding, ...days].map((day, i) => {
             if (day === null) return <div key={`pad-${i}`} className="border-b border-r border-[#F0EDFF] bg-[#FBFBFF]" />;
-            
+
             const dayEvents = getEventsForDay(day);
             const daySugs = getSuggestionsForDay(day).filter(s => !alreadyHasEvent(s.date, s.subject_id));
             const isToday = year === today.getFullYear() && month === today.getMonth() && day === today.getDate();
@@ -187,13 +200,13 @@ export function CalendarioClient() {
                     {day}
                   </span>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
+                    <button
                       onClick={() => { setSelectedDay({ date: dateStr(day), day }); setDayDetailModalOpen(true); }}
                       className="p-1 hover:bg-[#E6E0F8] rounded-md text-[#6D44CC]"
                     >
                       <Maximize2 className="h-3 w-3" />
                     </button>
-                    <button 
+                    <button
                       onClick={() => { setSelectedDay({ date: dateStr(day), day }); setAddModalOpen(true); }}
                       className="p-1 hover:bg-[#E6E0F8] rounded-md text-[#6D44CC]"
                     >
@@ -205,8 +218,8 @@ export function CalendarioClient() {
                 {/* Eventos na célula */}
                 <div className="space-y-1.5 overflow-hidden">
                   {dayEvents.slice(0, 2).map(ev => (
-                    <div 
-                      key={ev.id} 
+                    <div
+                      key={ev.id}
                       className="text-[10px] px-2 py-1 rounded-md text-white font-bold truncate shadow-sm"
                       style={{ backgroundColor: ev.subjects?.color_code || "#6D44CC" }}
                     >
@@ -246,9 +259,25 @@ export function CalendarioClient() {
                       <p className="text-[10px] font-medium text-slate-400 uppercase">{ev.scheduled_time || "00:00"} • {ev.duration_minutes}min</p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" onClick={() => apiDelete(`/calendar/events/${ev.id}`).then(loadData)} className="opacity-0 group-hover:opacity-100 text-red-400">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        apiPost<{ id: string }>("/study/sessions", {
+                          subject_id: ev.subject_id,
+                          calendar_event_id: ev.id
+                        }).then(session => {
+                          window.location.href = `/protected/estudos/sessao?sessionId=${session.id}&subjectId=${ev.subject_id}`;
+                        });
+                      }}
+                      className="bg-[#6D44CC] hover:bg-[#5B39A8] h-7 text-[10px] font-bold rounded-lg"
+                    >
+                      INICIAR SESSÃO
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => apiDelete(`/calendar/events/${ev.id}`).then(loadData)} className="opacity-0 group-hover:opacity-100 text-red-400">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -279,30 +308,30 @@ export function CalendarioClient() {
       {/* Modal Adicionar Evento (Simpificado) */}
       <Modal open={addModalOpen} onClose={() => setAddModalOpen(false)} title="Novo Agendamento">
         <form onSubmit={handleAddEvent} className="space-y-5">
-           <div className="space-y-2">
-             <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Matéria de Estudo</Label>
-             <select 
-              value={formSubjectId} 
+          <div className="space-y-2">
+            <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Matéria de Estudo</Label>
+            <select
+              value={formSubjectId}
               onChange={e => setFormSubjectId(e.target.value)}
               className="w-full rounded-xl border border-[#E6E0F8] p-3 text-sm focus:ring-2 focus:ring-[#6D44CC] outline-none"
-             >
-               <option value="">Selecione a matéria...</option>
-               {subjects.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
-             </select>
-           </div>
-           <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Início</Label>
-                <Input type="time" value={formTime} onChange={e => setFormTime(e.target.value)} className="rounded-xl border-[#E6E0F8]" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Duração (min)</Label>
-                <Input type="number" step="15" value={formDuration} onChange={e => setFormDuration(e.target.value)} className="rounded-xl border-[#E6E0F8]" />
-              </div>
-           </div>
-           <Button type="submit" disabled={submitting} className="w-full bg-[#6D44CC] hover:bg-[#5B39A8] rounded-xl h-12 font-bold">
-             {submitting ? <Loader2 className="animate-spin h-5 w-5" /> : "CONFIRMAR AGENDAMENTO"}
-           </Button>
+            >
+              <option value="">Selecione a matéria...</option>
+              {subjects.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Início</Label>
+              <Input type="time" value={formTime} onChange={e => setFormTime(e.target.value)} className="rounded-xl border-[#E6E0F8]" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Duração (min)</Label>
+              <Input type="number" step="15" value={formDuration} onChange={e => setFormDuration(e.target.value)} className="rounded-xl border-[#E6E0F8]" />
+            </div>
+          </div>
+          <Button type="submit" disabled={submitting} className="w-full bg-[#6D44CC] hover:bg-[#5B39A8] rounded-xl h-12 font-bold">
+            {submitting ? <Loader2 className="animate-spin h-5 w-5" /> : "CONFIRMAR AGENDAMENTO"}
+          </Button>
         </form>
       </Modal>
     </div>

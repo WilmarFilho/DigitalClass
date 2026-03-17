@@ -14,6 +14,7 @@ export interface SessionHighlight {
 export interface SessionWithSubject {
   id: string;
   subject_id: string | null;
+  calendar_event_id: string | null;
   content_raw: string | null;
   ai_summary: string | null;
   duration_minutes: number | null;
@@ -40,7 +41,7 @@ export class StudyService {
     }
   }
 
-  async createSession(userId: string, subjectId: string): Promise<SessionWithSubject> {
+  async createSession(userId: string, subjectId: string, calendarEventId?: string): Promise<SessionWithSubject> {
     const supabase = this.supabaseService.getClient();
 
     const { data: subject } = await supabase
@@ -59,11 +60,13 @@ export class StudyService {
       .insert({
         student_id: userId,
         subject_id: subjectId,
+        calendar_event_id: calendarEventId || null,
         duration_minutes: 0,
       })
       .select(`
         id,
         subject_id,
+        calendar_event_id,
         content_raw,
         ai_summary,
         duration_minutes,
@@ -72,7 +75,13 @@ export class StudyService {
         subjects (
           id,
           title,
-          color_code
+          color_code,
+          target_hours,
+          completed_minutes
+        ),
+        calendar_events (
+          id,
+          duration_minutes
         )
       `)
       .single();
@@ -93,6 +102,7 @@ export class StudyService {
       .select(`
         id,
         subject_id,
+        calendar_event_id,
         content_raw,
         ai_summary,
         duration_minutes,
@@ -101,7 +111,13 @@ export class StudyService {
         subjects (
           id,
           title,
-          color_code
+          color_code,
+          target_hours,
+          completed_minutes
+        ),
+        calendar_events (
+          id,
+          duration_minutes
         )
       `)
       .eq('student_id', userId)
@@ -124,6 +140,7 @@ export class StudyService {
       .select(`
         id,
         subject_id,
+        calendar_event_id,
         content_raw,
         ai_summary,
         duration_minutes,
@@ -132,7 +149,13 @@ export class StudyService {
         subjects (
           id,
           title,
-          color_code
+          color_code,
+          target_hours,
+          completed_minutes
+        ),
+        calendar_events (
+          id,
+          duration_minutes
         )
       `)
       .eq('id', sessionId)
@@ -481,21 +504,61 @@ PAPEL:
     return (data ?? []).map((m) => ({ role: m.role, content: m.content }));
   }
 
-  async updateSessionDuration(userId: string, sessionId: string, durationMinutes: number) {
-    await this.getSession(userId, sessionId);
+  async updateSessionDuration(userId: string, sessionId: string, durationMinutes: number, isFinished = false) {
+    const session = await this.getSession(userId, sessionId);
     const supabase = this.supabaseService.getClient();
-    const { error } = await supabase
+
+    // Update the session duration
+    const { error: sessionError } = await supabase
       .from('study_sessions')
       .update({ duration_minutes: durationMinutes })
       .eq('id', sessionId)
       .eq('student_id', userId);
-    if (error) throw new Error(error.message);
+
+    if (sessionError) throw new Error(sessionError.message);
+
+    // Update the subject's completed_minutes
+    if (session.subject_id && durationMinutes > 0) {
+      const { error: subjectError } = await supabase.rpc('increment_subject_minutes', {
+        sub_id: session.subject_id,
+        minutes: durationMinutes
+      });
+
+      if (subjectError) {
+        // Fallback if RPC doesn't exist yet
+        this.logger.warn(`RPC increment_subject_minutes failed, trying manual update: ${subjectError.message}`);
+        const { data: subjectData } = await supabase
+          .from('subjects')
+          .select('completed_minutes')
+          .eq('id', session.subject_id)
+          .single();
+
+        if (subjectData) {
+          await supabase
+            .from('subjects')
+            .update({ completed_minutes: (subjectData.completed_minutes || 0) + durationMinutes })
+            .eq('id', session.subject_id);
+        }
+      }
+    }
+
+    // Finish calendar event if requested
+    if (isFinished && session.calendar_event_id) {
+      try {
+        await supabase
+          .from('calendar_events')
+          .delete()
+          .eq('id', session.calendar_event_id);
+      } catch (err) {
+        this.logger.warn(`Failed to delete calendar event: ${err.message}`);
+      }
+    }
   }
 
   async saveHighlight(userId: string, sessionId: string, text: string): Promise<SessionHighlight> {
     await this.getSession(userId, sessionId); // check if session exists and belongs to user
     const supabase = this.supabaseService.getClient();
-    
+
     const { data, error } = await supabase
       .from('study_session_highlights')
       .insert({
