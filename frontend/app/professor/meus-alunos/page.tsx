@@ -124,7 +124,7 @@ export default function MeusAlunosPage() {
       animate={{ opacity: 1, y: 0 }}
       className="max-w-7xl mx-auto space-y-8 pb-12"
     >
-      <header className="flex flex-col md:flex-column md:items-start md:align-start md:justify-start lg:flex-row md:items-center justify-between gap-4">
+      <header className="flex flex-col md:flex-column md:items-start md:align-start md:justify-between lg:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <UsersRound className="h-7 w-7 text-indigo-600" />

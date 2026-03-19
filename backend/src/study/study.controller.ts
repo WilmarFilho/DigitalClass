@@ -18,7 +18,7 @@ import { SupabaseJwtGuard } from '../auth/guards/supabase-jwt.guard';
 @Controller('study')
 @UseGuards(SupabaseJwtGuard)
 export class StudyController {
-  constructor(private readonly studyService: StudyService) {}
+  constructor(private readonly studyService: StudyService) { }
 
   @Post('sessions')
   async createSession(@Req() req: any, @Body() dto: CreateSessionDto): Promise<SessionWithSubject> {
@@ -64,11 +64,6 @@ export class StudyController {
     return { message };
   }
 
-  @Get('sessions/:id/chat/messages')
-  async getChatMessages(@Req() req: any, @Param('id') id: string) {
-    return this.studyService.getChatMessages(id, req.user.id);
-  }
-
   @Post('sessions/:id/chat')
   async chat(
     @Req() req: any,
@@ -78,6 +73,34 @@ export class StudyController {
     const text = await this.studyService.chat(id, req.user.id, dto.message, dto.history ?? []);
     return { message: text };
   }
+
+  @Post('sessions/:id/chat/next-steps')
+  async getNextSteps(@Param('id') id: string, @Req() req: any, @Body() dto: { history: any[] }) {
+    const session = await this.studyService.getSession(req.user.id, id);
+    return this.studyService.getNextSteps(session.subjects.title, dto.history);
+  }
+
+  @Post('sessions/:id/chat/suggested-topic')
+  async chatSuggested(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: { topic: string, history: any[] },
+  ) {
+    const text = await this.studyService.chatSuggestedTopic(
+      id,
+      req.user.id,
+      dto.topic,
+      dto.history
+    );
+    return { message: text };
+  }
+
+  @Get('sessions/:id/chat/messages')
+  async getChatMessages(@Req() req: any, @Param('id') id: string) {
+    return this.studyService.getChatMessages(id, req.user.id);
+  }
+
+
 
   @Post('sessions/:id/chat/highlights')
   async saveHighlight(

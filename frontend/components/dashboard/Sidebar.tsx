@@ -32,7 +32,7 @@ const studentNav = [
 
 const teacherNav = [
   { href: "/protected", icon: LayoutDashboard, label: "Dashboard", newTab: false },
-  { href: "/professor/minha-area", icon: MonitorPlay, label: "Minha Área", newTab: false },
+  { href: "/professor/minha-area", icon: MonitorPlay, label: "Minhas Áreas", newTab: false },
   { href: "/professor/meus-alunos", icon: UsersRound, label: "Meus Alunos", newTab: false },
 ];
 

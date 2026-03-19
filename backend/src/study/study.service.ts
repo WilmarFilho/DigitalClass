@@ -20,7 +20,7 @@ export interface SessionWithSubject {
   duration_minutes: number | null;
   mood_rating: number | null;
   created_at: string;
-  subjects: { id: string; title: string; color_code: string } | null;
+  subjects: { id: string; title: string; color_code: string };
   highlights?: SessionHighlight[];
 }
 
@@ -92,6 +92,73 @@ export class StudyService {
     }
 
     return session as unknown as SessionWithSubject;
+  }
+
+  async chatSuggestedTopic(
+    sessionId: string,
+    userId: string,
+    topic: string,
+    history: Array<{ role: 'user' | 'assistant'; content: string }> = [],
+  ): Promise<string> {
+    const session = await this.getSession(userId, sessionId);
+    const subjectTitle = session.subjects?.title ?? 'este tema';
+    const userMessage = `Gostaria de aprender sobre: ${topic}`;
+
+    const systemPrompt = `Você é um tutor educacional especializado. O aluno escolheu aprofundar no tópico específico: "${topic}", dentro do contexto de "${subjectTitle}".
+  
+  SUA MISSÃO:
+  1. Introduza "${topic}" conectando-o logicamente com o que foi discutido no histórico (se houver).
+  2. Explique o conceito de forma clara, didática e use um exemplo prático ou analogia.
+  3. Mantenha o tom de mentor: paciente, encorajador e focado no progresso do aluno.
+  4. Seja objetivo mas completo (3-5 parágrafos).
+  5. Ao final, incentive o aluno a tirar dúvidas sobre este ponto específico.
+  6. Evite markdown excessivo, use apenas para destacar termos importantes.`;
+
+    // Prepara as mensagens mantendo a janela de contexto
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      { role: 'system', content: systemPrompt },
+      ...history.slice(-15).map((h) => ({
+        role: h.role as 'user' | 'assistant',
+        content: h.content,
+      })),
+      { role: 'user', content: userMessage },
+    ];
+
+    if (this.openai) {
+      try {
+        const completion = await this.openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages,
+          max_tokens: 1000,
+          temperature: 0.6,
+        });
+
+        const reply = completion.choices[0]?.message?.content?.trim()
+          ?? 'Desculpe, tive um problema ao preparar essa explicação. Pode tentar novamente?';
+
+        // Persistência no Banco de Dados (Fundamental para o histórico)
+        const supabase = this.supabaseService.getClient();
+        await supabase.from('session_chat_messages').insert([
+          {
+            session_id: sessionId,
+            role: 'user',
+            content: userMessage
+          },
+          {
+            session_id: sessionId,
+            role: 'assistant',
+            content: reply
+          },
+        ]);
+
+        return reply;
+      } catch (err) {
+        this.logger.error(`Suggested topic error: ${err?.message}`);
+        return 'Ocorreu um erro ao processar o novo tópico. Por favor, tente novamente em instantes.';
+      }
+    }
+
+    return 'O serviço de IA está temporariamente indisponível. Tente digitar sua dúvida manualmente.';
   }
 
   async getRecentSessions(userId: string, limit = 10): Promise<SessionWithSubject[]> {
@@ -224,10 +291,6 @@ REGRAS:
     return intro;
   }
 
-  private getFallbackIntro(subjectTitle: string): string {
-    return `Olá! Você está estudando ${subjectTitle}. Este é um tema fundamental — vou te guiar passo a passo. Podemos começar pelos conceitos básicos ou você pode me dizer o que já sabe e o que quer aprofundar. O que prefere explorar primeiro?`;
-  }
-
   async chat(
     sessionId: string,
     userId: string,
@@ -248,6 +311,7 @@ PAPEL:
 - Mantenha CONTEXTO e MEMÓRIA: lembre-se do que já foi discutido e construa sobre isso
 - Sugira próximos passos de estudo baseados no que falta cobrir
 - Respostas claras e objetivas (2-4 parágrafos no máximo), mas complete quando necessário
+- Sempre guie o aluno, sugerindo o proximo topico a ser estudado
 - Evite markdown excessivo`;
 
     const recentHistory = history.slice(-20);
@@ -285,6 +349,35 @@ PAPEL:
     return 'O recurso de chat com IA está temporariamente indisponível.';
   }
 
+  async getNextSteps(subjectTitle: string, history: any[]): Promise<string[]> {
+    if (!this.openai) return [];
+
+    const lastMessages = history.slice(-5).map(h => `${h.role}: ${h.content}`).join('\n');
+
+    try {
+      const completion = await this.openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `Você é um coordenador pedagógico. Com base no tema "${subjectTitle}" e na conversa atual, sugira EXATAMENTE 2 tópicos curtos (máximo 3 palavras cada) que seriam o próximo passo lógico de estudo. Retorne apenas os tópicos separados por vírgula, sem numeração.`
+          },
+          { role: 'user', content: `Histórico da conversa:\n${lastMessages}` }
+        ],
+        temperature: 0.5,
+      });
+
+      const res = completion.choices[0]?.message?.content;
+      return res ? res.split(',').map(s => s.trim().replace('.', '')) : [];
+    } catch (err) {
+      return [];
+    }
+  }
+
+  private getFallbackIntro(subjectTitle: string): string {
+    return `Olá! Você está estudando ${subjectTitle}. Este é um tema fundamental — vou te guiar passo a passo. Podemos começar pelos conceitos básicos ou você pode me dizer o que já sabe e o que quer aprofundar. O que prefere explorar primeiro?`;
+  }
+
   async generateQuiz(sessionId: string, userId: string, count = 5): Promise<Array<{
     question: string;
     answer: string;
@@ -292,35 +385,74 @@ PAPEL:
   }>> {
     const session = await this.getSession(userId, sessionId);
     const subjectTitle = session.subjects?.title ?? 'este tema';
+    const supabase = this.supabaseService.getClient();
+
+    // 1. Buscar contexto do Chat para saber o que foi ensinado
+    const { data: chatMessages } = await supabase
+      .from('session_chat_messages')
+      .select('content, role')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    // 2. Buscar Quizzes anteriores para evitar repetição
+    // Assumindo que você salva os quizzes em uma tabela 'session_quiz_questions'
+    const { data: existingQuizzes } = await supabase
+      .from('study_assets')
+      .select('question')
+      .eq('session_id', sessionId)
+      .eq('type', 'quiz_question');
+
+    const previousQuestions = existingQuizzes?.map(q => q.question).join('|') || 'Nenhuma';
+    const contextSummary = chatMessages?.reverse().map(m => `${m.role}: ${m.content}`).join('\n') || 'Início do estudo.';
 
     if (this.openai) {
       try {
         const completion = await this.openai.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: 'gpt-4o', // Upgrade para o modelo mais inteligente
           messages: [
             {
               role: 'system',
-              content: `Gere exatamente ${count} questões de múltipla escolha sobre o tema "${subjectTitle}". Cada questão deve ter 4 alternativas (A, B, C, D), sendo uma correta. Retorne APENAS um JSON válido, sem texto extra, no formato: [{"question":"...","answer":"A" (ou B,C,D), "options":["opção A","opção B","opção C","opção D"]}]`,
+              content: `Você é um professor especialista em "${subjectTitle}". Sua tarefa é gerar um quiz de fixação.
+
+            CONTEXTO DO QUE FOI DISCUTIDO NO CHAT:
+            ${contextSummary}
+
+            QUESTÕES JÁ GERADAS ANTERIORMENTE (NÃO REPITA ESTAS):
+            ${previousQuestions}
+
+            REGRAS CRÍTICAS:
+            1. Gere exatamente ${count} questões inéditas.
+            2. As questões DEVEM ser baseadas no que foi discutido no chat acima, mas focadas no tema "${subjectTitle}".
+            3. Verifique triplamente se a alternativa marcada como 'answer' está correta e presente em 'options'.
+            4. As alternativas devem ser plausíveis, mas apenas uma absolutamente correta.
+            5. Retorne APENAS um JSON puro no formato: [{"question":"...","answer":"A","options":["...","...","...","..."]}]`
             },
           ],
-          max_tokens: 2000,
-          temperature: 0.8,
+          response_format: { type: "json_object" }, // Força o retorno JSON se a API suportar
+          temperature: 0.7,
         });
 
-        const text = completion.choices[0]?.message?.content?.trim();
-        const cleaned = text?.replace(/```json?|```/g, '').trim() ?? '[]';
-        const parsed = JSON.parse(cleaned) as Array<{ question: string; answer: string; options: string[] }>;
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const items = parsed.map((q) => ({
+        const text = completion.choices[0]?.message?.content?.trim() || '[]';
+        const cleaned = text.replace(/```json?|```/g, '').trim();
+
+        // Tratamento robusto do JSON
+        const parsedData = JSON.parse(cleaned);
+        // Alguns modelos retornam { "questions": [...] }, outros o array direto
+        const questionsArray = Array.isArray(parsedData) ? parsedData : parsedData.questions;
+
+        if (Array.isArray(questionsArray)) {
+          const items = questionsArray.map((q) => ({
             question: q.question,
-            answer: q.answer,
-            options: Array.isArray(q.options) ? q.options : [],
+            answer: q.answer.toUpperCase(), // Garante 'A', 'B', etc
+            options: q.options,
           }));
+
           await this.saveQuizAssets(sessionId, items);
           return items;
         }
       } catch (err) {
-        this.logger.warn(`Quiz generation failed: ${err?.message}`);
+        this.logger.error(`Erro na geração de quiz: ${err?.message}`);
       }
     }
 
@@ -358,34 +490,69 @@ PAPEL:
   }>> {
     const session = await this.getSession(userId, sessionId);
     const subjectTitle = session.subjects?.title ?? 'este tema';
+    const supabase = this.supabaseService.getClient();
+
+    // 1. Buscar contexto do Chat para saber o que foi discutido
+    const { data: chatMessages } = await supabase
+      .from('session_chat_messages')
+      .select('content, role')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    // 2. Buscar Flashcards anteriores para evitar repetição
+    const { data: existingFlashcards } = await supabase
+      .from('study_assets')
+      .select('question')
+      .eq('session_id', sessionId)
+      .eq('type', 'flashcard'); // Ajuste o 'type' conforme seu banco
+
+    const previousFlashcards = existingFlashcards?.map(f => f.question).join('|') || 'Nenhum';
+    const contextSummary = chatMessages?.reverse().map(m => `${m.role}: ${m.content}`).join('\n') || 'Início do estudo.';
 
     if (this.openai) {
       try {
         const completion = await this.openai.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: 'gpt-4o', // Upgrade para o modelo mais inteligente
           messages: [
             {
               role: 'system',
-              content: `Gere exatamente ${count} flashcards sobre o tema "${subjectTitle}". Formato: pergunta na frente, resposta atrás. Retorne APENAS um JSON válido, sem texto extra: [{"question":"...","answer":"..."}]`,
+              content: `Você é um tutor pedagógico especializado em "${subjectTitle}". Sua tarefa é criar flashcards (pergunta e resposta rápida) para memorização.
+
+            CONTEXTO DO QUE FOI DISCUTIDO NO CHAT:
+            ${contextSummary}
+
+            FLASHCARDS JÁ GERADOS (NÃO REPITA ESTAS PERGUNTAS OU TEMAS):
+            ${previousFlashcards}
+
+            REGRAS CRÍTICAS:
+            1. Gere exatamente ${count} flashcards inéditos.
+            2. Foque em conceitos-chave, definições ou fórmulas discutidas no chat.
+            3. As perguntas devem ser diretas e as respostas concisas.
+            4. Retorne APENAS um JSON puro no formato: {"flashcards": [{"question":"...","answer":"..."}]}`
             },
           ],
-          max_tokens: 1500,
-          temperature: 0.7,
+          response_format: { type: "json_object" },
+          temperature: 0.8,
         });
 
-        const text = completion.choices[0]?.message?.content?.trim();
-        const cleaned = text?.replace(/```json?|```/g, '').trim() ?? '[]';
-        const parsed = JSON.parse(cleaned) as Array<{ question: string; answer: string }>;
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const items = parsed.map((f) => ({
+        const text = completion.choices[0]?.message?.content?.trim() || '{}';
+        const parsedData = JSON.parse(text);
+
+        // Suporta tanto o array direto quanto o objeto encapsulado
+        const flashcardsArray = Array.isArray(parsedData) ? parsedData : parsedData.flashcards;
+
+        if (Array.isArray(flashcardsArray)) {
+          const items = flashcardsArray.map((f) => ({
             question: String(f.question ?? ''),
             answer: String(f.answer ?? ''),
           }));
+
           await this.saveFlashcardAssets(sessionId, items);
           return items;
         }
       } catch (err) {
-        this.logger.warn(`Flashcard generation failed: ${err?.message}`);
+        this.logger.error(`Flashcard generation failed: ${err?.message}`);
       }
     }
 

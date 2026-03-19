@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Send, Loader2, Bot, X } from "lucide-react";
+import { MessageCircle, Send, Loader2, Bot, X, Plus, Sparkles, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiGet, apiPost } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -20,7 +20,7 @@ interface SessionHighlight {
 }
 
 interface ChatMessage {
-  role: "assistant" | "user";
+  role: string;
   content: string;
 }
 
@@ -36,7 +36,20 @@ export function ChatPanel({
   const [savingHighlight, setSavingHighlight] = useState(false);
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  
+
+  const [nextSteps, setNextSteps] = useState<string[]>([]);
+
+  const loadNextSteps = async (currentHistory: any[]) => {
+    try {
+      const steps = await apiPost<string[]>(`/study/sessions/${sessionId}/chat/next-steps`, {
+        history: currentHistory
+      });
+      setNextSteps(steps);
+    } catch (e) {
+      setNextSteps([]);
+    }
+  };
+
   // Floating reference button state
   const [selectionRange, setSelectionRange] = useState<{
     text: string;
@@ -63,11 +76,11 @@ export function ChatPanel({
 
   const handleTextSelection = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     setTimeout(async () => {
       const selection = window.getSelection();
       if (!selection) return;
-      
+
       const text = selection.toString().trim();
       if (!text || text.length < 3) return;
 
@@ -105,6 +118,42 @@ export function ChatPanel({
     });
   };
 
+  const handleSelectStep = async (step: string) => {
+    if (sending) return;
+
+    // 1. Limpa sugestões para evitar cliques duplos e dar feedback visual
+    setNextSteps([]);
+
+    // 2. Adiciona a mensagem do usuário ao chat visualmente
+    const userMsg = { role: "user" as const, content: `Gostaria de aprender sobre: ${step}` };
+    setMessages((m) => [...m, userMsg]);
+    setSending(true);
+
+    try {
+      // 3. Bate no novo endpoint dedicado ou no chat passando o contexto
+      const { message } = await apiPost<{ message: string }>(
+        `/study/sessions/${sessionId}/chat/suggested-topic`,
+        {
+          topic: step,
+          history: messages.map((m) => ({ role: m.role, content: m.content })),
+        }
+      );
+
+      const assistantMsg = { role: "assistant" as const, content: message };
+      setMessages((m) => [...m, assistantMsg]);
+
+      // 4. Carrega os PRÓXIMOS passos baseados nessa nova explicação
+      loadNextSteps([...messages, userMsg, assistantMsg]);
+    } catch {
+      setMessages((m) => [
+        ...m,
+        { role: "assistant", content: "Não consegui iniciar esse tópico agora. Pode tentar digitar?" },
+      ]);
+    } finally {
+      setSending(false);
+    }
+  };
+
   const handleMouseLeaveHighlight = () => {
     hoverTimeoutRef.current = setTimeout(() => {
       setSelectionRange(null);
@@ -125,7 +174,7 @@ export function ChatPanel({
       setQuotedText(selectionRange.text);
       setSelectionRange(null);
       window.getSelection()?.removeAllRanges();
-      
+
       // Focus input
       setTimeout(() => {
         const inputEl = document.getElementById("chat-input");
@@ -152,7 +201,12 @@ export function ChatPanel({
         const { message } = await apiGet<{ message: string }>(
           "/study/sessions/" + sessionId + "/chat/intro"
         );
-        setMessages([{ role: "assistant", content: message }]);
+
+        const introMsg = { role: "assistant", content: message };
+
+        setMessages([introMsg]);
+        loadNextSteps([introMsg]);
+
       } catch {
         setMessages([
           {
@@ -172,11 +226,11 @@ export function ChatPanel({
     if (!text || sending) return;
 
     setInput("");
-    
+
     // Construct the payload with quoted text if present
     const fullText = quotedText ? `> "${quotedText}"\n\n${text}` : text;
     setQuotedText(null);
-    
+
     setMessages((m) => [...m, { role: "user", content: fullText }]);
     setSending(true);
 
@@ -188,7 +242,12 @@ export function ChatPanel({
           history: messages.map((m) => ({ role: m.role, content: m.content })),
         }
       );
-      setMessages((m) => [...m, { role: "assistant", content: message }]);
+
+      const assistantMsg = { role: "assistant", content: message };
+      setMessages(prev => [...prev, assistantMsg]);
+      loadNextSteps([...messages, { role: "user", content: fullText }, assistantMsg]);
+
+
     } catch {
       setMessages((m) => [
         ...m,
@@ -201,7 +260,7 @@ export function ChatPanel({
 
   return (
     <div className="flex relative h-full min-h-0 flex-col rounded-[24px] border border-slate-200 bg-white shadow-xl shadow-slate-200/50 overflow-hidden">
-      
+
       {/* Pop-up de Citação */}
       {typeof document !== "undefined" && createPortal(
         <AnimatePresence>
@@ -235,7 +294,7 @@ export function ChatPanel({
       )}
 
       {/* Header com Gradiente Sutil */}
-      <div 
+      <div
         className="shrink-0 px-6 py-5 border-b border-slate-100"
         style={{ background: `linear-gradient(135deg, ${subjectColor}05, ${subjectColor}12)` }}
       >
@@ -270,11 +329,11 @@ export function ChatPanel({
         <AnimatePresence initial={false}>
           {messages.map((msg, i) => {
             let renderedContent = <>{msg.content}</>;
-            
+
             if (msg.role === "assistant" && highlights.length > 0) {
               let text = msg.content;
               const substrings: { start: number; end: number; match: string }[] = [];
-              
+
               highlights.forEach(h => {
                 let startIndex = 0;
                 let idx;
@@ -286,7 +345,7 @@ export function ChatPanel({
 
               if (substrings.length > 0) {
                 substrings.sort((a, b) => a.start - b.start);
-                
+
                 // Merge overlapping or adjacent ranges
                 const mergedRanges = [substrings[0]];
                 for (let j = 1; j < substrings.length; j++) {
@@ -306,8 +365,8 @@ export function ChatPanel({
                     parts.push(<span key={`t-${rmIdx}`}>{text.slice(lastEnd, range.start)}</span>);
                   }
                   parts.push(
-                    <mark 
-                      key={`m-${rmIdx}`} 
+                    <mark
+                      key={`m-${rmIdx}`}
                       className="bg-yellow-200 text-slate-900 rounded-sm px-0.5 shadow-sm cursor-pointer relative transition-colors hover:bg-yellow-300"
                       onMouseEnter={(e) => handleMouseEnterHighlight(e, text.slice(range.start, range.end))}
                       onMouseLeave={handleMouseLeaveHighlight}
@@ -317,11 +376,11 @@ export function ChatPanel({
                   );
                   lastEnd = range.end;
                 });
-                
+
                 if (lastEnd < text.length) {
                   parts.push(<span key={`t-end`}>{text.slice(lastEnd)}</span>);
                 }
-                
+
                 renderedContent = <>{parts}</>;
               }
             }
@@ -339,14 +398,14 @@ export function ChatPanel({
                 <div
                   className={cn(
                     "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-black text-[10px] shadow-sm mb-1",
-                    msg.role === "assistant" 
-                      ? "bg-white border border-slate-200 text-slate-400" 
+                    msg.role === "assistant"
+                      ? "bg-white border border-slate-200 text-slate-400"
                       : "bg-slate-900 text-white"
                   )}
                 >
                   {msg.role === "assistant" ? <Bot className="h-4 w-4 text-[#6D44CC]" /> : "EU"}
                 </div>
-                
+
                 <div
                   className={cn(
                     "max-w-[85%] rounded-[20px] px-5 py-3 text-sm leading-relaxed shadow-sm font-medium",
@@ -361,7 +420,7 @@ export function ChatPanel({
             );
           })}
         </AnimatePresence>
-        
+
         {sending && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
             <div className="h-8 w-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center shadow-sm">
@@ -369,6 +428,51 @@ export function ChatPanel({
             </div>
           </motion.div>
         )}
+      </div>
+
+      <div className="flex flex-wrap md:flex-nowrap gap-3 px-4 py-3 mb-2 w-full justify-between items-stretch">
+        <AnimatePresence mode="popLayout">
+          {!sending && nextSteps.map((step, idx) => (
+            <motion.button
+              key={step}
+              initial={{ opacity: 0, scale: 0.9, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ delay: idx * 0.05 }}
+              disabled={sending}
+              onClick={() => handleSelectStep(step)}
+              className={cn(
+                // flex-1 faz com que cada card ocupe o mesmo espaço disponível
+                // items-stretch no container pai garante que todos tenham a mesma altura
+                "group relative flex flex-1 flex-col items-start gap-1.5 p-3 min-w-[120px]",
+                "bg-white border border-slate-200 rounded-xl shadow-sm",
+                "hover:border-indigo-400 hover:shadow-md hover:shadow-indigo-500/10",
+                "transition-all duration-200 active:scale-95 disabled:opacity-50 text-left"
+              )}
+            >
+              {/* Ícone sutil no topo */}
+              <div className="flex items-center justify-between w-full">
+                <div className="p-1.5 bg-indigo-50 rounded-lg group-hover:bg-[#6D44CC] transition-colors">
+                  <Sparkles className="h-3 w-3 text-[#6D44CC] group-hover:text-white" />
+                </div>
+                <ChevronRight className="h-3 w-3 text-slate-300 group-hover:text-[#6D44CC] transition-colors" />
+              </div>
+
+              {/* Texto do Tópico */}
+              <div className="mt-1 w-full">
+                <span className="block text-[9px] uppercase tracking-wider text-slate-400 font-black mb-0.5 group-hover:text-indigo-400 transition-colors">
+                  Sugestão
+                </span>
+                <p className="text-xs font-bold text-slate-700 leading-tight line-clamp-2 group-hover:text-slate-900">
+                  {step}
+                </p>
+              </div>
+
+              {/* Overlay de brilho no hover */}
+              <div className="absolute inset-0 rounded-xl bg-gradient-to-tr from-[#6D44CC]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            </motion.button>
+          ))}
+        </AnimatePresence>
       </div>
 
       {/* Input de Mensagem */}
@@ -383,7 +487,7 @@ export function ChatPanel({
                 "{quotedText}"
               </p>
             </div>
-            <button 
+            <button
               onClick={() => setQuotedText(null)}
               className="mt-0.5 text-yellow-600 hover:text-yellow-800 transition-colors p-1 rounded-md hover:bg-yellow-100/50"
               title="Remover citação"

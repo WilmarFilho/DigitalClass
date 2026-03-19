@@ -11,7 +11,6 @@ export class ProfileService {
   constructor(private readonly supabaseService: SupabaseService) { }
 
   async getProfile(userId: string) {
-    console.log(userId);
     const supabase = this.supabaseService.getClient();
     const { data, error } = await supabase
       .from('profiles')
