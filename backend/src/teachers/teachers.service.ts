@@ -3,6 +3,8 @@ import {
   Logger,
   NotFoundException,
   ForbiddenException,
+  InternalServerErrorException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -25,12 +27,22 @@ export class TeachersService {
     private readonly supabaseService: SupabaseService,
     private readonly stripeService: StripeService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
   private supabase() {
     return this.supabaseService.getClient();
+  }
+
+  private translateStorageError(msg: string): string {
+    if (msg.includes('The object exceeded the maximum allowed size')) {
+      return 'O arquivo excede o tamanho máximo permitido pelo servidor.';
+    }
+    if (msg.includes('The resource was not found')) {
+      return 'O recurso solicitado não foi encontrado no armazenamento.';
+    }
+    return msg;
   }
 
   private async assertTeacher(userId: string) {
@@ -63,8 +75,8 @@ export class TeachersService {
       .maybeSingle();
 
     if (!sub) {
-       // Check if user is a teacher themselves, if they are not the owner they can't access anyway unless subscribed.
-       throw new ForbiddenException('Assine esta área para acessar o conteúdo');
+      // Check if user is a teacher themselves, if they are not the owner they can't access anyway unless subscribed.
+      throw new ForbiddenException('Assine esta área para acessar o conteúdo');
     }
     return true;
   }
@@ -164,6 +176,76 @@ export class TeachersService {
     return count ?? 0;
   }
 
+  /** Módulo com aulas (aluno assinante ou dono da área) */
+  async getModuleWithLessons(userId: string, moduleId: string) {
+    const { data: module, error: moduleError } = await this.supabase()
+      .from('teacher_area_modules')
+      .select('id, title, description, order_index, section_id')
+      .eq('id', moduleId)
+      .maybeSingle();
+
+    if (moduleError || !module) {
+      throw new NotFoundException('Módulo não encontrado');
+    }
+
+    const { data: section } = await this.supabase()
+      .from('teacher_area_sections')
+      .select('area_id')
+      .eq('id', module.section_id)
+      .maybeSingle();
+
+    if (!section?.area_id) throw new NotFoundException('Módulo não encontrado');
+
+    await this.assertTeacherOrSubscriber(userId, section.area_id);
+
+    const { data: lessons } = await this.supabase()
+      .from('lessons')
+      .select('id, title, description, type, content_url, duration_minutes, order_index')
+      .eq('module_id', moduleId)
+      .order('order_index', { ascending: true });
+
+    const lessonIds = (lessons ?? []).map((l) => l.id);
+    const [progressRes, materialsRes] = await Promise.all([
+      lessonIds.length ? this.supabase()
+        .from('lesson_progress')
+        .select('lesson_id, completed, watched_until_percent, completed_at')
+        .eq('student_id', userId)
+        .in('lesson_id', lessonIds) : Promise.resolve({ data: [] }),
+      lessonIds.length ? this.supabase()
+        .from('lesson_materials')
+        .select('lesson_id, id, type, title, url, order_index')
+        .in('lesson_id', lessonIds)
+        .order('order_index', { ascending: true }) : Promise.resolve({ data: [] }),
+    ]);
+
+    const progressMap = new Map((progressRes.data ?? []).map((p: any) => [p.lesson_id, p]));
+    const materialsByLesson = new Map<string, any[]>();
+    for (const m of materialsRes.data ?? []) {
+      const list = materialsByLesson.get(m.lesson_id) ?? [];
+      list.push({ id: m.id, type: m.type, title: m.title, url: m.url });
+      materialsByLesson.set(m.lesson_id, list);
+    }
+
+    return {
+      id: module.id,
+      title: module.title,
+      description: module.description ?? null,
+      lessons: (lessons ?? []).map((l) => {
+        const prog = progressMap.get(l.id);
+        return {
+          id: l.id,
+          title: l.title,
+          description: l.description ?? null,
+          type: l.type ?? 'video',
+          content_url: l.content_url ?? null,
+          duration_minutes: l.duration_minutes ?? null,
+          progress: prog ? { completed: prog.completed, watched_until_percent: Number(prog.watched_until_percent ?? 0) } : null,
+          materials: materialsByLesson.get(l.id) ?? [],
+        };
+      }),
+    };
+  }
+
   /** Aulas de uma área (só se o aluno for assinante ou for o dono) */
   async getAreaLessons(areaId: string, userId: string) {
     const { data: area } = await this.supabase()
@@ -222,7 +304,7 @@ export class TeachersService {
         subscription_status: 'active',
         payment_failure_count: 0,
       });
-    if (error) throw new Error(error.message);
+    if (error) throw new BadRequestException(error.message);
     return { subscribed: true };
   }
 
@@ -248,7 +330,7 @@ export class TeachersService {
       .delete()
       .eq('student_id', studentId)
       .eq('teacher_area_id', areaId);
-    if (error) throw new Error(error.message);
+    if (error) throw new BadRequestException(error.message);
     return { subscribed: false };
   }
 
@@ -264,7 +346,7 @@ export class TeachersService {
 
     if (!area) throw new NotFoundException('Área não encontrada');
     if (!area.stripe_price_id) {
-      throw new Error('Esta área ainda não possui um preço configurado na Stripe');
+      throw new BadRequestException('Esta área ainda não possui um preço configurado na Stripe');
     }
     if (Number(area.monthly_price) <= 0) {
       throw new ForbiddenException('Esta área é gratuita. Use o endpoint de subscribe.');
@@ -442,7 +524,7 @@ export class TeachersService {
         .eq('id', existing.id)
         .select()
         .single();
-      if (error) throw new Error(error.message);
+      if (error) throw new BadRequestException(error.message);
       return data;
     }
 
@@ -469,7 +551,7 @@ export class TeachersService {
       .insert(payload)
       .select()
       .single();
-    if (error) throw new Error(error.message);
+    if (error) throw new BadRequestException(error.message);
     return data;
   }
 
@@ -513,7 +595,35 @@ export class TeachersService {
       .select()
       .single();
 
-    if (error) throw new Error(error.message);
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async updateLesson(teacherId: string, lessonId: string, dto: { description?: string; duration_minutes?: number }) {
+    await this.assertTeacher(teacherId);
+    const { data: lesson } = await this.supabase()
+      .from('lessons')
+      .select('area_id')
+      .eq('id', lessonId)
+      .maybeSingle();
+    if (!lesson) throw new NotFoundException('Aula não encontrada');
+    const { data: area } = await this.supabase()
+      .from('teacher_areas')
+      .select('teacher_id')
+      .eq('id', lesson.area_id)
+      .maybeSingle();
+    if (area?.teacher_id !== teacherId) throw new ForbiddenException();
+    const payload: any = {};
+    if (dto.description !== undefined) payload.description = dto.description;
+    if (dto.duration_minutes !== undefined) payload.duration_minutes = dto.duration_minutes;
+    if (Object.keys(payload).length === 0) return this.supabase().from('lessons').select('*').eq('id', lessonId).single().then((r) => r.data);
+    const { data, error } = await this.supabase()
+      .from('lessons')
+      .update(payload)
+      .eq('id', lessonId)
+      .select()
+      .single();
+    if (error) throw new BadRequestException(error.message);
     return data;
   }
 
@@ -541,7 +651,7 @@ export class TeachersService {
       .delete()
       .eq('id', lessonId);
 
-    if (error) throw new Error(error.message);
+    if (error) throw new BadRequestException(error.message);
     return { deleted: true };
   }
 
@@ -562,7 +672,7 @@ export class TeachersService {
       .from(LESSONS_BUCKET)
       .upload(path, fileBuffer, { contentType: mimeType, upsert: true });
 
-    if (uploadError) throw new Error(`Upload falhou: ${uploadError.message}`);
+    if (uploadError) throw new BadRequestException(`Upload falhou: ${this.translateStorageError(uploadError.message)}`);
 
     const { data: urlData } = this.supabase()
       .storage
@@ -579,7 +689,7 @@ export class TeachersService {
       .select()
       .single();
 
-    if (error) throw new Error(error.message);
+    if (error) throw new BadRequestException(error.message);
     return data;
   }
 
@@ -600,7 +710,7 @@ export class TeachersService {
       .from('avatars')
       .upload(path, fileBuffer, { contentType: mimeType, upsert: true });
 
-    if (uploadError) throw new Error(`Upload falhou: ${uploadError.message}`);
+    if (uploadError) throw new BadRequestException(`Upload falhou: ${this.translateStorageError(uploadError.message)}`);
 
     const { data: urlData } = this.supabase()
       .storage
@@ -615,7 +725,7 @@ export class TeachersService {
       .select()
       .single();
 
-    if (error) throw new Error(error.message);
+    if (error) throw new BadRequestException(error.message);
     return data;
   }
 
@@ -724,13 +834,13 @@ export class TeachersService {
       .insert({ area_id: areaId, title: dto.title, order_index: dto.order_index ?? 0 })
       .select()
       .single();
-    if (error) throw new Error(error.message);
+    if (error) throw new BadRequestException(error.message);
     return data;
   }
 
   async deleteSection(teacherId: string, sectionId: string) {
     await this.assertTeacher(teacherId);
-    
+
     // verify ownership implicitly by checking area_id -> teacher_id if we want,
     // but RLS might handle it if we pass the auth token.
     // For safety, let's just delete using service role but we should ideally ensure ownership.
@@ -739,7 +849,7 @@ export class TeachersService {
       .from('teacher_area_sections')
       .delete()
       .eq('id', sectionId);
-    if (error) throw new Error(error.message);
+    if (error) throw new BadRequestException(error.message);
     return { deleted: true };
   }
 
@@ -757,15 +867,15 @@ export class TeachersService {
     await this.assertTeacher(teacherId);
     const { data, error } = await this.supabase()
       .from('teacher_area_modules')
-      .insert({ 
-        section_id: sectionId, 
-        title: dto.title, 
-        description: dto.description ?? null, 
-        order_index: dto.order_index ?? 0 
+      .insert({
+        section_id: sectionId,
+        title: dto.title,
+        description: dto.description ?? null,
+        order_index: dto.order_index ?? 0
       })
       .select()
       .single();
-    if (error) throw new Error(error.message);
+    if (error) throw new BadRequestException(error.message);
     return data;
   }
 
@@ -775,7 +885,7 @@ export class TeachersService {
       .from('teacher_area_modules')
       .delete()
       .eq('id', moduleId);
-    if (error) throw new Error(error.message);
+    if (error) throw new BadRequestException(error.message);
     return { deleted: true };
   }
 
@@ -796,7 +906,7 @@ export class TeachersService {
       .insert({ area_id: areaId, title: dto.title, content: dto.content })
       .select()
       .single();
-    if (error) throw new Error(error.message);
+    if (error) throw new BadRequestException(error.message);
     return data;
   }
 
@@ -806,7 +916,224 @@ export class TeachersService {
       .from('teacher_area_notices')
       .delete()
       .eq('id', noticeId);
-    if (error) throw new Error(error.message);
+    if (error) throw new BadRequestException(error.message);
     return { deleted: true };
+  }
+
+  // ─── Lesson Progress (alunos) ───────────────────────────────────────────────
+
+  async upsertLessonProgress(userId: string, lessonId: string, completed: boolean, watchedUntilPercent?: number) {
+    await this.assertCanAccessLesson(userId, lessonId);
+    const payload: any = {
+      student_id: userId,
+      lesson_id: lessonId,
+      completed,
+      updated_at: new Date().toISOString(),
+    };
+    if (completed) payload.completed_at = new Date().toISOString();
+    if (watchedUntilPercent !== undefined) payload.watched_until_percent = watchedUntilPercent;
+    const { data, error } = await this.supabase()
+      .from('lesson_progress')
+      .upsert(payload, { onConflict: 'student_id,lesson_id', ignoreDuplicates: false })
+      .select()
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  private async assertCanAccessLesson(userId: string, lessonId: string) {
+    console.log('lessonId AAAAAAaaa', lessonId);
+    const { data: lesson } = await this.supabase()
+      .from('lessons')
+      .select('area_id, module_id')
+      .eq('id', lessonId)
+      .maybeSingle();
+    if (!lesson) throw new NotFoundException('Aula não encontrada');
+    let areaId = lesson.area_id;
+    if (!areaId && lesson.module_id) {
+      console.log('lesson.module_id', lesson.module_id);
+      const { data: mod } = await this.supabase()
+        .from('teacher_area_modules')
+        .select('section_id')
+        .eq('id', lesson.module_id)
+        .maybeSingle();
+      if (mod) {
+        const { data: sec } = await this.supabase()
+          .from('teacher_area_sections')
+          .select('area_id')
+          .eq('id', mod.section_id)
+          .maybeSingle();
+        if (sec) areaId = sec.area_id;
+      }
+    }
+    if (!areaId) throw new NotFoundException('Aula não encontrada');
+    await this.assertTeacherOrSubscriber(userId, areaId);
+  }
+
+  // ─── Lesson Materials ───────────────────────────────────────────────────────
+
+  async getLessonMaterials(userId: string, lessonId: string) {
+    await this.assertCanAccessLesson(userId, lessonId);
+    const { data } = await this.supabase()
+      .from('lesson_materials')
+      .select('id, type, title, url, order_index')
+      .eq('lesson_id', lessonId)
+      .order('order_index', { ascending: true });
+    return data ?? [];
+  }
+
+  async createLessonMaterial(teacherId: string, lessonId: string, dto: { type: string; title: string; url: string }) {
+    await this.assertTeacher(teacherId);
+    const { data: lesson } = await this.supabase()
+      .from('lessons')
+      .select('area_id, module_id')
+      .eq('id', lessonId)
+      .maybeSingle();
+    if (!lesson) throw new NotFoundException('Aula não encontrada');
+    let areaId = lesson.area_id;
+    if (!areaId && lesson.module_id) {
+      const { data: mod } = await this.supabase()
+        .from('teacher_area_modules')
+        .select('section_id')
+        .eq('id', lesson.module_id)
+        .maybeSingle();
+      if (mod) {
+        const { data: sec } = await this.supabase()
+          .from('teacher_area_sections')
+          .select('area_id')
+          .eq('id', mod.section_id)
+          .maybeSingle();
+        if (sec) areaId = sec.area_id;
+      }
+    }
+    const { data: area } = await this.supabase()
+      .from('teacher_areas')
+      .select('teacher_id')
+      .eq('id', areaId)
+      .maybeSingle();
+    if (!area || area.teacher_id !== teacherId) throw new ForbiddenException();
+    const type = ['image', 'file', 'executable'].includes(dto.type) ? dto.type : 'file';
+    const { data, error } = await this.supabase()
+      .from('lesson_materials')
+      .insert({ lesson_id: lessonId, type, title: dto.title, url: dto.url })
+      .select()
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async deleteLessonMaterial(teacherId: string, materialId: string) {
+    await this.assertTeacher(teacherId);
+    const { data: mat } = await this.supabase()
+      .from('lesson_materials')
+      .select('lesson_id')
+      .eq('id', materialId)
+      .maybeSingle();
+    if (!mat) throw new NotFoundException('Material não encontrado');
+    const { data: lesson } = await this.supabase()
+      .from('lessons')
+      .select('area_id')
+      .eq('id', mat.lesson_id)
+      .maybeSingle();
+    const { data: area } = await this.supabase()
+      .from('teacher_areas')
+      .select('teacher_id')
+      .eq('id', lesson?.area_id)
+      .maybeSingle();
+    if (area?.teacher_id !== teacherId) throw new ForbiddenException();
+    const { error } = await this.supabase()
+      .from('lesson_materials')
+      .delete()
+      .eq('id', materialId);
+    if (error) throw new BadRequestException(error.message);
+    return { deleted: true };
+  }
+
+  async uploadLessonMaterial(
+    teacherId: string,
+    lessonId: string,
+    fileBuffer: Buffer,
+    mimeType: string,
+    originalName: string,
+    materialType: 'image' | 'file' | 'executable',
+  ) {
+    await this.assertTeacher(teacherId);
+    const { data: lesson } = await this.supabase()
+      .from('lessons')
+      .select('area_id')
+      .eq('id', lessonId)
+      .maybeSingle();
+    if (!lesson) throw new NotFoundException('Aula não encontrada');
+    const { data: area } = await this.supabase()
+      .from('teacher_areas')
+      .select('teacher_id')
+      .eq('id', lesson.area_id)
+      .maybeSingle();
+    if (area?.teacher_id !== teacherId) throw new ForbiddenException();
+    const ext = originalName.split('.').pop() ?? 'bin';
+    const path = `materials/${lessonId}/${Date.now()}-${originalName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+    const { error: uploadError } = await this.supabase()
+      .storage
+      .from(LESSONS_BUCKET)
+      .upload(path, fileBuffer, { contentType: mimeType, upsert: true });
+    if (uploadError) throw new BadRequestException(`Upload falhou: ${this.translateStorageError(uploadError.message)}`);
+    const { data: urlData } = this.supabase()
+      .storage
+      .from(LESSONS_BUCKET)
+      .getPublicUrl(path);
+    return this.createLessonMaterial(teacherId, lessonId, {
+      type: materialType,
+      title: originalName,
+      url: urlData.publicUrl,
+    });
+  }
+
+  // ─── Lesson Comments ────────────────────────────────────────────────────────
+
+  async getLessonComments(lessonId: string, userId: string) {
+    await this.assertCanAccessLesson(userId, lessonId);
+    const { data } = await this.supabase()
+      .from('lesson_comments')
+      .select(`
+        id, content, created_at,
+        profiles!student_id ( id, full_name, avatar_url )
+      `)
+      .eq('lesson_id', lessonId)
+      .order('created_at', { ascending: true });
+    return (data ?? []).map((c: any) => ({
+      id: c.id,
+      content: c.content,
+      created_at: c.created_at,
+      student: {
+        id: c.profiles?.id,
+        full_name: c.profiles?.full_name ?? 'Aluno',
+        avatar_url: c.profiles?.avatar_url ?? null,
+      },
+    }));
+  }
+
+  async createLessonComment(userId: string, lessonId: string, content: string) {
+    await this.assertCanAccessLesson(userId, lessonId);
+    const { data: inserted, error } = await this.supabase()
+      .from('lesson_comments')
+      .insert({ lesson_id: lessonId, student_id: userId, content: content.trim() })
+      .select('id, content, created_at, student_id')
+      .single();
+    if (error) throw new BadRequestException(error.message);
+    const { data: profile } = await this.supabase()
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .eq('id', userId)
+      .maybeSingle();
+    return {
+      id: inserted.id,
+      content: inserted.content,
+      created_at: inserted.created_at,
+      student: {
+        id: profile?.id ?? userId,
+        full_name: profile?.full_name ?? 'Aluno',
+        avatar_url: profile?.avatar_url ?? null,
+      },
+    };
   }
 }

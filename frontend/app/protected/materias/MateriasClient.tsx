@@ -167,7 +167,7 @@ export function MateriasClient() {
       {(loadingRecs && loadingSubjects) ? (
         <div className="flex flex-col items-center justify-center min-h-[60vh]">
           <Loader2 className="h-12 w-12 text-[#6D44CC] animate-spin mb-4" />
-          <h2 className="text-[#1A1A1A] font-black text-lg">Carregando Materiais e Sugestões da IA</h2>
+          <h2 className="text-[#1A1A1A] font-black text-lg">Carregando Materias e Sugestões da IA</h2>
           <p className="text-slate-400 font-medium text-sm mt-1">Isso pode levar alguns segundos...</p>
         </div>
       ) : (

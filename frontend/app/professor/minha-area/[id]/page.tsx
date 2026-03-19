@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -27,6 +27,8 @@ import {
   MessageSquare,
   ImagePlus,
   Camera,
+  Play,
+  RefreshCw,
 } from "lucide-react";
 import { apiGet, apiPost, apiDelete, apiUpload } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -93,7 +95,7 @@ export default function EditAreaPage() {
   const [savingNotice, setSavingNotice] = useState(false);
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | { title: string; message: string } | null>(null);
 
   const [areaForm, setAreaForm] = useState({
     title: "",
@@ -128,8 +130,36 @@ export default function EditAreaPage() {
   const [uploadingLesson, setUploadingLesson] = useState<string | null>(null);
   const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewLesson, setPreviewLesson] = useState<Lesson | null>(null);
+  const [editLessonModal, setEditLessonModal] = useState<{ lesson: Lesson; moduleId: string } | null>(null);
+  const [editLessonForm, setEditLessonForm] = useState({ description: "" });
+  const [savingEditLesson, setSavingEditLesson] = useState(false);
+  const [materialsModal, setMaterialsModal] = useState<{ lesson: Lesson; moduleId: string } | null>(null);
+  const [materials, setMaterials] = useState<{ id: string; type: string; title: string; url: string }[]>([]);
+  const [loadingMaterials, setLoadingMaterials] = useState(false);
+  const [uploadingMaterial, setUploadingMaterial] = useState(false);
+  const materialFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { load(); }, [areaId]);
+
+  const fetchMaterials = useCallback(async (lessonId: string) => {
+    setLoadingMaterials(true);
+    try {
+      const list = await apiGet<{ id: string; type: string; title: string; url: string }[]>(`/teachers/lessons/${lessonId}/materials`);
+      console.log(list)
+      setMaterials(list);
+    } catch {
+      setMaterials([]);
+    } finally {
+      setLoadingMaterials(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const lessonId = materialsModal?.lesson?.id;
+    if (!lessonId) return;
+    fetchMaterials(lessonId);
+  }, [materialsModal?.lesson?.id, fetchMaterials]);
 
   async function load() {
     setLoading(true);
@@ -272,6 +302,25 @@ export default function EditAreaPage() {
     }
   }
 
+  async function handleUpdateLesson(lessonId: string, description: string) {
+    setSavingEditLesson(true);
+    try {
+      const updated = await apiPost<Lesson>(`/teachers/my-areas/${areaId}/lessons/${lessonId}`, { description: description || null });
+      setSections(prev => prev.map(s => ({
+        ...s,
+        modules: s.modules.map(m => ({
+          ...m,
+          lessons: m.lessons.map(l => l.id === lessonId ? { ...l, ...updated } : l)
+        }))
+      })));
+      setEditLessonModal(null);
+    } catch (e: any) {
+      setError(e.message || "Erro ao atualizar");
+    } finally {
+      setSavingEditLesson(false);
+    }
+  }
+
   async function handleDeleteLesson(moduleId: string, lessonId: string) {
     if (!confirm("Remover esta aula permanentemente?")) return;
     try {
@@ -288,8 +337,15 @@ export default function EditAreaPage() {
     } catch { }
   }
 
+  const MAX_VIDEO_SIZE_MB = 500;
+
   async function handleUpload(lessonId: string, file: File) {
+    if (file.size > MAX_VIDEO_SIZE_MB * 1024 * 1024) {
+      setError(`O arquivo é muito grande. O limite máximo é ${MAX_VIDEO_SIZE_MB} MB. Seu arquivo tem ${(file.size / 1024 / 1024).toFixed(1)} MB.`);
+      return;
+    }
     setUploadingLesson(lessonId);
+    setError(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -305,7 +361,32 @@ export default function EditAreaPage() {
         body: formData,
       });
 
-      if (!res.ok) throw new Error("Falha no upload");
+      if (!res.ok) {
+        let errorMessage = "Falha no upload";
+
+        try {
+          // Tenta ler o corpo da resposta
+          const errBody = await res.json();
+
+          // O NestJS coloca o erro em 'message'. 
+          // Pode ser string ou Array de strings (caso do ValidationPipe)
+          if (errBody && errBody.message) {
+            errorMessage = Array.isArray(errBody.message)
+              ? errBody.message[0]
+              : errBody.message;
+          }
+        } catch (parseError) {
+          // Se não for JSON (ex: erro de Proxy ou Nginx), usa o status text
+          if (res.status === 413) {
+            errorMessage = `O arquivo é muito grande para o servidor (Limite: ${MAX_VIDEO_SIZE_MB}MB).`;
+          } else {
+            errorMessage = `Erro técnico (${res.status}): ${res.statusText}`;
+          }
+        }
+
+        throw new Error(errorMessage);
+      }
+
       const updated = await res.json() as Lesson;
 
       setSections(prev => prev.map(s => {
@@ -318,6 +399,7 @@ export default function EditAreaPage() {
       }));
 
     } catch (e: any) {
+      console.error("Upload Error:", e);
       setError(e.message || "Erro no upload");
     } finally {
       setUploadingLesson(null);
@@ -341,6 +423,39 @@ export default function EditAreaPage() {
     }
   }
 
+  async function handleUploadMaterial(lessonId: string, file: File, type: 'image' | 'file' | 'executable') {
+    setUploadingMaterial(true);
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`${BASE_URL}/teachers/lessons/${lessonId}/materials/upload?type=${type}`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${session?.access_token}` },
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Falha no upload");
+      await res.json();
+      await fetchMaterials(lessonId);
+      setError(null);
+    } catch (e: any) {
+      setError(e.message || "Erro ao enviar material");
+    } finally {
+      setUploadingMaterial(false);
+    }
+  }
+
+  async function handleDeleteMaterial(materialId: string) {
+    try {
+      await apiDelete(`/teachers/materials/${materialId}`);
+      setMaterials(prev => prev.filter(m => m.id !== materialId));
+    } catch (e: any) {
+      setError(e.message || "Erro ao remover");
+    }
+  }
+
   async function handleDeleteNotice(id: string) {
     if (!confirm("Remover este aviso?")) return;
     try {
@@ -356,7 +471,7 @@ export default function EditAreaPage() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 md:space-y-8 pb-20 px-4 sm:px-6 lg:px-0">
+    <div className="max-w-6xl mx-auto pb-20 px-4 sm:px-6 lg:px-0">
       <Button variant="ghost" className="mb-4 text-slate-500" onClick={() => router.push("/professor/minha-area")}>
         <ArrowLeft className="h-4 w-4 mr-2" /> Voltar para Áreas
       </Button>
@@ -375,7 +490,7 @@ export default function EditAreaPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 mb-4">
           {area && (
             <Button variant="outline" className="rounded-xl text-xs sm:text-sm" asChild>
               <a href={`/protected/professores/area/${area.id}`} target="_blank">
@@ -391,13 +506,7 @@ export default function EditAreaPage() {
         </div>
       </header>
 
-      {error && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          <AlertCircle className="h-5 w-5 shrink-0" />
-          <span className="flex-1 font-medium">{error}</span>
-          <button onClick={() => setError(null)}><X className="h-5 w-5 hover:text-red-500" /></button>
-        </motion.div>
-      )}
+
 
       <div className="grid gap-6 xl:grid-cols-12">
         {/* Coluna Esquerda: Configurações */}
@@ -665,6 +774,11 @@ export default function EditAreaPage() {
                                             setPendingUploadId(lesson.id);
                                             fileInputRef.current?.click();
                                           }}
+                                          onPreview={() => setPreviewLesson(lesson)}
+                                          onEdit={() => {
+                                            setEditLessonModal({ lesson, moduleId: module.id });
+                                            setEditLessonForm({ description: lesson.description ?? "" });
+                                          }}
                                         />
                                       ))}
                                     </ul>
@@ -738,7 +852,7 @@ export default function EditAreaPage() {
       {/* Modal Section */}
       <AnimatePresence>
         {sectionModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className=" md:ml-72 fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-md rounded-[2.5rem] bg-white shadow-2xl p-8">
               <div className="flex items-center justify-between mb-8">
                 <div className="h-12 w-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center"><Plus className="h-6 w-6" /></div>
@@ -766,7 +880,7 @@ export default function EditAreaPage() {
       {/* Modal Module */}
       <AnimatePresence>
         {moduleModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className=" md:ml-72 fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-md rounded-[2.5rem] bg-white shadow-2xl p-8">
               <div className="flex items-center justify-between mb-8">
                 <div className="h-12 w-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center"><Plus className="h-6 w-6" /></div>
@@ -797,7 +911,7 @@ export default function EditAreaPage() {
       {/* Modal Lesson */}
       <AnimatePresence>
         {lessonModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className=" md:ml-72 fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-lg rounded-[2.5rem] bg-white shadow-2xl p-8">
               <div className="flex items-center justify-between mb-8">
                 <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -855,10 +969,170 @@ export default function EditAreaPage() {
         )}
       </AnimatePresence>
 
+      {/* Modal Preview Aula */}
+      <AnimatePresence>
+        {previewLesson && (
+          <div className=" md:ml-72 fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm" onClick={() => setPreviewLesson(null)}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-4xl max-h-[90vh] rounded-2xl bg-slate-900 overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between p-4 bg-slate-800 border-b border-slate-700">
+                <h3 className="font-bold text-white truncate">{previewLesson.title}</h3>
+                <Button variant="ghost" size="icon" className="text-slate-300 hover:text-white" onClick={() => setPreviewLesson(null)}>
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+              <div className="aspect-video bg-black">
+                {previewLesson.content_url ? (
+                  previewLesson.type === "video" ? (
+                    <video controls src={previewLesson.content_url} className="w-full h-full object-contain" />
+                  ) : (
+                    <iframe src={previewLesson.content_url} className="w-full h-full border-none" title={previewLesson.title} />
+                  )
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 gap-4">
+                    <MonitorPlay className="h-12 w-12 opacity-20" />
+                    <p className="text-sm">Faça o upload do conteúdo para pré-visualizar.</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Editar Aula (descrição + materiais) */}
+      <AnimatePresence>
+        {editLessonModal && (
+          <div className=" md:ml-72 fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-lg rounded-[2.5rem] bg-white shadow-2xl p-8 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-black text-slate-900">Editar aula: {editLessonModal.lesson.title}</h3>
+                <button onClick={() => setEditLessonModal(null)} className="h-10 w-10 rounded-full hover:bg-slate-100 flex items-center justify-center">
+                  <X className="h-5 w-5 text-slate-400" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <Field label="Descrição da aula">
+                  <textarea
+                    value={editLessonForm.description}
+                    onChange={(e) => setEditLessonForm({ description: e.target.value })}
+                    placeholder="Descreva o conteúdo desta aula..."
+                    className="w-full h-32 rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
+                  />
+                </Field>
+                <div className="pt-4">
+                  <Button
+                    className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700"
+                    disabled={savingEditLesson}
+                    onClick={() => handleUpdateLesson(editLessonModal.lesson.id, editLessonForm.description)}
+                  >
+                    {savingEditLesson ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar descrição"}
+                  </Button>
+                </div>
+                <div className="border-t border-slate-100 pt-4">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Materiais complementares</p>
+                  <p className="text-sm text-slate-400 mb-3">Gerencie materiais na área do aluno ao assistir a aula.</p>
+                  <Button variant="outline" className="w-full rounded-xl" onClick={() => {
+                    setMaterialsModal({ lesson: editLessonModal.lesson, moduleId: editLessonModal.moduleId });
+                    setEditLessonModal(null);
+                  }}>
+                    <FolderOpen className="h-4 w-4 mr-2" /> Gerenciar materiais desta aula
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal Materiais Complementares */}
+      <AnimatePresence>
+        {materialsModal && (
+          <div className=" md:ml-72 fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-lg rounded-[2.5rem] bg-white shadow-2xl p-8 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between gap-3 mb-6">
+                <h3 className="text-lg font-black text-slate-900 truncate min-w-0">Materiais: {materialsModal.lesson.title}</h3>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={() => fetchMaterials(materialsModal.lesson.id)} disabled={loadingMaterials} title="Recarregar">
+                    <RefreshCw className={cn("h-4 w-4 text-slate-500", loadingMaterials && "animate-spin")} />
+                  </Button>
+                  <button onClick={() => setMaterialsModal(null)} className="h-9 w-9 rounded-full hover:bg-slate-100 flex items-center justify-center">
+                    <X className="h-5 w-5 text-slate-400" />
+                  </button>
+                </div>
+              </div>
+              <p className="text-sm text-slate-500 mb-4">Adicione fotos, arquivos ou executáveis como material complementar para seus alunos.</p>
+              <div className="space-y-3 mb-6">
+                {loadingMaterials ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div>
+                ) : materials.length === 0 ? (
+                  <p className="text-sm text-slate-400 text-center py-6">Nenhum material adicionado.</p>
+                ) : (
+                  materials.map(m => (
+                    <div key={m.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50">
+                      <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-indigo-600 hover:underline truncate flex-1 min-w-0">
+                        {m.title}
+                      </a>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase mx-2">{m.type}</span>
+                      <button onClick={() => handleDeleteMaterial(m.id)} className="text-slate-400 hover:text-red-500 p-1">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="border-t border-slate-100 pt-4">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Adicionar material</p>
+                <input
+                  ref={materialFileRef}
+                  type="file"
+                  accept="image/*,.pdf,.doc,.docx,.zip,.exe"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file && materialsModal) {
+                      const type = file.type.startsWith('image/') ? 'image' : /\.(exe|msi)$/i.test(file.name) ? 'executable' : 'file';
+                      handleUploadMaterial(materialsModal.lesson.id, file, type);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    disabled={uploadingMaterial}
+                    onClick={() => materialFileRef.current?.click()}
+                  >
+                    {uploadingMaterial ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                    Enviar arquivo
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Modal Notice */}
       <AnimatePresence>
         {noticeModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className=" md:ml-72 fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-lg rounded-[2.5rem] bg-white shadow-2xl p-8">
               <div className="flex items-center justify-between mb-8">
                 <div className="h-12 w-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center"><Megaphone className="h-6 w-6" /></div>
@@ -885,6 +1159,50 @@ export default function EditAreaPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Modal Error */}
+      <AnimatePresence>
+        {error && (
+          <div className=" md:ml-72 fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="w-full max-w-md overflow-hidden rounded-[2.5rem] bg-white shadow-2xl"
+            >
+              <div className="relative p-8">
+                <div className="flex items-center justify-center mb-6">
+                  <div className="h-20 w-20 rounded-3xl bg-red-50 flex items-center justify-center text-red-500 shadow-inner">
+                    <AlertCircle className="h-10 w-10" />
+                  </div>
+                </div>
+
+                <div className="text-center space-y-2 mb-8">
+                  <h3 className="text-2xl font-black text-slate-900 leading-tight">
+                    {typeof error === "string" ? "Ops! Ocorreu um problema" : error.title}
+                  </h3>
+                  <p className="text-slate-500 font-medium leading-relaxed">
+                    {typeof error === "string" ? error : error.message}
+                  </p>
+                </div>
+
+                <Button
+                  onClick={() => setError(null)}
+                  className="w-full h-14 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg shadow-xl shadow-indigo-100 transition-all active:scale-[0.98]"
+                >
+                  Entendido
+                </Button>
+
+                <div className="mt-6 flex justify-center">
+                  <div className="px-3 py-1 bg-slate-50 rounded-full border border-slate-100 italic text-[10px] text-slate-400 font-medium">
+                    Se o problema persistir, entre em contato com o suporte.
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -892,51 +1210,97 @@ export default function EditAreaPage() {
 // --- Subcomponentes Refatorados ---
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function LessonRow({ lesson, index, uploading, onDelete, onUpload }: any) {
+function LessonRow({ lesson, index, uploading, onDelete, onUpload, onPreview, onEdit }: any) {
   return (
     <motion.li
-      initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-      className="group flex items-center gap-2 sm:gap-4 rounded-xl border border-slate-100 bg-slate-50 p-2 sm:p-3 hover:bg-white hover:border-indigo-100 hover:shadow-md hover:shadow-indigo-500/5 transition-all"
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      /* Mudança principal: flex-col abaixo de 990px (custom: max-[990px]) e itens-start */
+      className="group flex flex-col min-[1100px]:flex-row min-[1100px]:items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-4 min-[1100px]:p-3 hover:bg-white hover:border-indigo-100 hover:shadow-md hover:shadow-indigo-500/5 transition-all"
     >
-      <div className="hidden sm:block cursor-grab active:cursor-grabbing text-slate-300 group-hover:text-indigo-300 transition-colors">
-        <GripVertical className="h-4 w-4" />
-      </div>
+      {/* Wrapper para o conteúdo da esquerda (Ícone + Título) */}
+      <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+        <div className="hidden min-[1100px]:block cursor-grab active:cursor-grabbing text-slate-300 group-hover:text-indigo-300 transition-colors">
+          <GripVertical className="h-4 w-4" />
+        </div>
 
-      <div className={cn(
-        "h-8 w-8 sm:h-10 sm:w-10 shrink-0 rounded-lg flex items-center justify-center transition-colors",
-        lesson.content_url ? "bg-emerald-50 text-emerald-600" : "bg-slate-200 text-slate-400"
-      )}>
-        {lesson.type === "video" ? <Video className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
-      </div>
+        <div className={cn(
+          "h-10 w-10 shrink-0 rounded-xl flex items-center justify-center transition-colors",
+          lesson.content_url ? "bg-emerald-50 text-emerald-600" : "bg-slate-200 text-slate-400"
+        )}>
+          {lesson.type === "video" ? <Video className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+        </div>
 
-      <div className="flex-1 min-w-0">
-        <h4 className="text-xs sm:text-sm font-bold text-slate-800 truncate">{lesson.title}</h4>
-        <div className="flex items-center gap-2 sm:gap-3 mt-0.5">
-          {lesson.content_url ? (
-            <span className="text-[8px] sm:text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1">
-              <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> <span className="hidden xs:inline">Conteúdo </span>Pronto
-            </span>
-          ) : (
-            <span className="text-[8px] sm:text-[9px] font-black text-amber-500 uppercase flex items-center gap-1">
-              <AlertCircle className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> <span className="hidden sm:inline">Aguardando </span>Upload
-            </span>
-          )}
-          <span className="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{lesson.type}</span>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-bold text-slate-800 truncate">{lesson.title}</h4>
+          <div className="flex items-center gap-2 sm:gap-3 mt-0.5">
+            {lesson.content_url ? (
+              <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" /> Conteúdo Pronto
+              </span>
+            ) : (
+              <span className="text-[9px] font-black text-amber-500 uppercase flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" /> Aguardando Upload
+              </span>
+            )}
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{lesson.type}</span>
+          </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-1 shrink-0">
-        <Button
-          size="sm"
-          variant={lesson.content_url ? "outline" : "default"}
-          className={cn("h-7 sm:h-8 rounded-md text-[10px] sm:text-[11px] font-bold px-2 sm:px-3", !lesson.content_url && "bg-indigo-600 hover:bg-indigo-700")}
-          disabled={uploading}
-          onClick={onUpload}
+      {/* Container de Botões: Embaixo no mobile, Lado no desktop */}
+      <div className="flex items-center gap-2 shrink-0 pt-3 min-[990px]:pt-0 border-t border-slate-100 min-[990px]:border-0 w-full min-[990px]:w-auto justify-between min-[990px]:justify-end">
+        <div className="flex items-center gap-2">
+          {lesson.content_url && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 w-9 min-[500px]:w-auto min-[500px]:px-3 rounded-xl text-indigo-600 border-indigo-200 hover:bg-indigo-50 text-[11px] font-bold transition-all"
+              onClick={onPreview}
+            >
+              <Play className="h-3.5 w-3.5 min-[500px]:mr-1" />
+              <span className="hidden lg:inline">Ver</span>
+            </Button>
+          )}
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-9 w-9 min-[500px]:w-auto min-[500px]:px-3 rounded-xl text-slate-600 border-slate-200 hover:bg-slate-100 text-[11px] font-bold transition-all"
+            onClick={onEdit}
+          >
+            <Settings2 className="h-3.5 w-3.5 min-[500px]:mr-1" />
+            <span className="hidden lg:inline">Editar</span>
+          </Button>
+
+          <Button
+            size="sm"
+            variant={lesson.content_url ? "outline" : "default"}
+            className={cn(
+              "h-9 w-9 min-[500px]:w-auto min-[500px]:px-3 rounded-xl text-[11px] font-bold transition-all",
+              !lesson.content_url && "bg-indigo-600 hover:bg-indigo-700"
+            )}
+            disabled={uploading}
+            onClick={onUpload}
+          >
+            {uploading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <>
+                <Upload className={cn("h-3.5 w-3.5", lesson.content_url || "min-[500px]:mr-1")} />
+                <span className="hidden min-[500px]:inline">
+                  {lesson.content_url ? "Trocar" : "Upload"}
+                </span>
+              </>
+            )}
+          </Button>
+        </div>
+
+        <button
+          onClick={onDelete}
+          className="h-9 w-9 flex items-center justify-center rounded-xl text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
         >
-          {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Upload className="h-3 w-3 sm:mr-1" /> <span className="hidden sm:inline">{lesson.content_url ? "Trocar" : "Upload"}</span></>}
-        </Button>
-        <button onClick={onDelete} className="h-7 w-7 sm:h-8 sm:w-8 flex items-center justify-center rounded-md text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all">
-          <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          <Trash2 className="h-4 w-4" />
         </button>
       </div>
     </motion.li>

@@ -12,11 +12,13 @@ import {
   Users,
   Megaphone,
   CheckCircle2,
-  MessageSquare
+  MessageSquare,
+  MonitorPlay
 } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 
 interface TeacherArea {
   id: string;
@@ -77,6 +79,7 @@ export default function TeacherAreaPage() {
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadingModuleId, setLoadingModuleId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!areaId) return;
@@ -94,13 +97,13 @@ export default function TeacherAreaPage() {
 
         let firstLesson: Lesson | null = null;
         for (const section of s) {
-            for (const module of section.modules) {
-                if (module.lessons && module.lessons.length > 0) {
-                    firstLesson = module.lessons[0];
-                    break;
-                }
+          for (const module of section.modules) {
+            if (module.lessons && module.lessons.length > 0) {
+              firstLesson = module.lessons[0];
+              break;
             }
-            if (firstLesson) break;
+          }
+          if (firstLesson) break;
         }
         if (firstLesson) setSelectedLessonId(firstLesson.id);
       } catch (e) {
@@ -118,18 +121,18 @@ export default function TeacherAreaPage() {
 
   let currentLesson: Lesson | null = null;
   for (const section of sections) {
-     for (const module of section.modules) {
-        const found = module.lessons?.find(l => l.id === selectedLessonId);
-        if (found) {
-           currentLesson = found;
-           break;
-        }
-     }
-     if (currentLesson) break;
+    for (const module of section.modules) {
+      const found = module.lessons?.find(l => l.id === selectedLessonId);
+      if (found) {
+        currentLesson = found;
+        break;
+      }
+    }
+    if (currentLesson) break;
   }
-  
+
   if (!currentLesson && sections.length > 0 && sections[0].modules.length > 0 && sections[0].modules[0].lessons?.length > 0) {
-      currentLesson = sections[0].modules[0].lessons[0];
+    currentLesson = sections[0].modules[0].lessons[0];
   }
 
   if (loading) {
@@ -209,7 +212,7 @@ export default function TeacherAreaPage() {
           </div>
           <div className="text-xs text-slate-600 space-y-2">
             <p className="font-semibold text-slate-700 uppercase tracking-wider text-[10px]">
-              Sobre esta área
+              Sobre esta área:
             </p>
             {area.description ? (
               <p className="leading-relaxed">{area.description}</p>
@@ -226,10 +229,7 @@ export default function TeacherAreaPage() {
                 Conteúdo exclusivo para assinantes
               </span>
             </div>
-            <p className="text-[11px] text-slate-500">
-              Use esta sidebar como seu mural: descrição, recados para os
-              alunos, roadmap do curso e links importantes.
-            </p>
+
           </div>
         </div>
       </aside>
@@ -271,13 +271,13 @@ export default function TeacherAreaPage() {
         <div className="flex-1 min-h-0 flex flex-col bg-slate-50">
           <div className="px-4 py-2 border-b border-slate-200 text-xs text-slate-500 flex items-center justify-between bg-white z-10 relative">
             <div className="flex bg-slate-100 p-1 rounded-lg">
-               <button onClick={() => setActiveTab("curriculum")} className={cn("px-4 py-1.5 rounded-md font-bold transition-all", activeTab === "curriculum" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800")}>Conteúdo</button>
-               <button onClick={() => setActiveTab("notices")} className={cn("px-4 py-1.5 rounded-md font-bold transition-all flex items-center gap-1.5", activeTab === "notices" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800")}>
-                  Avisos 
-                  {notices.length > 0 && (
-                     <span className="bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full text-[9px] min-w-[18px] text-center">{notices.length}</span>
-                  )}
-               </button>
+              <button onClick={() => setActiveTab("curriculum")} className={cn("px-4 py-1.5 rounded-md font-bold transition-all", activeTab === "curriculum" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800")}>Conteúdo</button>
+              <button onClick={() => setActiveTab("notices")} className={cn("px-4 py-1.5 rounded-md font-bold transition-all flex items-center gap-1.5", activeTab === "notices" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800")}>
+                Avisos
+                {notices.length > 0 && (
+                  <span className="bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full text-[9px] min-w-[18px] text-center">{notices.length}</span>
+                )}
+              </button>
             </div>
             <Link
               href="/protected/professores"
@@ -288,165 +288,188 @@ export default function TeacherAreaPage() {
           </div>
 
           {activeTab === "curriculum" ? (
-             <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.1fr)] gap-4 p-4 overflow-hidden">
-                {/* Player / visualizador */}
-                <section className="flex flex-col min-h-0 rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="border-b border-slate-100 px-4 py-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">
-                        Aula em destaque
-                      </p>
-                      <p className="text-sm font-semibold text-slate-900 truncate max-w-[260px] md:max-w-md">
-                        {currentLesson?.title ?? "Nenhuma aula selecionada"}
-                      </p>
-                    </div>
+            <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
+              <div className="p-6 md:p-8 space-y-12 max-w-7xl mx-auto">
+                {sections.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                    <BookOpen className="h-12 w-12 mb-4 opacity-20" />
+                    <p className="font-medium">Nenhum conteúdo disponível ainda.</p>
                   </div>
-                  <div className="flex-1 min-h-0 bg-slate-900 flex items-center justify-center relative">
-                    {!currentLesson || !currentLesson.content_url ? (
-                      <div className="text-center px-6 py-10 text-slate-400 text-sm">
-                        O professor ainda não adicionou o conteúdo desta aula.
+                ) : (
+                  sections.map((section, sIdx) => (
+                    <section key={section.id} className="space-y-6">
+                      {/* Header da Seção */}
+                      <div className="flex items-center gap-4">
+                        <span className="text-3xl md:text-4xl font-black text-slate-200/70 select-none">
+                          {String(sIdx + 1).padStart(2, '0')}
+                        </span>
+                        <div className="h-px flex-1 bg-slate-200" />
+                        <h3 className="text-[10px] md:text-sm font-black text-slate-500 uppercase tracking-[0.2em] whitespace-nowrap">
+                          {section.title}
+                        </h3>
                       </div>
-                    ) : currentLesson.type === "video" ? (
-                      <video
-                        controls
-                        src={currentLesson.content_url}
-                        className="w-full h-full max-h-[100%] absolute inset-0 bg-black outline-none border-none object-contain"
-                      />
-                    ) : (
-                      <iframe
-                        src={currentLesson.content_url}
-                        className="w-full h-full min-h-[100%] bg-slate-100 border-none outline-none absolute inset-0"
-                        title={currentLesson.title}
-                      />
-                    )}
-                  </div>
-                  {currentLesson?.description && (
-                     <div className="p-4 bg-white border-t border-slate-100 max-h-40 overflow-y-auto w-full">
-                        <p className="text-xs font-bold text-slate-800 uppercase tracking-widest mb-1">Descrição</p>
-                        <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{currentLesson.description}</p>
-                     </div>
-                  )}
-                </section>
 
-                {/* Lista de módulos */}
-                <section className="flex flex-col min-h-0 rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
-                  <div className="border-b border-slate-100 px-4 py-3 flex items-center justify-between">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">
-                      Módulos da área
+                      {/* Listagem Horizontal de Módulos */}
+                      <div className="flex gap-4 md:gap-5 overflow-x-auto no-scrollbar -mx-4 px-4 py-4 -my-4">
+                        {section.modules?.map((module, mIdx) => {
+                          const isLoading = loadingModuleId === module.id;
+
+                          return (
+                            <button
+                              key={module.id}
+                              disabled={loadingModuleId !== null}
+                              onClick={() => {
+                                setLoadingModuleId(module.id);
+                                router.push(`/protected/professores/area/${areaId}/modulo/${module.id}`);
+                              }}
+                              className="flex-shrink-0 w-[220px] min-[400px]:w-72 group text-left transition-all"
+                            >
+                              <div className={cn(
+                                "relative aspect-[16/10] rounded-[2rem] md:rounded-3xl bg-white border border-slate-200 shadow-sm p-5 md:p-6 flex flex-col justify-between overflow-hidden transition-all duration-300",
+                                !isLoading && "group-hover:border-indigo-500 group-hover:shadow-xl group-hover:shadow-indigo-500/10 group-hover:-translate-y-2",
+                                isLoading && "border-indigo-500 ring-2 ring-indigo-50"
+                              )}>
+
+                                {/* Overlay de Loading */}
+                                {isLoading && (
+                                  <div className="absolute inset-0 z-20 bg-white/60 backdrop-blur-[1px] flex items-center justify-center">
+                                    <div className="flex flex-col items-center gap-2">
+                                      <Loader2 className="h-6 w-6 md:h-8 md:w-8 animate-spin text-indigo-600" />
+                                      <span className="text-[9px] md:text-[10px] font-black text-indigo-600 uppercase tracking-widest">Carregando</span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Badge de Aulas */}
+                                <div className={cn("flex justify-between items-start relative z-10 transition-opacity", isLoading && "opacity-20")}>
+                                  <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl md:rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                                    <MonitorPlay className="h-5 w-5 md:h-6 md:w-6" />
+                                  </div>
+                                  <span className="bg-slate-900 text-white text-[9px] md:text-[10px] font-black px-2 md:px-3 py-1 rounded-full uppercase tracking-wider">
+                                    {module.lessons?.length || 0} Aulas
+                                  </span>
+                                </div>
+
+                                <div className={cn("relative z-10 transition-opacity", isLoading && "opacity-20")}>
+                                  <p className="text-[9px] md:text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    Ver Módulo
+                                  </p>
+                                  {/* Ajuste de fonte do título: text-base para telas pequenas, text-lg para o padrão */}
+                                  <h4 className="font-black text-slate-900 text-base md:text-lg leading-tight group-hover:text-indigo-600 transition-colors line-clamp-2">
+                                    {module.title}
+                                  </h4>
+                                </div>
+
+                                {/* Elemento Decorativo */}
+                                <div className={cn("absolute -right-6 -bottom-6 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity", isLoading && "opacity-0")}>
+                                  <BookOpen className="h-24 w-24 md:h-32 md:w-32 text-slate-900" />
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))
+                )}
+              </div>
+
+              <style jsx global>{`
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    `}</style>
+            </div>
+          ) : (
+
+            <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
+              <div className="max-w-5xl mx-auto p-6 md:p-10 space-y-10">
+
+                {/* Header do Mural - Versão Clara e Justificada */}
+                <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-indigo-600" />
+                      <span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">Canal de Comunicação</span>
+                    </div>
+                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">Mural de Avisos</h2>
+                    <p className="text-slate-500 text-sm max-w-md">
+                      Informações e atualizações postadas por <span className="font-bold text-slate-700">{area?.teacher.full_name}</span>.
                     </p>
                   </div>
-                  <div className="flex-1 min-h-0 overflow-y-auto p-4">
-                    {sections.length === 0 ? (
-                      <p className="text-xs text-slate-500 text-center py-6">
-                        Nenhuma seção disponível ainda.
-                      </p>
-                    ) : (
-                      <ul className="space-y-6">
-                        {sections.map((section, sIdx) => (
-                           <li key={section.id}>
-                              <h4 className="font-bold text-xs text-slate-800 tracking-wider mb-2 flex items-center gap-2">
-                                 <div className="w-5 h-5 rounded flex items-center justify-center text-white bg-slate-800">{sIdx + 1}</div>
-                                 <span className="uppercase">{section.title}</span>
-                              </h4>
-                              <div className="space-y-3 pl-3">
-                                 {(!section.modules || section.modules.length === 0) ? (
-                                    <p className="text-[10px] text-slate-400">Sem módulos.</p>
-                                 ) : section.modules.map((module, mIdx) => (
-                                    <div key={module.id} className="rounded-xl border border-slate-100 bg-white shadow-sm overflow-hidden">
-                                       <div className="bg-slate-50 px-3 py-2 border-b border-slate-100">
-                                          <p className="text-xs font-bold text-slate-700">
-                                             Módulo {mIdx + 1}: {module.title}
-                                          </p>
-                                          {module.description && <p className="text-[10px] text-slate-500 mt-0.5">{module.description}</p>}
-                                       </div>
-                                       <div className="p-2 space-y-1 bg-slate-50/30">
-                                          {!module.lessons || module.lessons.length === 0 ? (
-                                             <div className="text-[10px] text-slate-400 p-2 text-center">Nenhuma aula neste módulo.</div>
-                                          ) : module.lessons.map((lesson, lIdx) => {
-                                             const active = lesson.id === currentLesson?.id;
-                                             return (
-                                               <button
-                                                   key={lesson.id}
-                                                   type="button"
-                                                   onClick={() => setSelectedLessonId(lesson.id)}
-                                                   className={cn(
-                                                   "w-full flex items-center gap-3 rounded-lg border px-3 py-2 text-left text-xs transition-all",
-                                                   active
-                                                       ? "border-indigo-500 bg-indigo-50 shadow-sm"
-                                                       : "border-transparent bg-white hover:border-slate-200"
-                                                   )}
-                                               >
-                                                   <div
-                                                   className={cn(
-                                                       "h-7 w-7 rounded-md flex items-center justify-center text-white shrink-0",
-                                                       lesson.type === "video"
-                                                       ? "bg-indigo-500"
-                                                       : "bg-emerald-500"
-                                                   )}
-                                                   >
-                                                   {lesson.type === "video" ? (
-                                                       <PlayCircle className="h-3.5 w-3.5" />
-                                                   ) : (
-                                                       <FileText className="h-3.5 w-3.5" />
-                                                   )}
-                                                   </div>
-                                                   <div className="flex-1 min-w-0">
-                                                   <p className="font-semibold text-slate-900 truncate">
-                                                       Aula {String(lIdx + 1).padStart(2, "0")} · {lesson.title}
-                                                   </p>
-                                                   <p className="text-[10px] text-slate-500 truncate">
-                                                       {lesson.type === "video" ? "Vídeo aula" : "Material PDF"}
-                                                       {lesson.duration_minutes ? ` • ${lesson.duration_minutes} min` : ""}
-                                                   </p>
-                                                   </div>
-                                               </button>
-                                             );
-                                          })}
-                                       </div>
-                                    </div>
-                                 ))}
-                              </div>
-                           </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </section>
-             </div>
-          ) : (
-             <div className="flex-1 min-h-0 bg-white border-t border-slate-200 p-6 overflow-y-auto">
-                <div className="max-w-3xl mx-auto space-y-6">
-                   <div className="mb-8">
-                      <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                         <Megaphone className="h-5 w-5 text-indigo-500" />
-                         Mural de Avisos
-                      </h2>
-                      <p className="text-sm text-slate-500 mt-1">Fique por dentro das atualizações do professor {area.teacher.full_name}.</p>
-                   </div>
 
-                   {notices.length === 0 ? (
-                      <div className="py-20 text-center flex flex-col items-center">
-                        <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-200 mb-4">
-                          <MessageSquare className="h-8 w-8" />
-                        </div>
-                        <p className="text-slate-500 text-sm font-medium">Nenhum aviso no momento.</p>
-                      </div>
-                   ) : (
-                      <div className="space-y-4">
-                         {notices.map(notice => (
-                            <div key={notice.id} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                               <h3 className="text-lg font-bold text-slate-800">{notice.title}</h3>
-                               <p className="text-[11px] font-bold text-indigo-500 uppercase tracking-wider mt-1 mb-4 flex items-center gap-1.5">
-                                  <CheckCircle2 className="h-3 w-3" />
-                                  Publicado em {new Date(notice.created_at).toLocaleDateString("pt-BR", { day: '2-digit', month: 'long', year: 'numeric' })}
-                               </p>
-                               <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{notice.content}</p>
+                  <div className="flex items-center gap-3 bg-white px-5 py-3 rounded-2xl border border-slate-200 shadow-sm">
+                    <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                      <Megaphone className="h-4 w-4" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-[10px] font-black text-slate-400 uppercase leading-none">Total de avisos</p>
+                      <p className="text-sm font-black text-slate-900 leading-none mt-1">{notices.length} mensagens</p>
+                    </div>
+                  </div>
+                </header>
+
+                {/* Listagem de Avisos Justificada */}
+                <div className="grid grid-cols-1 gap-6">
+                  {notices.length === 0 ? (
+                    <div className="py-24 flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-200 border-dashed">
+                      <MessageSquare className="h-10 w-10 text-slate-200 mb-4" />
+                      <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Nenhum aviso disponível</p>
+                    </div>
+                  ) : (
+                    notices.map((notice) => (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        key={notice.id}
+                        className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300"
+                      >
+                        <div className="p-8">
+                          {/* Topo do Card: Badge e Data Justificados */}
+                          <div className="flex items-center justify-between mb-6">
+                            <div className="px-3 py-1 rounded-full bg-slate-100 text-[9px] font-black text-slate-500 uppercase tracking-wider border border-slate-200">
+                              Notificação
                             </div>
-                         ))}
-                      </div>
-                   )}
+                            <div className="flex items-center gap-2 text-slate-400">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              <span className="text-[11px] font-bold uppercase tracking-tighter">
+                                {new Date(notice.created_at).toLocaleDateString("pt-BR", {
+                                  day: '2-digit',
+                                  month: 'long',
+                                  year: 'numeric'
+                                })}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Conteúdo */}
+                          <div className="space-y-4">
+                            <h3 className="text-xl font-black text-slate-900 tracking-tight leading-none">
+                              {notice.title}
+                            </h3>
+                            <div className="h-1 w-10 bg-indigo-600 rounded-full" />
+                            <p className="text-slate-600 leading-relaxed text-sm md:text-base whitespace-pre-wrap">
+                              {notice.content}
+                            </p>
+                          </div>
+
+                          {/* Rodapé do Card: Estilo Justificado */}
+                          <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="h-6 w-6 rounded-full bg-slate-100 flex items-center justify-center">
+                                <Users className="h-3 w-3 text-slate-400" />
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">Visível para todos os alunos</span>
+                            </div>
+
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
                 </div>
-             </div>
+              </div>
+            </div>
+
           )}
         </div>
       </main>

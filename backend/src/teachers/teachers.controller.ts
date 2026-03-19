@@ -33,6 +33,11 @@ export class TeachersController {
     return this.teachersService.listAllAreas();
   }
 
+  @Post('areas')
+  createArea(@Req() req: any, @Body() dto: CreateTeacherAreaDto) {
+    return this.teachersService.upsertMyArea(req.user.id, dto);
+  }
+
   @Get('areas/:areaId')
   getAreaById(@Param('areaId') areaId: string) {
     return this.teachersService.getAreaById(areaId);
@@ -51,6 +56,11 @@ export class TeachersController {
   @Get('areas/:areaId/sections')
   getStudentAreaSections(@Req() req: any, @Param('areaId') areaId: string) {
     return this.teachersService.getAreaSections(req.user.id, areaId);
+  }
+
+  @Get('modules/:moduleId')
+  getModuleWithLessons(@Req() req: any, @Param('moduleId') moduleId: string) {
+    return this.teachersService.getModuleWithLessons(req.user.id, moduleId);
   }
 
   @Get('areas/:areaId/notices')
@@ -122,6 +132,11 @@ export class TeachersController {
     return this.teachersService.deleteLesson(req.user.id, lessonId);
   }
 
+  @Post('my-areas/:areaId/lessons/:lessonId')
+  updateLesson(@Req() req: any, @Param('lessonId') lessonId: string, @Body() dto: { description?: string; duration_minutes?: number }) {
+    return this.teachersService.updateLesson(req.user.id, lessonId, dto);
+  }
+
   @Post('my-areas/:areaId/lessons/:lessonId/upload')
   @UseInterceptors(FileInterceptor('file'))
   uploadLessonFile(
@@ -129,7 +144,12 @@ export class TeachersController {
     @Param('lessonId') lessonId: string,
     @UploadedFile(
       new ParseFilePipe({
-        validators: [new MaxFileSizeValidator({ maxSize: MAX_FILE_SIZE })],
+        validators: [
+          new MaxFileSizeValidator({
+            maxSize: MAX_FILE_SIZE,
+            message: 'O arquivo excede o tamanho permitido de 500MB.' // Mensagem direta aqui
+          }),
+        ],
       }),
     )
     file: Express.Multer.File,
@@ -216,5 +236,65 @@ export class TeachersController {
   @Delete('notices/:noticeId')
   deleteNotice(@Req() req: any, @Param('noticeId') noticeId: string) {
     return this.teachersService.deleteNotice(req.user.id, noticeId);
+  }
+
+  // ── Lesson Progress (alunos) ──────────────────────────────────────────────
+
+  @Post('lessons/:lessonId/progress')
+  upsertLessonProgress(@Req() req: any, @Param('lessonId') lessonId: string, @Body() dto: { completed: boolean; watched_until_percent?: number }) {
+    return this.teachersService.upsertLessonProgress(req.user.id, lessonId, dto.completed, dto.watched_until_percent);
+  }
+
+  // ── Lesson Materials ──────────────────────────────────────────────────────
+
+  @Get('lessons/:lessonId/materials')
+  getLessonMaterials(@Req() req: any, @Param('lessonId') lessonId: string) {
+    return this.teachersService.getLessonMaterials(req.user.id, lessonId);
+  }
+
+  @Post('lessons/:lessonId/materials')
+  createLessonMaterial(@Req() req: any, @Param('lessonId') lessonId: string, @Body() dto: { type: string; title: string; url: string }) {
+    return this.teachersService.createLessonMaterial(req.user.id, lessonId, dto);
+  }
+
+  @Post('lessons/:lessonId/materials/upload')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadLessonMaterial(
+    @Req() req: any,
+    @Param('lessonId') lessonId: string,
+    @Query('type') typeParam: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [new MaxFileSizeValidator({ maxSize: 50 * 1024 * 1024 })],
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    const type = (typeParam === 'image' || typeParam === 'executable') ? typeParam : 'file';
+    return this.teachersService.uploadLessonMaterial(
+      req.user.id,
+      lessonId,
+      file.buffer,
+      file.mimetype,
+      file.originalname,
+      type as 'image' | 'file' | 'executable',
+    );
+  }
+
+  @Delete('materials/:materialId')
+  deleteLessonMaterial(@Req() req: any, @Param('materialId') materialId: string) {
+    return this.teachersService.deleteLessonMaterial(req.user.id, materialId);
+  }
+
+  // ── Lesson Comments ───────────────────────────────────────────────────────
+
+  @Get('lessons/:lessonId/comments')
+  getLessonComments(@Req() req: any, @Param('lessonId') lessonId: string) {
+    return this.teachersService.getLessonComments(req.user.id, lessonId);
+  }
+
+  @Post('lessons/:lessonId/comments')
+  createLessonComment(@Req() req: any, @Param('lessonId') lessonId: string, @Body() dto: { content: string }) {
+    return this.teachersService.createLessonComment(req.user.id, lessonId, dto.content);
   }
 }

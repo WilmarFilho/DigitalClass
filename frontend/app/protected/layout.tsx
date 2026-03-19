@@ -26,7 +26,7 @@ async function ProtectedLayoutContent({
   const userRole = (profile?.role as "student" | "teacher") ?? "student";
 
   // Delay bruto para visualizar a animação do loader (remover em produção)
-  await new Promise((r) => setTimeout(r, 2500));
+  await new Promise((r) => setTimeout(r, 1500));
 
   return (
     <ConditionalLayout userName={userName} userRole={userRole}>
