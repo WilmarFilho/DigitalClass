@@ -39,7 +39,7 @@ export function MemberAreaChat({ teacherAreaId }: { teacherAreaId: string }) {
 
         try {
             // Endpoint que criaremos para o RAG da Área de Membros
-            const response = await apiPost<{ message: string }>(`/teacher-area/${teacherAreaId}/ai-chat`, {
+            const response = await apiPost<{ message: string }>(`/teachers/${teacherAreaId}/ai-chat`, {
                 question: userMsg,
                 history: messages
             });
@@ -53,7 +53,7 @@ export function MemberAreaChat({ teacherAreaId }: { teacherAreaId: string }) {
     };
 
     return (
-        <div className="flex flex-col h-[620px] w-full bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
+        <div className="flex flex-col h-full w-full bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
             {/* Header do Chat */}
             <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/50 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -110,7 +110,7 @@ export function MemberAreaChat({ teacherAreaId }: { teacherAreaId: string }) {
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
                         placeholder="Dúvida sobre a aula ou PDF..."
-                        className="flex-1 bg-transparent px-4 py-2 text-sm font-bold text-slate-700 outline-none placeholder:text-slate-400"
+                        className="flex-1 w-full bg-transparent px-4 py-2 text-sm font-bold text-slate-700 outline-none placeholder:text-slate-400"
                     />
                     <Button
                         onClick={handleSendMessage}

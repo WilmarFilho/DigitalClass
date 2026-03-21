@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import OpenAI from 'openai';
@@ -371,6 +371,83 @@ PAPEL:
       return res ? res.split(',').map(s => s.trim().replace('.', '')) : [];
     } catch (err) {
       return [];
+    }
+  }
+
+  async generateLessonQuiz(lessonId: string, count = 5): Promise<any[]> {
+    const supabase = this.supabaseService.getClient();
+
+    // 1. Buscar o conteúdo bruto da aula (Texto do PDF + Transcrição)
+    const { data: lesson, error: lessonError } = await supabase
+      .from('lessons')
+      .select('title, content_text, transcription, area_id')
+      .eq('id', lessonId)
+      .single();
+
+    if (lessonError || !lesson) {
+      throw new NotFoundException('Aula não encontrada para gerar o quiz.');
+    }
+
+    // 2. Consolidar o material didático
+    const lessonContext = `
+    TÍTULO DA AULA: ${lesson.title}
+    CONTEÚDO EXTRAÍDO: ${lesson.content_text || ''}
+    TRANSCRIÇÃO DO VÍDEO: ${lesson.transcription || ''}
+  `.trim();
+
+    if (lessonContext.length < 100) {
+      throw new BadRequestException('Conteúdo insuficiente na aula para gerar um quiz de qualidade.');
+    }
+
+    if (!this.openai) {
+      throw new InternalServerErrorException('O serviço de IA não está configurado.');
+    }
+
+    try {
+      const completion = await this.openai.chat.completions.create({
+        model: 'gpt-4o', // Mais rápido e barato para quizzes
+        messages: [
+          {
+            role: 'system',
+            content: `Você é um professor assistente encarregado de criar testes de fixação.
+          Sua base de conhecimento é EXCLUSIVAMENTE o conteúdo da aula fornecido abaixo.
+          
+          REGRAS:
+          1. Gere exatamente ${count} questões de múltipla escolha.
+          2. Cada questão deve ter 4 opções (A, B, C, D).
+          3. 'answer' deve ser apenas a letra da alternativa correta (ex: "A").
+          4. O nível de dificuldade deve ser condizente com o material.
+          
+          FORMATO DE RESPOSTA (JSON PURO):
+          {
+            "questions": [
+              {
+                "question": "Pergunta aqui?",
+                "options": ["Opção A", "Opção B", "Opção C", "Opção D"],
+                "answer": "B"
+              }
+            ]
+          }`
+          },
+          {
+            role: 'user',
+            content: `Gere o quiz para a aula: ${lesson.title}. 
+          BASE DE CONHECIMENTO:
+          ${lessonContext.substring(0, 12000)}` // Limite para evitar estouro de tokens
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7,
+      });
+
+      const parsedData = JSON.parse(completion.choices[0]?.message?.content || '{}');
+      const questions = parsedData.questions || [];
+
+      return questions;
+
+    } catch (err) {
+      this.logger.error(`Erro na geração de quiz da aula ${lessonId}: ${err?.message}`);
+      throw new InternalServerErrorException('Não foi possível gerar o quiz no momento.');
     }
   }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase/client";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -29,8 +30,9 @@ import {
   Camera,
   Play,
   RefreshCw,
+  Sparkles,
 } from "lucide-react";
-import { apiGet, apiPost, apiDelete, apiUpload } from "@/lib/api";
+import { apiGet, apiPost, apiDelete, apiUpload, apiPatch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -43,6 +45,8 @@ interface TeacherArea {
   monthly_price: number;
   is_private: boolean;
   banner_url: string | null;
+  ai_tutor_enabled: boolean;
+  ai_last_sync_at: string;
 }
 
 interface Section {
@@ -139,6 +143,7 @@ export default function EditAreaPage() {
   const [loadingMaterials, setLoadingMaterials] = useState(false);
   const [uploadingMaterial, setUploadingMaterial] = useState(false);
   const materialFileRef = useRef<HTMLInputElement>(null);
+  const [needsSync, setNeedsSync] = useState(false);
 
   useEffect(() => { load(); }, [areaId]);
 
@@ -146,7 +151,6 @@ export default function EditAreaPage() {
     setLoadingMaterials(true);
     try {
       const list = await apiGet<{ id: string; type: string; title: string; url: string }[]>(`/teachers/lessons/${lessonId}/materials`);
-      console.log(list)
       setMaterials(list);
     } catch {
       setMaterials([]);
@@ -176,6 +180,24 @@ export default function EditAreaPage() {
 
       const s = await apiGet<Section[]>(`/teachers/my-areas/${areaId}/sections`).catch(() => []);
       setSections(s);
+
+      // 1. Extraímos todas as aulas de forma segura (usando optional chaining)
+      const allLessons = s.flatMap(section =>
+        section.modules?.flatMap(module => module.lessons || []) || []
+      );
+
+      // 2. Encontramos a data da aula mais recente
+      const lastLessonDate = allLessons.length > 0
+        ? new Date(Math.max(...allLessons.map(l => new Date(l.created_at).getTime())))
+        : null;
+
+      // 3. Calculamos o sync comparando com a data mais recente encontrada
+      const mustSync = a.ai_tutor_enabled && (
+        !a.ai_last_sync_at ||
+        (lastLessonDate && lastLessonDate > new Date(a.ai_last_sync_at))
+      );
+
+      setNeedsSync(!!mustSync);
 
       const n = await apiGet<Notice[]>(`/teachers/my-areas/${areaId}/notices`).catch(() => []);
       setNotices(n);
@@ -464,6 +486,31 @@ export default function EditAreaPage() {
     } catch { }
   }
 
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleToggleAi = async () => {
+    if (!area) return;
+    try {
+      await apiPatch(`/teachers/my-areas/${areaId}/ai-settings`, {});
+      setArea({ ...area, ai_tutor_enabled: !area.ai_tutor_enabled });
+    } catch (error) {
+      console.error("Erro ao alterar tutor de IA");
+    }
+  };
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const updatedArea = await apiPost<TeacherArea>(`/teachers/my-areas/${areaId}/ai-sync`, {});
+      setArea(updatedArea);
+      console.log("Base de conhecimento atualizada!");
+    } catch (error) {
+      console.error("Falha na sincronização");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   if (loading) return (
     <div className="flex min-h-[60vh] items-center justify-center">
       <Loader2 className="h-10 w-10 animate-spin text-indigo-600" />
@@ -477,16 +524,32 @@ export default function EditAreaPage() {
       </Button>
 
       <header className="flex flex-col gap-4">
-        <div className="flex items-center gap-3">
-          <div
-            className="h-10 w-10 sm:h-12 sm:w-12 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0"
-            style={{ backgroundColor: areaForm.color_code }}
-          >
-            <BookOpen className="h-5 w-5 sm:h-6 sm:w-6" />
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div
+              className="h-10 w-10 sm:h-12 sm:w-12 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0"
+              style={{ backgroundColor: areaForm.color_code }}
+            >
+              <BookOpen className="h-5 w-5 sm:h-6 sm:w-6" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate">
+                {area?.title || "Carregando..."}
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500">Gerencie configurações, módulos e aulas.</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate">{area?.title || "Carregando..."}</h1>
-            <p className="text-xs sm:text-sm text-slate-500">Gerencie configurações, módulos e aulas.</p>
+
+          {/* Toggle do Tutor de IA no canto direito do título */}
+          <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100">
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] font-bold text-slate-400 uppercase leading-none">Tutor de IA</span>
+              <span className="text-xs font-bold text-slate-600">{area?.ai_tutor_enabled ? 'Ativado' : 'Desativado'}</span>
+            </div>
+            <Switch
+              checked={area?.ai_tutor_enabled}
+              onCheckedChange={handleToggleAi}
+            />
           </div>
         </div>
 
@@ -503,6 +566,39 @@ export default function EditAreaPage() {
               <Settings2 className="h-4 w-4 mr-1 sm:mr-2" /> <span className="hidden sm:inline">Editar</span> Configurações
             </Button>
           )}
+
+          {/* Botão de Sync - Aparece apenas se a IA estiver ativa e houver novos conteúdos */}
+          {needsSync && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+            >
+              <Button
+                onClick={handleSync}
+                disabled={isSyncing}
+                className="rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs sm:text-sm border-none shadow-sm animate-pulse-slow"
+              >
+                {isSyncing ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Atualizar IA
+              </Button>
+            </motion.div>
+          )}
+        </div>
+
+        {/* Versão Mobile do Toggle de IA */}
+        <div className="flex md:hidden items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-indigo-500" />
+            <span className="text-xs font-bold text-slate-700">Tutor de IA Especialista</span>
+          </div>
+          <Switch
+            checked={area?.ai_tutor_enabled}
+            onCheckedChange={handleToggleAi}
+          />
         </div>
       </header>
 

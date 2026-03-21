@@ -12,6 +12,8 @@ import {
   UploadedFile,
   ParseFilePipe,
   MaxFileSizeValidator,
+  BadRequestException,
+  Patch,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TeachersService } from './teachers.service';
@@ -36,6 +38,20 @@ export class TeachersController {
   @Post('areas')
   createArea(@Req() req: any, @Body() dto: CreateTeacherAreaDto) {
     return this.teachersService.upsertMyArea(req.user.id, dto);
+  }
+
+  @Post(':areaId/ai-chat')
+  async handleStudentChat(
+    @Req() req: any,
+    @Param('areaId') areaId: string,
+    @Body() body: { question: string; history: any[] }
+  ) {
+    return this.teachersService.handleAiChat(
+      req.user.id,
+      areaId,
+      body.question,
+      body.history
+    );
   }
 
   @Get('areas/:areaId')
@@ -161,6 +177,24 @@ export class TeachersController {
       file.mimetype,
       file.originalname,
     );
+  }
+
+  @Patch('my-areas/:areaId/ai-settings')
+  async updateAiSettings(
+    @Req() req: any,
+    @Param('areaId') areaId: string,
+    @Body() body: { enabled: boolean }
+  ) {
+    return this.teachersService.toggleAi(req.user.id, areaId);
+  }
+
+  @Post('my-areas/:areaId/ai-sync')
+  async syncAiKnowledge(
+    @Req() req: any,
+    @Param('areaId') areaId: string
+  ) {
+    // Dispara o processo pesado de RAG
+    return this.teachersService.syncKnowledgeBase(req.user.id, areaId);
   }
 
   @Post('my-areas/:areaId/banner')

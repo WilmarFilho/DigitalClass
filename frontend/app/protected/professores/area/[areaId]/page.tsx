@@ -288,7 +288,7 @@ export default function TeacherAreaPage() {
               )}
             >
               <MessageSquare className="h-5 w-5" />
-              Tire suas Dúvidas
+              <span className="hidden md:block">Tire suas Dúvidas</span>
             </button>
           </div>
 
@@ -479,7 +479,7 @@ export default function TeacherAreaPage() {
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className=" mx-auto w-full"
+              className=" mx-auto h-full w-full"
             >
               <MemberAreaChat teacherAreaId={areaId} />
             </motion.div>

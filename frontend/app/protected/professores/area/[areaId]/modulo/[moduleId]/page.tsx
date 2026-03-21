@@ -72,6 +72,64 @@ export default function ModulePlayerPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressSentRef = useRef<Set<string>>(new Set());
 
+  const [quiz, setQuiz] = useState<any[] | null>(null);
+  const [generatingQuiz, setGeneratingQuiz] = useState(false);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [showResult, setShowResult] = useState(false);
+  const [score, setScore] = useState(0);
+
+  // Resetar o quiz ao trocar de aula
+  useEffect(() => {
+    setQuiz(null);
+    setShowResult(false);
+    setScore(0);
+    setSelectedOption(null);
+    setCurrentQuestionIndex(0);
+  }, [selectedLessonId]);
+
+  async function handleGenerateQuiz() {
+    if (!selectedLessonId) return;
+
+    // Limpeza total dos estados antes de gerar o novo
+    setGeneratingQuiz(true);
+    setQuiz(null);
+    setShowResult(false);
+    setScore(0);
+    setCurrentQuestionIndex(0);
+    setSelectedOption(null);
+
+    try {
+      const questions = await apiPost<any[]>(`/study/lessons/${selectedLessonId}/quiz`, {});
+      setQuiz(questions);
+    } catch (error) {
+      console.error("Erro ao gerar quiz");
+    } finally {
+      setGeneratingQuiz(false);
+    }
+  }
+
+  const handleAnswer = (optionIndex: number) => {
+    if (selectedOption !== null) return;
+
+    const letters = ['A', 'B', 'C', 'D'];
+    const answerLetter = letters[optionIndex];
+    setSelectedOption(answerLetter);
+
+    if (answerLetter === quiz![currentQuestionIndex].answer) {
+      setScore(prev => prev + 1);
+    }
+
+    setTimeout(() => {
+      if (currentQuestionIndex < quiz!.length - 1) {
+        setCurrentQuestionIndex(prev => prev + 1);
+        setSelectedOption(null);
+      } else {
+        setShowResult(true);
+      }
+    }, 1500);
+  };
+
   const updateLessonProgress = useCallback((lessonId: string, progress: Partial<LessonProgress>) => {
     setModule(prev => prev ? {
       ...prev,
@@ -217,8 +275,8 @@ export default function ModulePlayerPage() {
         )}
 
         {/* LADO ESQUERDO: PLAYER E CONTEÚDO */}
-        <div className="flex-1 flex flex-col min-w-0 bg-slate-950 overflow-y-auto custom-scrollbar">
-          <div className="aspect-video w-full bg-black relative shadow-2xl">
+        <div className="flex-1 flex flex-col min-w-0 bg-white overflow-y-auto custom-scrollbar">
+          <div className="aspect-video w-full bg-black relative shadow-2xl shrink-0">
             {currentLesson?.content_url ? (
               currentLesson.type === "video" ? (
                 <video
@@ -249,7 +307,7 @@ export default function ModulePlayerPage() {
             )}
           </div>
 
-          <div className="bg-white p-6 md:p-12 min-h-full">
+          <div className="flex-1 bg-white p-6 md:p-12">
             <div className="max-w-4xl mx-auto space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-6 gap-4">
                 <div className="space-y-1">
@@ -302,6 +360,115 @@ export default function ModulePlayerPage() {
                   </div>
                 </div>
               )}
+
+              {/* SEÇÃO DE QUIZ IA */}
+              <div className="border-t border-slate-100 pt-10 mt-10">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                      <MonitorPlay className="h-4 w-4 text-indigo-600" /> Desafio de Fixação IA
+                    </h4>
+                    <p className="text-xs text-slate-500 font-medium">Gere um questionário exclusivo baseado no conteúdo desta aula.</p>
+                  </div>
+
+                  {!quiz && (
+                    <Button
+                      onClick={handleGenerateQuiz}
+                      disabled={generatingQuiz}
+                      className="rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 border-none transition-all active:scale-95"
+                    >
+                      {generatingQuiz ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Analisando aula...
+                        </>
+                      ) : (
+                        <>
+                          <MonitorPlay className="h-4 w-4 mr-2" />
+                          Gerar Questionário
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+
+                {/* RENDERIZAÇÃO DO QUIZ ATIVO */}
+                {quiz && !showResult && (
+                  <div className="bg-slate-50 rounded-3xl border border-slate-100 p-6 md:p-8 relative overflow-hidden">
+                    <div className="flex items-center justify-between mb-6">
+                      <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-3 py-1 rounded-full">
+                        Questão {currentQuestionIndex + 1} de {quiz.length}
+                      </span>
+                      <div className="flex gap-1">
+                        {quiz.map((_, i) => (
+                          <div key={i} className={cn(
+                            "h-1.5 w-6 rounded-full transition-all",
+                            i === currentQuestionIndex ? "bg-indigo-600" : i < currentQuestionIndex ? "bg-emerald-500" : "bg-slate-200"
+                          )} />
+                        ))}
+                      </div>
+                    </div>
+
+                    <h5 className="text-lg font-bold text-slate-900 mb-8 leading-tight">
+                      {quiz[currentQuestionIndex].question}
+                    </h5>
+
+                    <div className="grid gap-3">
+                      {quiz[currentQuestionIndex].options.map((option: string, idx: number) => {
+                        const letter = ['A', 'B', 'C', 'D'][idx];
+                        const isSelected = selectedOption === letter;
+                        const isCorrect = letter === quiz[currentQuestionIndex].answer;
+
+                        return (
+                          <button
+                            key={idx}
+                            disabled={selectedOption !== null}
+                            onClick={() => handleAnswer(idx)}
+                            className={cn(
+                              "group w-full flex items-center gap-4 p-4 rounded-2xl border-2 text-left transition-all duration-200",
+                              selectedOption === null
+                                ? "border-white bg-white hover:border-indigo-100 hover:shadow-md"
+                                : isSelected
+                                  ? (isCorrect ? "border-emerald-500 bg-emerald-50" : "border-red-500 bg-red-50")
+                                  : (isCorrect && selectedOption !== null ? "border-emerald-500 bg-emerald-50" : "border-transparent bg-white opacity-50")
+                            )}
+                          >
+                            <div className={cn(
+                              "h-8 w-8 rounded-lg flex items-center justify-center font-black text-sm shrink-0 transition-colors",
+                              selectedOption === null ? "bg-slate-100 text-slate-400 group-hover:bg-indigo-600 group-hover:text-white" :
+                                isCorrect ? "bg-emerald-500 text-white" : isSelected ? "bg-red-500 text-white" : "bg-slate-100 text-slate-400"
+                            )}>
+                              {letter}
+                            </div>
+                            <span className="text-sm font-bold text-slate-700">{option}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* RESULTADO FINAL */}
+                {showResult && quiz && (
+                  <div className="bg-emerald-500 rounded-3xl p-8 text-center text-white shadow-xl shadow-emerald-200">
+                    <CheckCircle2 className="h-12 w-12 mx-auto mb-4" />
+                    <h5 className="text-2xl font-black mb-2">Desafio Concluído!</h5>
+                    <p className="text-emerald-100 font-medium mb-6">
+                      Você acertou <span className="text-white font-black">{score}</span> de {quiz.length} questões.
+                    </p>
+                    <Button
+                      variant="secondary"
+                      className="rounded-xl font-bold bg-white text-emerald-600 hover:bg-emerald-50 border-none"
+                      onClick={() => {
+                        setQuiz(null);
+                        handleGenerateQuiz();
+                      }}
+                    >
+                      Tentar Novamente
+                    </Button>
+                  </div>
+                )}
+              </div>
 
               <div className="border-t border-slate-100 pt-6 mt-6">
                 <h4 className="text-sm font-black text-slate-800 mb-4 flex items-center gap-2">

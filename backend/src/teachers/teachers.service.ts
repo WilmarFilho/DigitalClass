@@ -59,6 +59,115 @@ export class TeachersService {
     return msg;
   }
 
+  async toggleAi(teacherId: string, areaId: string) {
+    // Primeiro pegamos o estado atual para inverter ou validar
+    const { data: area, error: fetchError } = await this.supabase()
+      .from('teacher_areas')
+      .select('ai_tutor_enabled')
+      .eq('id', areaId)
+      .eq('teacher_id', teacherId)
+      .single();
+
+    if (fetchError || !area) throw new NotFoundException('Área não encontrada.');
+
+    const { data, error } = await this.supabase()
+      .from('teacher_areas')
+      .update({ ai_tutor_enabled: !area.ai_tutor_enabled })
+      .eq('id', areaId)
+      .select()
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async syncKnowledgeBase(teacherId: string, areaId: string) {
+    this.logger.log(`Iniciando sincronização de IA para área: ${areaId}`);
+
+    try {
+      // 2. Buscar todas as aulas da área que possuem conteúdo extraído
+      const { data: lessons, error: lessonsError } = await this.supabase()
+        .from('lessons')
+        .select('id, title, content_text, transcription')
+        .eq('area_id', areaId);
+
+      if (lessonsError) throw lessonsError;
+
+      // 3. Limpar conhecimento antigo para evitar duplicatas
+      await this.supabase()
+        .from('teacher_area_knowledge')
+        .delete()
+        .eq('area_id', areaId);
+
+      if (!lessons || lessons.length === 0) {
+        throw new Error('Nenhuma aula com conteúdo encontrada.');
+      }
+
+      for (const lesson of lessons) {
+        // Consolidar o texto disponível
+        const textToEmbed = [
+          `Aula: ${lesson.title}`,
+          lesson.content_text ? `Conteúdo PDF: ${lesson.content_text}` : '',
+          lesson.transcription ? `Transcrição Vídeo: ${lesson.transcription}` : ''
+        ].filter(Boolean).join('\n\n');
+
+        if (textToEmbed.length < 20) continue;
+
+        // 4. Fragmentar o texto (Chunks) para não estourar o limite de tokens
+        const chunks = this.chunkText(textToEmbed, 1000);
+
+        for (const chunk of chunks) {
+          // 5. Gerar Embedding (Vetor) via OpenAI
+          const embedding = await this.aiService.generateEmbedding(chunk);
+
+          // 6. Inserir na tabela de conhecimento vetorial
+          const { error: insertError } = await this.supabase()
+            .from('teacher_area_knowledge')
+            .insert({
+              area_id: areaId,
+              lesson_id: lesson.id,
+              content: chunk,
+              embedding: embedding, // Coluna do tipo 'vector' no Postgres
+              metadata: {
+                lesson_title: lesson.title,
+                synced_at: new Date().toISOString()
+              }
+            });
+
+          if (insertError) this.logger.error(`Erro ao inserir chunk: ${insertError.message}`);
+        }
+      }
+
+      // 7. Finalizar atualizando datas e status
+      const { data: updatedArea } = await this.supabase()
+        .from('teacher_areas')
+        .update({
+          ai_last_sync_at: new Date().toISOString()
+        })
+        .eq('id', areaId)
+        .select()
+        .single();
+
+      this.logger.log(`Sincronização concluída para área ${areaId}`);
+      return updatedArea;
+
+    } catch (error) {
+      this.logger.error(`Falha na sincronização da área ${areaId}: ${error.message}`);
+      throw new InternalServerErrorException('Falha ao sincronizar base de conhecimento.');
+    }
+  }
+
+  // Função auxiliar para quebrar textos grandes
+  private chunkText(text: string, maxLength: number): string[] {
+    const chunks: string[] = [];
+    let current = 0;
+    while (current < text.length) {
+      chunks.push(text.substring(current, current + maxLength));
+      current += maxLength;
+    }
+    return chunks;
+  }
+
 
 
   private async extractAudioFromBuffer(buffer: Buffer): Promise<Buffer> {
@@ -172,7 +281,7 @@ export class TeachersService {
     const { data, error } = await this.supabase()
       .from('teacher_areas')
       .select(`
-        id, title, description, color_code, monthly_price, banner_url, is_private, created_at,
+        id, title, description, color_code, ai_tutor_enabled, ai_last_sync_at, monthly_price, banner_url, is_private, created_at,
         profiles!teacher_id ( id, full_name, avatar_url )
       `)
       .eq('id', areaId)
@@ -467,12 +576,58 @@ export class TeachersService {
     return data ?? [];
   }
 
+
+  async handleAiChat(userId: string, areaId: string, question: string, history: any[]) {
+    // 1. Buscar dados da área (Configurações do Tutor)
+    const { data: area, error: areaError } = await this.supabase()
+      .from('teacher_areas')
+      .select('*')
+      .eq('id', areaId)
+      .single();
+
+    if (areaError || !area) {
+      throw new NotFoundException('Área de membros não encontrada.');
+    }
+
+    if (!area.ai_tutor_enabled) {
+      throw new ForbiddenException('O tutor de IA não está ativo para esta área.');
+    }
+
+    // 2. Chamar o AiService para processar o RAG e gerar a resposta
+    // Passamos o 'area' completo pois ele contém o nome do tutor e as instruções personalizadas
+    const answer = await this.aiService.askTutor(
+      areaId,
+      question,
+      history,
+      area
+    );
+
+    await this.supabase()
+      .from('teacher_area_ai_chats')
+      .insert([
+        {
+          area_id: areaId,
+          student_id: userId,
+          role: 'user',
+          content: question.trim(),
+        },
+        {
+          area_id: areaId,
+          student_id: userId,
+          role: 'assistant',
+          content: answer,
+        }
+      ]);
+
+    return { message: answer };
+  }
+
   async getMyAreaById(teacherId: string, areaId: string) {
     await this.assertTeacher(teacherId);
 
     const { data } = await this.supabase()
       .from('teacher_areas')
-      .select('id, title, description, color_code, monthly_price, banner_url, is_private, created_at, stripe_product_id, stripe_price_id')
+      .select('id, title, description, color_code, ai_tutor_enabled, ai_last_sync_at, monthly_price, banner_url, is_private, created_at, stripe_product_id, stripe_price_id')
       .eq('teacher_id', teacherId)
       .eq('id', areaId)
       .maybeSingle();

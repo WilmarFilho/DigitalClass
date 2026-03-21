@@ -111,6 +111,13 @@ export class StudyController {
     return this.studyService.saveHighlight(req.user.id, id, body.text);
   }
 
+  @Post('lessons/:lessonId/quiz')
+  async getLessonQuiz(
+    @Param('lessonId') lessonId: string
+  ) {
+    return this.studyService.generateLessonQuiz(lessonId);
+  }
+
   @Post('sessions/:id/quiz/generate')
   async generateQuiz(
     @Req() req: any,
