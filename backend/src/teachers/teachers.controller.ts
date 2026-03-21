@@ -31,8 +31,14 @@ export class TeachersController {
   // ── Aluno: navegar áreas ──────────────────────────────────────────────────
 
   @Get('areas')
-  listAllAreas() {
-    return this.teachersService.listAllAreas();
+  listAllAreas(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    return this.teachersService.listAllAreas(pageNum, limitNum, search);
   }
 
   @Post('areas')
@@ -60,8 +66,14 @@ export class TeachersController {
   }
 
   @Get('following')
-  listFollowing(@Req() req: any) {
-    return this.teachersService.listFollowing(req.user.id);
+  listFollowing(
+    @Req() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    return this.teachersService.listFollowing(req.user.id, pageNum, limitNum);
   }
 
   @Get('areas/:areaId/lessons')
@@ -104,8 +116,14 @@ export class TeachersController {
   // ── Professor: minha área ─────────────────────────────────────────────────
 
   @Get('my-areas')
-  getMyAreas(@Req() req: any) {
-    return this.teachersService.getMyAreas(req.user.id);
+  getMyAreas(
+    @Req() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    return this.teachersService.getMyAreas(req.user.id, pageNum, limitNum);
   }
 
   @Get('my-areas/:areaId')

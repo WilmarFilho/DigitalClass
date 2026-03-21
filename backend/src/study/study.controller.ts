@@ -28,10 +28,12 @@ export class StudyController {
   @Get('sessions')
   async getRecentSessions(
     @Req() req: any,
+    @Query('page') page?: string,
     @Query('limit') limit?: string,
-  ): Promise<SessionWithSubject[]> {
-    const limitNum = limit ? Math.min(parseInt(limit, 10) || 10, 50) : 10;
-    return this.studyService.getRecentSessions(req.user.id, limitNum);
+  ): Promise<any> {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    return this.studyService.getRecentSessions(req.user.id, pageNum, limitNum);
   }
 
   @Get('sessions/:id')

@@ -114,19 +114,32 @@ Retorne APENAS um JSON array, sem markdown, sem explicação. Cada objeto deve t
     ].slice(0, 6);
   }
 
-  async getMySubjects(userId: string) {
+  async getMySubjects(userId: string, page = 1, limit = 20) {
     const supabase = this.supabaseService.getClient();
-    const { data, error } = await supabase
+    
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    const { data, count, error } = await supabase
       .from('subjects')
-      .select('id, title, color_code, target_hours, completed_hours, completed_minutes, deadline, difficulty_level, is_custom, created_at')
+      .select('id, title, color_code, target_hours, completed_hours, completed_minutes, deadline, difficulty_level, is_custom, created_at', { count: 'exact' })
       .eq('student_id', userId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(from, to);
 
     if (error) {
       this.logger.error(`Error fetching subjects: ${error.message}`);
       throw new Error(error.message);
     }
-    return data ?? [];
+    
+    return {
+      data: data ?? [],
+      meta: {
+        total: count ?? 0,
+        page,
+        last_page: Math.ceil((count ?? 0) / limit),
+      }
+    };
   }
 
   async create(userId: string, dto: CreateSubjectDto) {

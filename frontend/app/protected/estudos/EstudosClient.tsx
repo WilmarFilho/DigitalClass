@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Brain, Plus, BookOpen, Clock, Loader2, ChevronRight, History, AlertCircle, CheckCircle2, Calendar, Play } from "lucide-react";
@@ -45,21 +45,31 @@ export function EstudosClient() {
   const [startingEventId, setStartingEventId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const now = new Date();
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const loadData = useCallback(async (pageNum = 1) => {
+    if (pageNum === 1) setLoading(true);
+    else setLoadingMore(true);
+
+    try {
+      const now = new Date();
+      if (pageNum === 1) {
         const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
         const todayStr = now.toISOString().slice(0, 10);
 
-        const [sessionsData, subjectsData, calendarData] = await Promise.all([
-          apiGet<StudySession[]>("/study/sessions?limit=10"),
-          apiGet<Array<Subject & { color_code?: string }>>("/subjects"),
+        const [sessionsRes, subjectsRes, calendarData] = await Promise.all([
+          apiGet<any>("/study/sessions?page=1&limit=9"),
+          apiGet<any>("/subjects?limit=100"),
           apiGet<CalendarEvent[]>(`/calendar/events?month=${monthKey}`),
         ]);
 
-        setSubjects(subjectsData.map((s) => ({ ...s, color_code: s.color_code || "#6D44CC" })));
-        setSessions(sessionsData);
+        const subjectsData = subjectsRes.data || [];
+        setSubjects(subjectsData.map((s: any) => ({ ...s, color_code: s.color_code || "#6D44CC" })));
+        setSessions(sessionsRes.data || []);
+        setHasMore(sessionsRes.meta?.page < sessionsRes.meta?.last_page);
         setTodayEvents(calendarData.filter(e => e.scheduled_date === todayStr));
 
         // Calculate week events
@@ -71,17 +81,28 @@ export function EstudosClient() {
         const endStr = endOfWeek.toISOString().slice(0, 10);
 
         setWeekEvents(calendarData.filter(e => e.scheduled_date >= startStr && e.scheduled_date <= endStr).sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date)));
-      } catch {
+      } else {
+        const sessionsRes = await apiGet<any>(`/study/sessions?page=${pageNum}&limit=9`);
+        setSessions((prev) => [...prev, ...(sessionsRes.data || [])]);
+        setHasMore(sessionsRes.meta?.page < sessionsRes.meta?.last_page);
+      }
+      setPage(pageNum);
+    } catch {
+      if (pageNum === 1) {
         setSessions([]);
         setSubjects([]);
         setTodayEvents([]);
         setWeekEvents([]);
-      } finally {
-        setLoading(false);
       }
+    } finally {
+      if (pageNum === 1) setLoading(false);
+      else setLoadingMore(false);
     }
-    load();
   }, []);
+
+  useEffect(() => {
+    loadData(1);
+  }, [loadData]);
 
   const handleStartSession = async () => {
     if (!selectedEventId) {
@@ -269,7 +290,7 @@ export function EstudosClient() {
               </p>
             </div>
           ) : (
-            sessions.slice(0, 9).map((s) => (
+            sessions.map((s) => (
               <Link
                 key={s.id}
                 href={`/protected/estudos/detalhe?sessionId=${s.id}`}
@@ -311,6 +332,20 @@ export function EstudosClient() {
             ))
           )}
         </div>
+
+        {hasMore && (
+          <div className="flex justify-center mt-6">
+            <Button
+              variant="outline"
+              onClick={() => loadData(page + 1)}
+              disabled={loadingMore}
+              className="rounded-xl border-[#E6E0F8] text-[#6D44CC] hover:bg-[#F5F3FF] font-bold h-12 px-8"
+            >
+              {loadingMore && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
+              {loadingMore ? "CARREGANDO..." : "CARREGAR MAIS SESSÕES"}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Modal: Iniciar Sessão */}

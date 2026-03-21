@@ -47,6 +47,11 @@ export function MateriasClient() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+
   // Edit state
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editSubject, setEditSubject] = useState<Subject | null>(null);
@@ -67,27 +72,41 @@ export function MateriasClient() {
     if (user) setUserId(user.id);
   }, []);
 
-  const loadData = useCallback(async () => {
-    setLoadingRecs(true);
-    setLoadingSubjects(true);
+  const loadData = useCallback(async (pageNum = 1) => {
+    if (pageNum === 1) {
+      setLoadingRecs(true);
+      setLoadingSubjects(true);
+    } else {
+      setLoadingMore(true);
+    }
 
     try {
-      const [recsData, subsData] = await Promise.all([
-        apiGet<RecommendedSubject[]>("/subjects/recommendations"),
-        apiGet<Subject[]>("/subjects")
-      ]);
-      setRecommendations(recsData);
-      setMySubjects(subsData);
+      if (pageNum === 1) {
+        const [recsData, subsResponse] = await Promise.all([
+          apiGet<RecommendedSubject[]>("/subjects/recommendations"),
+          apiGet<any>(`/subjects?page=1&limit=6`)
+        ]);
+        setRecommendations(recsData);
+        setMySubjects(subsResponse.data || []);
+        setHasMore(subsResponse.meta?.page < subsResponse.meta?.last_page);
+        setPage(1);
+      } else {
+        const subsResponse = await apiGet<any>(`/subjects?page=${pageNum}&limit=6`);
+        setMySubjects(prev => [...prev, ...(subsResponse.data || [])]);
+        setHasMore(subsResponse.meta?.page < subsResponse.meta?.last_page);
+        setPage(pageNum);
+      }
     } catch (e) {
       console.error("Erro ao carregar matérias", e);
     } finally {
       setLoadingRecs(false);
       setLoadingSubjects(false);
+      setLoadingMore(false);
     }
   }, []);
 
   useEffect(() => { loadUserId(); }, [loadUserId]);
-  useEffect(() => { if (userId) loadData(); }, [userId, loadData]);
+  useEffect(() => { if (userId) loadData(1); }, [userId, loadData]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const addSubject = async (payload: any, isManual: boolean) => {
@@ -101,7 +120,7 @@ export function MateriasClient() {
       setManualHours("60");
       setManualDeadline("");
       setManualColor("#44baccff");
-      if (userId) loadData();
+      if (userId) loadData(1);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       setModalError(e.message || "Erro ao adicionar");
@@ -135,7 +154,7 @@ export function MateriasClient() {
         deadline: editDeadline || undefined,
       });
       setEditModalOpen(false);
-      if (userId) loadData();
+      if (userId) loadData(1);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       setModalError(e.message || "Erro ao editar");
@@ -151,7 +170,7 @@ export function MateriasClient() {
     try {
       await apiDelete(`/subjects/${deleteSubject.id}`);
       setDeleteModalOpen(false);
-      if (userId) loadData();
+      if (userId) loadData(1);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       setModalError(e.message || "Erro ao excluir");
@@ -313,6 +332,20 @@ export function MateriasClient() {
                 );
               })}
             </div>
+
+            {hasMore && (
+              <div className="flex justify-center mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => loadData(page + 1)}
+                  disabled={loadingMore}
+                  className="rounded-xl border-[#E6E0F8] text-[#6D44CC] hover:bg-[#F5F3FF] font-bold h-12 px-8"
+                >
+                  {loadingMore && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
+                  {loadingMore ? "CARREGANDO..." : "CARREGAR MAIS MATÉRIAS"}
+                </Button>
+              </div>
+            )}
           </section>
 
           {/* Modal: Manual */}

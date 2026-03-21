@@ -262,18 +262,35 @@ export class TeachersService {
   // ─── Área pública de professores (alunos) ──────────────────────────────────
 
   /** Lista todas as áreas públicas de professores com info do professor */
-  async listAllAreas() {
-    const { data, error } = await this.supabase()
+  async listAllAreas(page = 1, limit = 20, search?: string) {
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    let query = this.supabase()
       .from('teacher_areas')
       .select(`
         id, title, description, color_code, monthly_price, banner_url, is_private, created_at,
         profiles!teacher_id ( id, full_name, avatar_url )
-      `)
-      .eq('is_private', false)
-      .order('created_at', { ascending: false });
+      `, { count: 'exact' })
+      .eq('is_private', false);
+
+    if (search) {
+      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    const { data, count, error } = await query
+      .order('created_at', { ascending: false })
+      .range(from, to);
 
     if (error) this.logger.error(`listAllAreas: ${error.message}`);
-    return (data ?? []).map((area) => this.formatArea(area));
+    return {
+      data: (data ?? []).map((area) => this.formatArea(area)),
+      meta: {
+        total: count ?? 0,
+        page,
+        last_page: Math.ceil((count ?? 0) / limit),
+      }
+    };
   }
 
   /** Detalhe de uma área específica (respeita RLS: áreas privadas só para o dono) */
@@ -298,8 +315,11 @@ export class TeachersService {
   }
 
   /** Áreas que o aluno segue */
-  async listFollowing(studentId: string) {
-    const { data, error } = await this.supabase()
+  async listFollowing(studentId: string, page = 1, limit = 20) {
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+    const { data, count, error } = await this.supabase()
       .from('teacher_subscriptions')
       .select(`
         subscribed_at, subscription_status,
@@ -307,17 +327,25 @@ export class TeachersService {
           id, title, description, color_code, monthly_price, banner_url, created_at,
           profiles!teacher_id ( id, full_name, avatar_url )
         )
-      `)
+      `, { count: 'exact' })
       .eq('student_id', studentId)
-      .in('subscription_status', ['active', 'past_due']);
+      .in('subscription_status', ['active', 'past_due'])
+      .range(from, to);
 
     if (error) this.logger.error(`listFollowing: ${error.message}`);
 
-    return (data ?? []).map((row: any) => ({
-      subscribed_at: row.subscribed_at,
-      subscription_status: row.subscription_status ?? 'active',
-      ...this.formatArea(row.teacher_areas),
-    }));
+    return {
+      data: (data ?? []).map((row: any) => ({
+        subscribed_at: row.subscribed_at,
+        subscription_status: row.subscription_status ?? 'active',
+        ...this.formatArea(row.teacher_areas),
+      })),
+      meta: {
+        total: count ?? 0,
+        page,
+        last_page: Math.ceil((count ?? 0) / limit),
+      }
+    };
   }
 
   /** Quantidade de alunos em cada área */
@@ -564,16 +592,29 @@ export class TeachersService {
 
   // ─── Área do professor ─────────────────────────────────────────────────────
 
-  async getMyAreas(teacherId: string) {
+  async getMyAreas(teacherId: string, page = 1, limit = 20) {
     await this.assertTeacher(teacherId);
 
-    const { data } = await this.supabase()
-      .from('teacher_areas')
-      .select('id, title, description, color_code, monthly_price, banner_url, is_private, created_at, stripe_product_id, stripe_price_id')
-      .eq('teacher_id', teacherId)
-      .order('created_at', { ascending: false });
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
 
-    return data ?? [];
+    const { data, count, error } = await this.supabase()
+      .from('teacher_areas')
+      .select('id, title, description, color_code, monthly_price, banner_url, is_private, created_at, stripe_product_id, stripe_price_id', { count: 'exact' })
+      .eq('teacher_id', teacherId)
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (error) this.logger.error(`getMyAreas: ${error.message}`);
+
+    return {
+      data: data ?? [],
+      meta: {
+        total: count ?? 0,
+        page,
+        last_page: Math.ceil((count ?? 0) / limit),
+      }
+    };
   }
 
 

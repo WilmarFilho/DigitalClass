@@ -161,10 +161,12 @@ export class StudyService {
     return 'O serviço de IA está temporariamente indisponível. Tente digitar sua dúvida manualmente.';
   }
 
-  async getRecentSessions(userId: string, limit = 10): Promise<SessionWithSubject[]> {
+  async getRecentSessions(userId: string, page = 1, limit = 10): Promise<any> {
     const supabase = this.supabaseService.getClient();
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
 
-    const { data, error } = await supabase
+    const { data, count, error } = await supabase
       .from('study_sessions')
       .select(`
         id,
@@ -186,17 +188,24 @@ export class StudyService {
           id,
           duration_minutes
         )
-      `)
+      `, { count: 'exact' })
       .eq('student_id', userId)
       .order('created_at', { ascending: false })
-      .limit(limit);
+      .range(from, to);
 
     if (error) {
       this.logger.error(`Error fetching sessions: ${error.message}`);
-      return [];
+      return { data: [], meta: { total: 0, page, last_page: 1 } };
     }
 
-    return (data ?? []) as unknown as SessionWithSubject[];
+    return {
+      data: (data ?? []) as unknown as SessionWithSubject[],
+      meta: {
+        total: count ?? 0,
+        page,
+        last_page: Math.ceil((count ?? 0) / limit),
+      }
+    };
   }
 
   async getSession(userId: string, sessionId: string): Promise<SessionWithSubject> {

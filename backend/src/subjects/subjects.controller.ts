@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Req, Query } from '@nestjs/common';
 import { SubjectsService, type RecommendedSubject } from './subjects.service';
 import { CreateSubjectDto } from './dto/create-subject.dto';
 import { UpdateSubjectDto } from './dto/update-subject.dto';
@@ -16,8 +16,14 @@ export class SubjectsController {
 
   @Get()
   @UseGuards(SupabaseJwtGuard)
-  async getMySubjects(@Req() req: any) {
-    return this.subjectsService.getMySubjects(req.user.id);
+  async getMySubjects(
+    @Req() req: any,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    return this.subjectsService.getMySubjects(req.user.id, pageNum, limitNum);
   }
 
   @Post()

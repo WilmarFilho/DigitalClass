@@ -59,18 +59,75 @@ export default function ProfessoresPage() {
   const [loading, setLoading] = useState(true);
   const [subscribing, setSubscribing] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
+  // Pagination states
+  const [pageFollowing, setPageFollowing] = useState(1);
+  const [hasMoreFollowing, setHasMoreFollowing] = useState(false);
+  const [loadingMoreFollowing, setLoadingMoreFollowing] = useState(false);
+
+  const [pageExplore, setPageExplore] = useState(1);
+  const [hasMoreExplore, setHasMoreExplore] = useState(false);
+  const [loadingMoreExplore, setLoadingMoreExplore] = useState(false);
+  const [firstLoad, setFirstLoad] = useState(true);
+
+  const loadInitial = async () => {
+    setLoading(true);
+    try {
       const [f, a] = await Promise.all([
-        apiGet<FollowingArea[]>("/teachers/following").catch(() => []),
-        apiGet<TeacherArea[]>("/teachers/areas").catch(() => []),
+        apiGet<any>("/teachers/following?page=1&limit=9").catch(() => ({ data: [], meta: {} })),
+        apiGet<any>("/teachers/areas?page=1&limit=9").catch(() => ({ data: [], meta: {} })),
       ]);
-      setFollowing(f);
-      setAllAreas(a);
+      setFollowing(f.data || []);
+      setHasMoreFollowing(f.meta?.page < f.meta?.last_page);
+      
+      setAllAreas(a.data || []);
+      setHasMoreExplore(a.meta?.page < a.meta?.last_page);
+    } finally {
       setLoading(false);
     }
-    load();
+  };
+
+  useEffect(() => {
+    loadInitial();
   }, []);
+
+  const loadFollowing = async (pageNum = 1) => {
+    setLoadingMoreFollowing(true);
+    try {
+      const res = await apiGet<any>(`/teachers/following?page=${pageNum}&limit=9`);
+      setFollowing(prev => [...prev, ...(res.data || [])]);
+      setHasMoreFollowing(res.meta?.page < res.meta?.last_page);
+      setPageFollowing(pageNum);
+    } catch {}
+    finally {
+      setLoadingMoreFollowing(false);
+    }
+  };
+
+  const loadExplore = async (pageNum = 1, searchQuery = search) => {
+    setLoadingMoreExplore(true);
+    try {
+      const url = `/teachers/areas?page=${pageNum}&limit=9${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ""}`;
+      const res = await apiGet<any>(url);
+      if (pageNum === 1) setAllAreas(res.data || []);
+      else setAllAreas(prev => [...prev, ...(res.data || [])]);
+      setHasMoreExplore(res.meta?.page < res.meta?.last_page);
+      setPageExplore(pageNum);
+    } catch {}
+    finally {
+      setLoadingMoreExplore(false);
+    }
+  };
+
+  useEffect(() => {
+    if (firstLoad) {
+      setFirstLoad(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      loadExplore(1, search);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const followingIds = new Set(following.map((f) => f.id));
 
@@ -87,8 +144,7 @@ export default function ProfessoresPage() {
       } else {
         // Free area → direct subscribe
         await apiPost(`/teachers/areas/${area.id}/subscribe`, {});
-        const updated = await apiGet<FollowingArea[]>("/teachers/following");
-        setFollowing(updated);
+        await loadInitial();
       }
     } catch {
       // erro silencioso
@@ -113,13 +169,7 @@ export default function ProfessoresPage() {
     window.open(`/protected/professores/area/${area.id}`, '_blank');
   };
 
-  const filteredAll = allAreas.filter(
-    (a) =>
-      a.title.toLowerCase().includes(search.toLowerCase()) ||
-      a.teacher.full_name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const displayList = tab === "following" ? following : filteredAll;
+  const displayList = tab === "following" ? following : allAreas;
 
   if (loading) {
     return (
@@ -212,18 +262,38 @@ export default function ProfessoresPage() {
               )}
             </div>
           ) : (
-            <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-              {displayList.map((area) => (
-                <AreaCard
-                  key={area.id}
-                  area={area}
-                  isFollowing={followingIds.has(area.id)}
-                  loadingSubscribe={subscribing === area.id}
-                  onOpen={() => openArea(area)}
-                  onSubscribe={() => handleSubscribe(area)}
-                  onUnsubscribe={() => handleUnsubscribe(area.id)}
-                />
-              ))}
+            <div className="space-y-8">
+              <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+                {displayList.map((area) => (
+                  <AreaCard
+                    key={area.id}
+                    area={area}
+                    isFollowing={followingIds.has(area.id)}
+                    loadingSubscribe={subscribing === area.id}
+                    onOpen={() => openArea(area)}
+                    onSubscribe={() => handleSubscribe(area)}
+                    onUnsubscribe={() => handleUnsubscribe(area.id)}
+                  />
+                ))}
+              </div>
+
+              {tab === "following" && hasMoreFollowing && (
+                <div className="flex justify-center mt-10">
+                  <Button variant="outline" onClick={() => loadFollowing(pageFollowing + 1)} disabled={loadingMoreFollowing} className="rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 font-bold h-12 px-8">
+                    {loadingMoreFollowing && <Loader2 className="animate-spin mr-2 h-5 w-5" />}
+                    {loadingMoreFollowing ? "CARREGANDO..." : "CARREGAR MAIS"}
+                  </Button>
+                </div>
+              )}
+
+              {tab === "explore" && hasMoreExplore && (
+                <div className="flex justify-center mt-10">
+                  <Button variant="outline" onClick={() => loadExplore(pageExplore + 1, search)} disabled={loadingMoreExplore} className="rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 font-bold h-12 px-8">
+                    {loadingMoreExplore && <Loader2 className="animate-spin mr-2 h-5 w-5" />}
+                    {loadingMoreExplore ? "CARREGANDO..." : "CARREGAR MAIS COMPRADAS"}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </motion.div>

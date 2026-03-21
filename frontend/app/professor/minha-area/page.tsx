@@ -35,17 +35,26 @@ export default function MinhaAreaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { load(); }, []);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  async function load() {
-    setLoading(true);
+  useEffect(() => { load(1); }, []);
+
+  async function load(pageNum = 1) {
+    if (pageNum === 1) setLoading(true);
+    else setLoadingMore(true);
     try {
-      const data = await apiGet<TeacherArea[]>("/teachers/my-areas");
-      setAreas(data);
+      const { data, meta } = await apiGet<any>(`/teachers/my-areas?page=${pageNum}&limit=9`);
+      if (pageNum === 1) setAreas(data || []);
+      else setAreas(prev => [...prev, ...(data || [])]);
+      setHasMore(meta?.page < meta?.last_page);
+      setPage(pageNum);
     } catch (e: any) {
       setError("Não foi possível carregar suas áreas.");
     } finally {
-      setLoading(false);
+      if (pageNum === 1) setLoading(false);
+      else setLoadingMore(false);
     }
   }
 
@@ -99,10 +108,26 @@ export default function MinhaAreaPage() {
             </Button>
          </div>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {areas.map((area) => (
-            <AreaCard key={area.id} area={area} onClick={() => router.push(`/professor/minha-area/${area.id}`)} />
-          ))}
+        <div className="space-y-8">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {areas.map((area) => (
+              <AreaCard key={area.id} area={area} onClick={() => router.push(`/professor/minha-area/${area.id}`)} />
+            ))}
+          </div>
+
+          {hasMore && (
+            <div className="flex justify-center mt-6">
+              <Button
+                  variant="outline"
+                  onClick={() => load(page + 1)}
+                  disabled={loadingMore}
+                  className="rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 font-bold h-12 px-8"
+              >
+                {loadingMore && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
+                {loadingMore ? "CARREGANDO..." : "CARREGAR MAIS ÁREAS"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

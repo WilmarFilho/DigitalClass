@@ -67,14 +67,15 @@ export function CalendarioClient() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [eventsData, suggestionsData, subjectsData] = await Promise.all([
+      const [eventsData, suggestionsData, subjectsRes] = await Promise.all([
         apiGet<CalendarEvent[]>(`/calendar/events?month=${monthKey}`),
         apiGet<CalendarSuggestion[]>(`/calendar/suggestions?month=${monthKey}`),
-        apiGet<Array<Subject & { color_code?: string }>>("/subjects")
+        apiGet<any>("/subjects?limit=100")
       ]);
       setEvents(eventsData);
       setSuggestions(suggestionsData);
-      setSubjects(subjectsData.map(s => ({ ...s, color_code: s.color_code || "#6D44CC" })));
+      const subjectsData = subjectsRes.data || [];
+      setSubjects(subjectsData.map((s: any) => ({ ...s, color_code: s.color_code || "#6D44CC" })));
     } catch {
       setEvents([]);
       setSuggestions([]);
