@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import { Search, Loader2, Rss, Users, Clapperboard, UserPlus, Check } from "lucide-react";
+import { Search, Loader2, Rss, Users, Clapperboard, UserPlus, Check, Play, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { apiGet, apiPost } from "@/lib/api";
@@ -52,13 +52,15 @@ export default function FeedPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-[#F0EEF9] dark:bg-slate-800 rounded-2xl w-fit mb-8">
-        {tabs.map(({ key, label, icon: Icon }) => (
+      <div className="grid grid-cols-2 min-[481px]:flex gap-1 p-1 bg-[#F0EEF9] dark:bg-slate-800 rounded-2xl w-full min-[481px]:w-fit mb-8">
+        {tabs.map(({ key, label, icon: Icon }, index) => (
           <button
             key={key}
             onClick={() => setTab(key)}
             className={cn(
-              "flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200",
+              "flex items-center justify-center min-[481px]:justify-start gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200",
+              // Faz o terceiro item (índice 2) ocupar as duas colunas se houver apenas 3 abas
+              index === 2 && "max-[480px]:col-span-2",
               tab === key
                 ? "bg-white dark:bg-slate-900 text-[#6D44CC] shadow-sm"
                 : "text-slate-500 hover:text-[#6D44CC]"
@@ -184,11 +186,11 @@ function TeacherCard({ teacher, onToggleFollow, currentUserId }: { teacher: Teac
       {/* Banner */}
       <div className="relative h-20 bg-gradient-to-br from-[#6D44CC]/20 to-[#F38B4B]/20">
         {teacher.banner_url && (
-          <Image src={teacher.banner_url} alt="" fill className="object-cover opacity-60" />
+          <Image src={teacher.banner_url} alt="" fill className="object-cover" />
         )}
       </div>
       {/* Avatar */}
-      <div className="px-4 -mt-6 pb-4">
+      <div className="px-4 -mt-6 pb-4 relative z-10">
         <div className="h-12 w-12 rounded-full border-2 border-white dark:border-slate-900 bg-[#6D44CC] flex items-center justify-center text-white font-bold text-sm overflow-hidden mb-3">
           {teacher.avatar_url ? (
             <Image src={teacher.avatar_url} alt="" width={48} height={48} className="object-cover w-full h-full" />
@@ -261,7 +263,7 @@ function FeedTab({ currentUserId }: { currentUserId: string }) {
   );
 
   return (
-    <div className="max-w-xl mx-auto space-y-6">
+    <div className=" mx-auto">
       {posts.map((post) => (
         <PostCard key={post.id} post={post} currentUserId={currentUserId} onDelete={handleDelete} />
       ))}
@@ -287,7 +289,9 @@ function ClipsTab({ currentUserId }: { currentUserId: string }) {
   const [clips, setClips] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [showEntryBtn, setShowEntryBtn] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => { loadClips(); }, []);
@@ -327,6 +331,13 @@ function ClipsTab({ currentUserId }: { currentUserId: string }) {
     return () => observerRef.current?.disconnect();
   }, [clips]);
 
+  const handleEntryClick = () => {
+    setShowEntryBtn(false);
+    // Desktop: scroll suave até a grade de clips
+    // Mobile: foca no container de scroll de tela cheia
+    sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   if (loading) return <LoadingSpinner />;
 
   if (clips.length === 0) return (
@@ -334,7 +345,7 @@ function ClipsTab({ currentUserId }: { currentUserId: string }) {
   );
 
   return (
-    <div className="-mx-6 md:-mx-10 -mt-2">
+    <div ref={sectionRef} className="-mx-6 md:-mx-10 mt-2 relative">
       {/* Desktop: grid layout */}
       <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-6 md:px-10">
         {clips.map((clip, i) => (
@@ -361,6 +372,42 @@ function ClipsTab({ currentUserId }: { currentUserId: string }) {
           </div>
         ))}
       </div>
+
+      <AnimatePresence>
+        {showEntryBtn && (
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.9 }}
+            transition={{ type: "spring", damping: 22, stiffness: 280 }}
+            /* Explicando as classes:
+               - fixed: Fixa o elemento na tela.
+               - bottom-10: Distância do rodapé.
+               - left-1/2 e -translate-x-1/2: A técnica mais precisa para centralização horizontal.
+               - md:hidden: Faz o botão desaparecer em telas maiores que 768px.
+            */
+            className="fixed bottom-10 left-0 w-full flex flex-col items-center justify-center z-40 md:hidden"
+          >
+            <button
+              onClick={handleEntryClick}
+              className="flex items-center gap-3 pl-4 pr-6 py-3.5 rounded-full bg-[#6D44CC] text-white font-bold text-sm shadow-2xl shadow-[#6D44CC]/40 hover:bg-[#5a35b0] active:scale-95 transition-all whitespace-nowrap"
+            >
+              <span className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                <Play className="h-4 w-4 fill-white ml-0.5" />
+              </span>
+              Assistir Clips
+            </button>
+
+            {/* Indicador visual de scroll */}
+            <motion.div
+              animate={{ y: [0, 5, 0] }}
+              transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+            >
+              <ChevronDown className="h-5 w-5 text-[#6D44CC]/60" />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

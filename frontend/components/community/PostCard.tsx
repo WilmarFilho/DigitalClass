@@ -49,6 +49,8 @@ export function PostCard({ post, currentUserId, onDelete, showDeleteButton, show
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [commentCount, setCommentCount] = useState(post.comment_count);
   const [showComments, setShowComments] = useState(false);
+
+  console.log(post)
   const [deleting, setDeleting] = useState(false);
 
   const handleLike = async () => {
@@ -165,17 +167,11 @@ export function PostCard({ post, currentUserId, onDelete, showDeleteButton, show
                     <video
                       src={m.url}
                       className="w-full h-full object-cover"
-                      controls={post.type === "video"}
+                      controls
                       muted
                       playsInline
                     />
-                    {post.type !== "video" && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <div className="h-12 w-12 rounded-full bg-white/90 flex items-center justify-center">
-                          <Play className="h-5 w-5 text-[#6D44CC] ml-0.5" fill="#6D44CC" />
-                        </div>
-                      </div>
-                    )}
+
                   </div>
                 )}
                 {post.media.length > 4 && idx === 3 && (

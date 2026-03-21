@@ -339,7 +339,7 @@ function CreatePostModal({
                         {m.type === "image" ? (
                           <Image src={m.preview} alt="" fill className="object-cover" />
                         ) : (
-                          <video src={m.preview} className="w-full h-full object-cover" muted />
+                          <video src={m.preview} className="w-full h-full object-cover" muted controls />
                         )}
                         <button
                           onClick={() => removeMedia(i)}

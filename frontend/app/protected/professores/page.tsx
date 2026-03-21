@@ -80,7 +80,7 @@ export default function ProfessoresPage() {
       ]);
       setFollowing(f.data || []);
       setHasMoreFollowing(f.meta?.page < f.meta?.last_page);
-      
+
       setAllAreas(a.data || []);
       setHasMoreExplore(a.meta?.page < a.meta?.last_page);
     } finally {
@@ -99,7 +99,7 @@ export default function ProfessoresPage() {
       setFollowing(prev => [...prev, ...(res.data || [])]);
       setHasMoreFollowing(res.meta?.page < res.meta?.last_page);
       setPageFollowing(pageNum);
-    } catch {}
+    } catch { }
     finally {
       setLoadingMoreFollowing(false);
     }
@@ -110,11 +110,13 @@ export default function ProfessoresPage() {
     try {
       const url = `/teachers/areas?page=${pageNum}&limit=9${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ""}`;
       const res = await apiGet<any>(url);
+
+
       if (pageNum === 1) setAllAreas(res.data || []);
       else setAllAreas(prev => [...prev, ...(res.data || [])]);
       setHasMoreExplore(res.meta?.page < res.meta?.last_page);
       setPageExplore(pageNum);
-    } catch {}
+    } catch { }
     finally {
       setLoadingMoreExplore(false);
     }

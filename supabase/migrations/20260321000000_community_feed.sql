@@ -193,3 +193,35 @@ CREATE POLICY "community_comment_likes_insert"
 CREATE POLICY "community_comment_likes_delete"
   ON public.community_comment_likes FOR DELETE
   USING (user_id = auth.uid());
+
+
+
+-- Execute isso se o backend não estiver recebendo NADA da tabela profiles de outros usuários
+CREATE POLICY "Profiles são visíveis por todos" 
+ON public.profiles FOR SELECT 
+USING (true);
+
+
+
+
+CREATE OR REPLACE FUNCTION public.handle_social_login_metadata()
+RETURNS TRIGGER AS $$
+DECLARE
+    google_photo TEXT;
+BEGIN
+    -- Extrai a URL da foto dos metadados do provedor social
+    google_photo := NEW.raw_user_meta_data->>'avatar_url';
+
+    -- Atualiza ou Insere na tabela profiles
+    -- Ajuste 'id' e 'foto_url' conforme os nomes reais das suas colunas
+    UPDATE public.profiles
+    SET avatar_url = COALESCE(profiles.avatar_url, google_photo)
+    WHERE id = NEW.id;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_social_update
+  AFTER INSERT OR UPDATE OF raw_user_meta_data ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_social_login_metadata();
