@@ -75,10 +75,9 @@ export default function ConfiguracoesPage() {
                     </span>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   {[
                     { value: "light", label: t("settings.themeLight"), icon: Sun, colors: "bg-white border-slate-200" },
-                    { value: "dark", label: t("settings.themeDark"), icon: Moon, colors: "bg-slate-900 border-slate-800" },
                   ].map((item) => (
                     <button
                       key={item.value}
@@ -193,7 +192,7 @@ export default function ConfiguracoesPage() {
                 <span className="text-[10px] font-bold text-slate-900 dark:text-white uppercase">Beta</span>
               </div>
               <div className="h-full w-1/2 flex items-center justify-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">v1.1.0</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">v1.5.0</span>
               </div>
             </div>
             <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">
