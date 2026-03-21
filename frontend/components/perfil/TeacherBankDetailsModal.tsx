@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "@/hooks/useTranslation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Copy, AlertCircle, Building, Wallet, Check, ChevronDown } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -17,6 +18,7 @@ interface BankDetailsModalProps {
 }
 
 export function TeacherBankDetailsModal({ isOpen, onOpenChange, onSubmit, isLoading }: BankDetailsModalProps) {
+  const { t } = useTranslation();
   const [contaBancaria, setContaBancaria] = useState("");
   const [chavePix, setChavePix] = useState("");
   const [diaRepasse, setDiaRepasse] = useState<number>(5);
@@ -27,11 +29,11 @@ export function TeacherBankDetailsModal({ isOpen, onOpenChange, onSubmit, isLoad
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!contaBancaria.trim()) {
-      setError("Conta bancária é obrigatória.");
+      setError(t("bankDetails.errorAccountRequired"));
       return;
     }
     if (!chavePix.trim()) {
-      setError("Chave PIX é obrigatória.");
+      setError(t("bankDetails.errorPixRequired"));
       return;
     }
     setError(null);
@@ -52,9 +54,9 @@ export function TeacherBankDetailsModal({ isOpen, onOpenChange, onSubmit, isLoad
             <div className="h-16 w-16 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg border-4 border-emerald-400/20 mb-4 transform rotate-3">
               <Wallet className="h-8 w-8 text-white" />
             </div>
-            <DialogTitle className="text-2xl font-black text-white mb-2">Configure seus Repasses</DialogTitle>
+            <DialogTitle className="text-2xl font-black text-white mb-2">{t("bankDetails.title")}</DialogTitle>
             <DialogDescription className="text-slate-300 text-sm max-w-sm">
-              Para atuarmos com transparência e segurança, precisamos dos seus dados bancários antes de habilitar a visão de Professor.
+              {t("bankDetails.description")}
             </DialogDescription>
           </div>
         </div>
@@ -70,7 +72,7 @@ export function TeacherBankDetailsModal({ isOpen, onOpenChange, onSubmit, isLoad
           <div className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Conta Bancária (Agência + Conta)
+                {t("bankDetails.bankAccount")}
               </label>
               <div className="relative flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition-all">
                 <div className="pl-3 text-slate-400">
@@ -80,7 +82,7 @@ export function TeacherBankDetailsModal({ isOpen, onOpenChange, onSubmit, isLoad
                   type="text"
                   value={contaBancaria}
                   onChange={(e) => setContaBancaria(e.target.value)}
-                  placeholder="Ex: Ag 0001 Cc 1234567-8"
+                  placeholder={t("bankDetails.bankAccountPlaceholder")}
                   className="w-full bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-800 outline-none"
                   autoComplete="off"
                 />
@@ -89,7 +91,7 @@ export function TeacherBankDetailsModal({ isOpen, onOpenChange, onSubmit, isLoad
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Sua Chave PIX Principal
+                {t("bankDetails.pixKey")}
               </label>
               <div className="relative flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition-all">
                 <div className="pl-3 text-slate-400">
@@ -99,7 +101,7 @@ export function TeacherBankDetailsModal({ isOpen, onOpenChange, onSubmit, isLoad
                   type="text"
                   value={chavePix}
                   onChange={(e) => setChavePix(e.target.value)}
-                  placeholder="E-mail, CPF ou Celular"
+                  placeholder={t("bankDetails.pixKeyPlaceholder")}
                   className="w-full bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-800 outline-none"
                   autoComplete="off"
                 />
@@ -109,7 +111,7 @@ export function TeacherBankDetailsModal({ isOpen, onOpenChange, onSubmit, isLoad
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Dia do Repasse
+                  {t("bankDetails.transferDay")}
                 </label>
                 <div className="relative">
                   <select
@@ -117,9 +119,9 @@ export function TeacherBankDetailsModal({ isOpen, onOpenChange, onSubmit, isLoad
                     onChange={(e) => setDiaRepasse(Number(e.target.value))}
                     className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all cursor-pointer"
                   >
-                    <option value={5}>Dia 5</option>
-                    <option value={10}>Dia 10</option>
-                    <option value={15}>Dia 15</option>
+                    <option value={5}>{t("bankDetails.day5")}</option>
+                    <option value={10}>{t("bankDetails.day10")}</option>
+                    <option value={15}>{t("bankDetails.day15")}</option>
                   </select>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                     <ChevronDown className="h-4 w-4" />
@@ -129,7 +131,7 @@ export function TeacherBankDetailsModal({ isOpen, onOpenChange, onSubmit, isLoad
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Preferência
+                  {t("bankDetails.preference")}
                 </label>
                 <div className="relative">
                   <select
@@ -137,8 +139,8 @@ export function TeacherBankDetailsModal({ isOpen, onOpenChange, onSubmit, isLoad
                     onChange={(e) => setPreferencia(e.target.value as any)}
                     className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all cursor-pointer"
                   >
-                    <option value="pix">PIX</option>
-                    <option value="transferencia_bancaria">Transf. Bancária</option>
+                    <option value="pix">{t("bankDetails.pix")}</option>
+                    <option value="transferencia_bancaria">{t("bankDetails.bankTransfer")}</option>
                   </select>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                     <ChevronDown className="h-4 w-4" />
@@ -155,14 +157,14 @@ export function TeacherBankDetailsModal({ isOpen, onOpenChange, onSubmit, isLoad
               onClick={() => onOpenChange(false)}
               className="rounded-xl h-12 font-bold text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
             >
-              Cancelar
+              {t("bankDetails.cancel")}
             </Button>
             <Button
               type="submit"
               disabled={isLoading}
               className="rounded-xl h-12 font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20"
             >
-              {isLoading ? "Salvando..." : "Salvar e Continuar"}
+              {isLoading ? t("bankDetails.saving") : t("bankDetails.saveAndContinue")}
             </Button>
           </DialogFooter>
         </form>

@@ -3,24 +3,29 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "@/hooks/useTranslation";
 import {
+  LogOut,
+  Layout,
+  BookOpen,
+  Calendar,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
   MonitorPlay,
   UsersRound,
   ExternalLink,
-  ChevronLeft,
-  ChevronRight,
-  GraduationCap,
   Menu,
   X,
   Sparkles,
+  LayoutDashboard,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
 
-const teacherNav = [
-  { href: "/professor/minha-area", icon: MonitorPlay, label: "Minha Área" },
-  { href: "/professor/meus-alunos", icon: UsersRound, label: "Meus Alunos" },
-];
+// Removed original teacherNav
 
 interface TeacherSidebarProps {
   userName?: string;
@@ -35,6 +40,16 @@ export function TeacherSidebar({
 }: TeacherSidebarProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const pathname = usePathname();
+  const { t } = useTranslation(); // Added useTranslation hook
+
+  const menuItems = [
+    {
+      icon: LayoutDashboard,
+      label: t("sidebar.minhaArea"),
+      href: "/professor/minha-area",
+    },
+    { icon: Users, label: t("sidebar.meusAlunos"), href: "/professor/alunos" },
+  ];
 
   useEffect(() => {
     setIsMobileOpen(false);
@@ -115,8 +130,8 @@ export function TeacherSidebar({
                 {userName.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 overflow-hidden text-sm">
-                <p className="text-[10px] font-bold uppercase text-[#F38B4B]/80 tracking-wider">
-                  Professor
+                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">
+                  {t("sidebar.professor")}
                 </p>
                 <p className="font-bold text-white/90 truncate">{userName}</p>
               </div>
@@ -127,7 +142,7 @@ export function TeacherSidebar({
         {/* Navegação Principal */}
         <nav className="flex-1 overflow-y-auto px-4 custom-scrollbar">
           <ul className="space-y-2.5">
-            {teacherNav.map(({ href, icon: Icon, label }) => {
+            {menuItems.map(({ href, icon: Icon, label }) => {
               const active = isActive(href);
               return (
                 <li key={href}>
@@ -160,7 +175,7 @@ export function TeacherSidebar({
             )}
           >
             <ExternalLink className="h-4 w-4 shrink-0" />
-            {(!collapsed || isMobileOpen) && <span>Voltar à Plataforma</span>}
+            {(!collapsed || isMobileOpen) && <span>{t("sidebar.backToPlatform")}</span>}
           </a>
 
           {/* Botão de Toggle (Apenas Desktop) */}

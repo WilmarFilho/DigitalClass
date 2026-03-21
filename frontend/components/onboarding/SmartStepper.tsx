@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card } from "@/components/ui/card";
@@ -49,6 +50,7 @@ function TagInput({
   placeholder: string;
   suggestions?: string[];
 }) {
+  const { t } = useTranslation();
   const [input, setInput] = useState("");
 
   const handleAdd = (value: string) => {
@@ -81,7 +83,7 @@ function TagInput({
               type="button"
               onClick={() => onRemove(item)}
               className="p-0.5 rounded hover:bg-slate-200 transition-colors"
-              aria-label={`Remover ${item}`}
+              aria-label={`${t("onboarding.remove")} ${item}`}
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -93,7 +95,7 @@ function TagInput({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={() => input && handleAdd(input)}
-          placeholder={items.length === 0 ? placeholder : "Adicionar..."}
+          placeholder={items.length === 0 ? placeholder : t("onboarding.add")}
           autoComplete="off"
           className="flex-1 min-w-[120px] outline-none bg-transparent border-0 text-slate-800 placeholder:text-slate-400 py-1.5 focus:ring-0 focus:outline-none focus:border-0 shadow-none appearance-none [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
         />
@@ -123,6 +125,7 @@ const HOURS_PRESETS = [1, 2, 3, 4, 5, 6, 8, 10, 12];
 
 export function SmartStepper() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(0);
   const [fullName, setFullName] = useState("");
@@ -180,7 +183,7 @@ export function SmartStepper() {
     }
 
     if (!token) {
-      setError("Você precisa estar logado para salvar seu perfil.");
+      setError(t("onboarding.errorLoggedOut"));
       return;
     }
 
@@ -211,14 +214,11 @@ export function SmartStepper() {
         const data = await res.json().catch(() => ({}));
         console.log("[ONBOARDING] API error:", res.status, data);
         const msg = Array.isArray(data.message) ? data.message[0] : data.message;
-        setError(msg || "Erro ao criar perfil. Tente novamente.");
+        setError(msg || t("onboarding.errorGeneric"));
       }
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
-      setError(
-        "Não foi possível conectar ao servidor. Verifique se o backend está rodando em " +
-          (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001")
-      );
+      setError(t("onboarding.errorConnection"));
     } finally {
       setLoading(false);
     }
@@ -270,18 +270,18 @@ export function SmartStepper() {
           >
             <div className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="fullName" className="text-slate-700">Qual é o seu nome?</Label>
+                <Label htmlFor="fullName" className="text-slate-700">{t("onboarding.askName")}</Label>
                 <Input
                   id="fullName"
                   type="text"
-                  placeholder="Digite seu nome completo"
+                  placeholder={t("onboarding.namePlaceholder")}
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   className="text-slate-900 placeholder:text-slate-400"
                 />
               </div>
               <h2 className="text-2xl font-bold text-slate-900">
-                Como você quer usar a Digital Class?
+                {t("onboarding.askRole")}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {(
@@ -289,14 +289,14 @@ export function SmartStepper() {
                     {
                       id: "student" as const,
                       icon: GraduationCap,
-                      title: "Sou Estudante",
-                      desc: "Quero organizar meus estudos e usar IA para aprender mais rápido.",
+                      title: t("onboarding.roleStudent"),
+                      desc: t("onboarding.roleStudentDesc"),
                     },
                     {
                       id: "teacher" as const,
                       icon: Briefcase,
-                      title: "Sou Professor",
-                      desc: "Quero criar turmas, subir materiais e gerar flashcards para alunos.",
+                      title: t("onboarding.roleTeacher"),
+                      desc: t("onboarding.roleTeacherDesc"),
                     },
                   ] as const
                 ).map(({ id, icon: Icon, title, desc }) => (
@@ -339,7 +339,7 @@ export function SmartStepper() {
                 disabled={!canProceed()}
                 className="rounded-xl px-8 bg-slate-900 hover:bg-slate-800 text-white"
               >
-                Continuar
+                {t("onboarding.continue")}
               </Button>
             </div>
           </motion.div>
@@ -358,33 +358,33 @@ export function SmartStepper() {
           >
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-slate-900">
-                {role === "student" ? "Quais são seus objetivos?" : "O que você ensina?"}
+                {role === "student" ? t("onboarding.askGoals") : t("onboarding.askTeaching")}
               </h2>
               <div className="space-y-2">
                 <Label className="text-slate-700">
                   {role === "student"
-                    ? "Adicione seus principais objetivos (ex: passar em Medicina, ENEM...)"
-                    : "Adicione as áreas ou disciplinas que você ensina"}
+                    ? t("onboarding.goalsHint")
+                    : t("onboarding.teachingHint")}
                 </Label>
                 <TagInput
                   items={learningGoals}
                   onAdd={(s) => setLearningGoals((g) => [...g, s])}
                   onRemove={(s) => setLearningGoals((g) => g.filter((x) => x !== s))}
-                  placeholder="Digite e pressione Enter para adicionar"
+                  placeholder={t("onboarding.tagPlaceholder")}
                   suggestions={SUGGESTED_GOALS}
                 />
               </div>
             </div>
             <div className="flex justify-between mt-auto pt-6">
               <Button variant="ghost" onClick={handleBack} className="rounded-xl text-slate-600">
-                Voltar
+                {t("onboarding.back")}
               </Button>
               <Button
                 onClick={handleNext}
                 disabled={learningGoals.length === 0}
                 className="rounded-xl px-8 bg-slate-900 hover:bg-slate-800 text-white"
               >
-                Continuar
+                {t("onboarding.continue")}
               </Button>
             </div>
           </motion.div>
@@ -403,18 +403,18 @@ export function SmartStepper() {
           >
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-slate-900">
-                Quais áreas te interessam?
+                {t("onboarding.askInterests")}
               </h2>
               <p className="text-slate-600">
-                Isso ajuda a IA a recomendar matérias e conteúdo personalizado.
+                {t("onboarding.interestsDesc")}
               </p>
               <div className="space-y-2">
-                <Label className="text-slate-700">Interesses e áreas de estudo</Label>
+                <Label className="text-slate-700">{t("onboarding.interestsLabel")}</Label>
                 <TagInput
                   items={interests}
                   onAdd={(s) => setInterests((i) => [...i, s])}
                   onRemove={(s) => setInterests((i) => i.filter((x) => x !== s))}
-                  placeholder="Digite ou escolha abaixo"
+                  placeholder={t("onboarding.interestsPlaceholder")}
                   suggestions={SUGGESTED_INTERESTS}
                 />
               </div>
@@ -432,7 +432,7 @@ export function SmartStepper() {
 
             <div className="flex justify-between mt-auto pt-6">
               <Button variant="ghost" onClick={handleBack} className="rounded-xl text-slate-600">
-                Voltar
+                {t("onboarding.back")}
               </Button>
               {role === "teacher" ? (
                 <Button
@@ -443,10 +443,10 @@ export function SmartStepper() {
                   {loading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Salvando...
+                      {t("onboarding.saving")}
                     </>
                   ) : (
-                    "Finalizar Cadastro"
+                    t("onboarding.finishRegistration")
                   )}
                 </Button>
               ) : (
@@ -455,7 +455,7 @@ export function SmartStepper() {
                   disabled={interests.length === 0}
                   className="rounded-xl px-8 bg-slate-900 hover:bg-slate-800 text-white"
                 >
-                  Continuar
+                  {t("onboarding.continue")}
                 </Button>
               )}
             </div>
@@ -475,10 +475,10 @@ export function SmartStepper() {
           >
             <div className="space-y-6">
               <h2 className="text-2xl font-bold text-slate-900">
-                Quanta dedicação por dia?
+                {t("onboarding.askDedication")}
               </h2>
               <p className="text-slate-600">
-                A IA usará isso para montar seu calendário inteligente.
+                {t("onboarding.dedicationDesc")}
               </p>
               <div className="space-y-4">
                 <div className="flex flex-wrap gap-2">
@@ -493,7 +493,7 @@ export function SmartStepper() {
                           : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                       }`}
                     >
-                      {h}h
+                      {h}{t("onboarding.hoursUnit")}
                     </button>
                   ))}
                 </div>
@@ -507,7 +507,7 @@ export function SmartStepper() {
                     className="flex-1 h-3 bg-slate-200 rounded-full appearance-none cursor-pointer accent-slate-800 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-slate-800 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-md"
                   />
                   <span className="text-2xl font-bold text-slate-900 w-14 text-right tabular-nums">
-                    {hours}h
+                    {hours}{t("onboarding.hoursUnit")}
                   </span>
                 </div>
               </div>
@@ -525,7 +525,7 @@ export function SmartStepper() {
 
             <div className="flex justify-between mt-auto pt-6">
               <Button variant="ghost" onClick={handleBack} className="rounded-xl text-slate-600">
-                Voltar
+                {t("onboarding.back")}
               </Button>
               <Button
                 onClick={handleSubmit}
@@ -535,10 +535,10 @@ export function SmartStepper() {
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Salvando...
+                    {t("onboarding.saving")}
                   </>
                 ) : (
-                  "Finalizar Cadastro"
+                  t("onboarding.finishRegistration")
                 )}
               </Button>
             </div>

@@ -1,21 +1,26 @@
 "use client";
 
 import { BookOpen } from "lucide-react";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export function GreetingBanner({ userName = "Estudante" }: { userName?: string }) {
+  const { t } = useTranslation();
   const hour = new Date().getHours();
-  let greeting = "Bom dia";
-  if (hour >= 12 && hour < 18) greeting = "Boa tarde";
-  else if (hour >= 18) greeting = "Boa noite";
+  
+  const getGreeting = () => {
+    if (hour < 12) return t("greeting.morning");
+    if (hour < 18) return t("greeting.afternoon");
+    return t("greeting.evening");
+  };
 
   return (
     <div className="relative overflow-hidden rounded-2xl bg-[#6D44CC] p-8 text-white shadow-xl shadow-[#6D44CC]/20">
       <div className="relative z-10">
         <h1 className="text-3xl font-bold tracking-tight">
-          {greeting}, <span className="text-[#F38B4B]">{userName}!</span>
+          {getGreeting()}, <span className="text-[#F38B4B]">{userName}!</span>
         </h1>
         <p className="text-[#E6E0F8] mt-2 text-lg max-w-md font-medium opacity-90">
-          Pronto para mais uma sessão de estudos? O calendário está esperando por você.
+          {t("greeting.description")}
         </p>
       </div>
       {/* Ícone decorativo em marca d'água */}

@@ -19,6 +19,7 @@ import { apiGet } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { useTranslation } from "@/hooks/useTranslation";
 import { MemberAreaChat } from "@/components/teacher/MemberAreaChat";
 
 interface TeacherArea {
@@ -73,6 +74,7 @@ export default function TeacherAreaPage() {
   const areaId = params?.areaId;
   const router = useRouter();
 
+  const { t } = useTranslation();
   const [area, setArea] = useState<TeacherArea | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -111,7 +113,7 @@ export default function TeacherAreaPage() {
         setError(
           e instanceof Error
             ? e.message
-            : "Não foi possível carregar esta área. Verifique se você tem acesso."
+            : t("teacherArea.errorLoad")
         );
       } finally {
         setLoading(false);
@@ -148,15 +150,14 @@ export default function TeacherAreaPage() {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4 bg-slate-50 p-6">
         <p className="text-slate-600 text-center max-w-md">
-          {error ??
-            "Área não encontrada ou você não tem permissão para acessá-la."}
+          {error ?? t("teacherArea.errorNotFound")}
         </p>
         <Button
           variant="outline"
           onClick={() => router.push("/protected/professores")}
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Voltar para professores
+          {t("teacherArea.backToMentors")}
         </Button>
       </div>
     );
@@ -183,7 +184,7 @@ export default function TeacherAreaPage() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Área do Professor
+            {t("teacherArea.sidebarTitle")}
           </span>
         </div>
         <div className="p-6 space-y-4">
@@ -204,7 +205,7 @@ export default function TeacherAreaPage() {
             )}
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
-                Professor
+                {t("teacherArea.teacher")}
               </p>
               <p className="text-sm font-bold text-slate-900">
                 {area.teacher.full_name}
@@ -213,13 +214,13 @@ export default function TeacherAreaPage() {
           </div>
           <div className="text-xs text-slate-600 space-y-2">
             <p className="font-semibold text-slate-700 uppercase tracking-wider text-[10px]">
-              Sobre esta área:
+              {t("teacherArea.about")}
             </p>
             {area.description ? (
               <p className="leading-relaxed">{area.description}</p>
             ) : (
               <p className="italic text-slate-400">
-                O professor ainda não adicionou uma descrição personalizada.
+                {t("teacherArea.noDescription")}
               </p>
             )}
           </div>
@@ -227,7 +228,7 @@ export default function TeacherAreaPage() {
             <div className="flex items-center gap-2">
               <Users className="h-3.5 w-3.5 text-slate-400" />
               <span className="font-semibold text-slate-700">
-                Conteúdo exclusivo para assinantes
+                {t("teacherArea.exclusiveContent")}
               </span>
             </div>
 
@@ -258,7 +259,7 @@ export default function TeacherAreaPage() {
               </div>
               <div>
                 <p className="text-[10px] font-black text-white/70 uppercase tracking-[0.3em]">
-                  Área de Membros
+                  {t("teacherArea.membersArea")}
                 </p>
                 <h1 className="text-xl md:text-2xl font-black text-white tracking-tight leading-tight">
                   {area.title}
@@ -272,9 +273,9 @@ export default function TeacherAreaPage() {
         <div className="flex-1 min-h-0 flex flex-col bg-slate-50">
           <div className="px-4 py-2 border-b border-slate-200 text-xs text-slate-500 flex items-center justify-between bg-white z-10 relative">
             <div className="flex bg-slate-100 p-1 rounded-lg">
-              <button onClick={() => setActiveTab("curriculum")} className={cn("px-4 py-1.5 rounded-md font-bold transition-all", activeTab === "curriculum" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800")}>Conteúdo</button>
+              <button onClick={() => setActiveTab("curriculum")} className={cn("px-4 py-1.5 rounded-md font-bold transition-all", activeTab === "curriculum" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800")}>{t("teacherArea.tabContent")}</button>
               <button onClick={() => setActiveTab("notices")} className={cn("px-4 py-1.5 rounded-md font-bold transition-all flex items-center gap-1.5", activeTab === "notices" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800")}>
-                Avisos
+                {t("teacherArea.tabNotices")}
                 {notices.length > 0 && (
                   <span className="bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full text-[9px] min-w-[18px] text-center">{notices.length}</span>
                 )}
@@ -288,7 +289,7 @@ export default function TeacherAreaPage() {
               )}
             >
               <MessageSquare className="h-5 w-5" />
-              <span className="hidden md:block">Tire suas Dúvidas</span>
+              <span className="hidden md:block">{t("teacherArea.chatTitle")}</span>
             </button>
           </div>
 
@@ -298,7 +299,7 @@ export default function TeacherAreaPage() {
                 {sections.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                     <BookOpen className="h-12 w-12 mb-4 opacity-20" />
-                    <p className="font-medium">Nenhum conteúdo disponível ainda.</p>
+                    <p className="font-medium">{t("teacherArea.noContent")}</p>
                   </div>
                 ) : (
                   sections.map((section, sIdx) => (
@@ -340,7 +341,7 @@ export default function TeacherAreaPage() {
                                   <div className="absolute inset-0 z-20 bg-white/60 backdrop-blur-[1px] flex items-center justify-center">
                                     <div className="flex flex-col items-center gap-2">
                                       <Loader2 className="h-6 w-6 md:h-8 md:w-8 animate-spin text-indigo-600" />
-                                      <span className="text-[9px] md:text-[10px] font-black text-indigo-600 uppercase tracking-widest">Carregando</span>
+                                      <span className="text-[9px] md:text-[10px] font-black text-indigo-600 uppercase tracking-widest">{t("teacherArea.loading")}</span>
                                     </div>
                                   </div>
                                 )}
@@ -351,13 +352,13 @@ export default function TeacherAreaPage() {
                                     <MonitorPlay className="h-5 w-5 md:h-6 md:w-6" />
                                   </div>
                                   <span className="bg-slate-900 text-white text-[9px] md:text-[10px] font-black px-2 md:px-3 py-1 rounded-full uppercase tracking-wider">
-                                    {module.lessons?.length || 0} Aulas
+                                    {t("teacherArea.lessons", { count: module.lessons?.length || 0 })}
                                   </span>
                                 </div>
 
                                 <div className={cn("relative z-10 transition-opacity", isLoading && "opacity-20")}>
                                   <p className="text-[9px] md:text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    Ver Módulo
+                                    {t("teacherArea.viewModule")}
                                   </p>
                                   {/* Ajuste de fonte do título: text-base para telas pequenas, text-lg para o padrão */}
                                   <h4 className="font-black text-slate-900 text-base md:text-lg leading-tight group-hover:text-indigo-600 transition-colors line-clamp-2">
@@ -394,11 +395,11 @@ export default function TeacherAreaPage() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       <div className="h-2 w-2 rounded-full bg-indigo-600" />
-                      <span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">Canal de Comunicação</span>
+                      <span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">{t("teacherArea.communicationChannel")}</span>
                     </div>
-                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">Mural de Avisos</h2>
+                    <h2 className="text-3xl font-black text-slate-900 tracking-tight">{t("teacherArea.noticesWall")}</h2>
                     <p className="text-slate-500 text-sm max-w-md">
-                      Informações e atualizações postadas por <span className="font-bold text-slate-700">{area?.teacher.full_name}</span>.
+                      {t("teacherArea.postedBy")} <span className="font-bold text-slate-700">{area?.teacher.full_name}</span>.
                     </p>
                   </div>
 
@@ -407,8 +408,8 @@ export default function TeacherAreaPage() {
                       <Megaphone className="h-4 w-4" />
                     </div>
                     <div className="text-left">
-                      <p className="text-[10px] font-black text-slate-400 uppercase leading-none">Total de avisos</p>
-                      <p className="text-sm font-black text-slate-900 leading-none mt-1">{notices.length} mensagens</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase leading-none">{t("teacherArea.totalNotices")}</p>
+                      <p className="text-sm font-black text-slate-900 leading-none mt-1">{t("teacherArea.messages", { count: notices.length })}</p>
                     </div>
                   </div>
                 </header>
@@ -418,7 +419,7 @@ export default function TeacherAreaPage() {
                   {notices.length === 0 ? (
                     <div className="py-24 flex flex-col items-center justify-center bg-white rounded-3xl border border-slate-200 border-dashed">
                       <MessageSquare className="h-10 w-10 text-slate-200 mb-4" />
-                      <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Nenhum aviso disponível</p>
+                      <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">{t("teacherArea.noNotices")}</p>
                     </div>
                   ) : (
                     notices.map((notice) => (
@@ -432,12 +433,12 @@ export default function TeacherAreaPage() {
                           {/* Topo do Card: Badge e Data Justificados */}
                           <div className="flex items-center justify-between mb-6">
                             <div className="px-3 py-1 rounded-full bg-slate-100 text-[9px] font-black text-slate-500 uppercase tracking-wider border border-slate-200">
-                              Notificação
+                              {t("teacherArea.notification")}
                             </div>
                             <div className="flex items-center gap-2 text-slate-400">
                               <CheckCircle2 className="h-3.5 w-3.5" />
                               <span className="text-[11px] font-bold uppercase tracking-tighter">
-                                {new Date(notice.created_at).toLocaleDateString("pt-BR", {
+                                {new Date(notice.created_at).toLocaleDateString(t("language") === "English" ? "en-US" : t("language") === "Spanish" ? "es-ES" : "pt-BR", {
                                   day: '2-digit',
                                   month: 'long',
                                   year: 'numeric'
@@ -463,7 +464,7 @@ export default function TeacherAreaPage() {
                               <div className="h-6 w-6 rounded-full bg-slate-100 flex items-center justify-center">
                                 <Users className="h-3 w-3 text-slate-400" />
                               </div>
-                              <span className="text-[10px] font-bold text-slate-400 uppercase">Visível para todos os alunos</span>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase">{t("teacherArea.visibleToAll")}</span>
                             </div>
 
                           </div>

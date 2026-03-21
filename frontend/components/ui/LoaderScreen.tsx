@@ -1,8 +1,10 @@
 "use client";
 
 import { GraduationCap } from "lucide-react";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export function LoaderScreen() {
+  const { t } = useTranslation();
   return (
     <div
       style={{ backgroundColor: "#ffffff" }}
@@ -28,7 +30,7 @@ export function LoaderScreen() {
       </div>
 
       <p className="mt-8 text-sm font-medium text-slate-600">
-        Carregando sua experiência
+        {t("loader.loading")}
       </p>
 
       {/* Dots animados */}

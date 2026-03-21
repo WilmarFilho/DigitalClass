@@ -20,25 +20,26 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/contexts/RoleContext";
+import { useTranslation } from "@/hooks/useTranslation";
 import { motion, AnimatePresence } from "framer-motion";
 
 const studentNav = [
-  { href: "/protected", icon: LayoutDashboard, label: "Dashboard", newTab: false },
-  { href: "/protected/calendario", icon: Calendar, label: "Calendário", newTab: false },
-  { href: "/protected/materias", icon: BookOpen, label: "Minhas Matérias", newTab: false },
-  { href: "/protected/estudos", icon: Brain, label: "Meus Estudos", newTab: false },
-  { href: "/protected/professores", icon: GraduationCap, label: "Meus Professores", newTab: false },
+  { href: "/protected", icon: LayoutDashboard, labelKey: "sidebar.dashboard", fallback: "Dashboard", newTab: false },
+  { href: "/protected/calendario", icon: Calendar, labelKey: "sidebar.calendario", fallback: "Calendário", newTab: false },
+  { href: "/protected/materias", icon: BookOpen, labelKey: "sidebar.materias", fallback: "Minhas Matérias", newTab: false },
+  { href: "/protected/estudos", icon: Brain, labelKey: "sidebar.estudos", fallback: "Meus Estudos", newTab: false },
+  { href: "/protected/professores", icon: GraduationCap, labelKey: "sidebar.professores", fallback: "Meus Professores", newTab: false },
 ];
 
 const teacherNav = [
-  { href: "/protected", icon: LayoutDashboard, label: "Dashboard", newTab: false },
-  { href: "/professor/minha-area", icon: MonitorPlay, label: "Minhas Áreas", newTab: false },
-  { href: "/professor/meus-alunos", icon: UsersRound, label: "Meus Alunos", newTab: false },
+  { href: "/protected", icon: LayoutDashboard, labelKey: "sidebar.dashboard", fallback: "Dashboard", newTab: false },
+  { href: "/professor/minha-area", icon: MonitorPlay, labelKey: "sidebar.minhaArea", fallback: "Minhas Áreas", newTab: false },
+  { href: "/professor/meus-alunos", icon: UsersRound, labelKey: "sidebar.meusAlunos", fallback: "Meus Alunos", newTab: false },
 ];
 
 const bottomNav = [
-  { href: "/protected/perfil", icon: User, label: "Perfil" },
-  { href: "/protected/configuracoes", icon: Settings, label: "Configurações" },
+  { href: "/protected/perfil", icon: User, labelKey: "sidebar.perfil", fallback: "Perfil" },
+  { href: "/protected/configuracoes", icon: Settings, labelKey: "sidebar.configuracoes", fallback: "Configurações" },
 ];
 
 interface SidebarProps {
@@ -55,6 +56,7 @@ export function Sidebar({
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const pathname = usePathname();
   const { role } = useRole();
+  const { t } = useTranslation();
   const mainNav = role === "teacher" ? teacherNav : studentNav;
 
   useEffect(() => {
@@ -166,7 +168,7 @@ export function Sidebar({
                       className="flex-1 overflow-hidden"
                     >
                       <p className="text-[10px] font-bold uppercase text-[#6D44CC]/60 tracking-wider whitespace-nowrap">
-                        {role === "teacher" ? "Professor" : "Estudante"}
+                        {role === "teacher" ? t("sidebar.professor") : t("sidebar.estudante")}
                       </p>
                       <p className="font-bold text-[#4A4A4A] dark:text-slate-200 truncate whitespace-nowrap">{userName}</p>
                     </motion.div>
@@ -180,9 +182,10 @@ export function Sidebar({
         {/* Navegação Principal */}
         <nav className="flex-1 overflow-y-auto px-4 custom-scrollbar overflow-x-hidden">
           <ul className="space-y-2.5">
-            {mainNav.map(({ href, icon: Icon, label, newTab }) => {
+            {mainNav.map(({ href, icon: Icon, labelKey, fallback, newTab }) => {
               const active = !newTab && isActive(href);
               const Tag = newTab ? "a" : Link;
+              const translatedLabel = t(labelKey) !== labelKey ? t(labelKey) : fallback;
               return (
                 <li key={href}>
                   <Tag
@@ -205,7 +208,7 @@ export function Sidebar({
                           exit="exit"
                           className="text-sm tracking-tight whitespace-nowrap overflow-hidden"
                         >
-                          {label}
+                          {translatedLabel}
                         </motion.span>
                       )}
                     </AnimatePresence>
@@ -218,8 +221,9 @@ export function Sidebar({
 
         {/* Navegação Inferior */}
         <div className="px-4 py-4 space-y-1.5 border-t border-[#E6E0F8] dark:border-slate-800">
-          {bottomNav.map(({ href, icon: Icon, label }) => {
+          {bottomNav.map(({ href, icon: Icon, labelKey, fallback }) => {
             const active = isActive(href);
+            const translatedLabel = t(labelKey) !== labelKey ? t(labelKey) : fallback;
             return (
               <Link
                 key={href}
@@ -242,7 +246,7 @@ export function Sidebar({
                       exit="exit"
                       className="whitespace-nowrap overflow-hidden"
                     >
-                      {label}
+                      {translatedLabel}
                     </motion.span>
                   )}
                 </AnimatePresence>
@@ -264,7 +268,7 @@ export function Sidebar({
                 className="flex items-center gap-2 whitespace-nowrap"
               >
                 <ChevronLeft className="h-4 w-4 shrink-0" />
-                <span className="text-[10px] font-bold uppercase tracking-widest">Recolher Menu</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest">{t("sidebar.recolher")}</span>
               </motion.div>
             )}
           </button>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { AuthButton } from "@/components/auth-button";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export function DashboardLayout({
   children,
@@ -15,6 +16,8 @@ export function DashboardLayout({
   userRole: "student" | "teacher";
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  const { t, lang } = useTranslation();
 
   return (
     <div className="min-h-screen bg-[#F8F7FF] dark:bg-slate-950 font-poppins flex">
@@ -40,7 +43,13 @@ export function DashboardLayout({
         <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-[#E6E0F8] dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md px-8">
           <div className="flex flex-col">
             <p className="text-[10px] text-slate-400 font-medium hidden sm:block">
-              quinta-feira, 12 de março de 2026
+              {/* AQUI TEM QUE SER DINAMICO DE ACORDO COM A LANGUAGE */}
+              {new Date().toLocaleDateString(lang === "en" ? "en-US" : lang === "es" ? "es-ES" : "pt-BR", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
             </p>
           </div>
 

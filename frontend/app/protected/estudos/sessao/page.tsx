@@ -12,6 +12,7 @@ import { SessionTimer } from "@/components/study/SessionTimer";
 import { apiGet, apiPatch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface Session {
   id: string;
@@ -20,10 +21,10 @@ interface Session {
   calendar_events?: { id: string; duration_minutes: number } | null;
 }
 
-const PANELS = [
-  { key: "quiz", label: "Quiz", icon: Brain },
-  { key: "chat", label: "Chat IA", icon: MessageCircle },
-  { key: "flashcards", label: "Flashcards", icon: Layers },
+const PANELS_CONFIG = [
+  { key: "quiz" as const, labelKey: "studySession.quizLabel", icon: Brain },
+  { key: "chat" as const, labelKey: "studySession.chatLabel", icon: MessageCircle },
+  { key: "flashcards" as const, labelKey: "studySession.flashcardsLabel", icon: Layers },
 ] as const;
 
 // Custom breakpoint: 1200px
@@ -62,10 +63,14 @@ export default function SessaoPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const { t } = useTranslation();
+
   // Mobile panel navigation
   const isCompact = useIsCompact();
   const [[activePanel, direction], setActivePanel] = useState<[number, number]>([1, 0]); // Start on Chat
   const [timerPopup, setTimerPopup] = useState(false);
+
+  const PANELS = PANELS_CONFIG.map(p => ({ ...p, label: t(p.labelKey as any) }));
 
   const paginate = (newIndex: number) => {
     setActivePanel([newIndex, newIndex > activePanel ? 1 : -1]);
@@ -84,13 +89,13 @@ export default function SessaoPage() {
 
   useEffect(() => {
     if (!sessionId) {
-      setError("Sessão não encontrada");
+      setError(t("studySession.notFound"));
       setLoading(false);
       return;
     }
     apiGet<Session>("/study/sessions/" + sessionId)
       .then(setSession)
-      .catch(() => setError("Não foi possível carregar a sessão"))
+      .catch(() => setError(t("studySession.loadError")))
       .finally(() => setLoading(false));
   }, [sessionId]);
 
@@ -111,13 +116,13 @@ export default function SessaoPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-slate-50 p-6">
         <div className="text-center">
-          <p className="text-slate-400 font-black text-xs uppercase tracking-[0.2em] mb-2">Erro de Conexão</p>
-          <h2 className="text-slate-800 font-bold text-lg">{error ?? "Sessão não encontrada"}</h2>
+          <p className="text-slate-400 font-black text-xs uppercase tracking-[0.2em] mb-2">{t("studySession.connectionError")}</p>
+          <h2 className="text-slate-800 font-bold text-lg">{error ?? t("studySession.notFound")}</h2>
         </div>
         <Button asChild variant="outline" className="rounded-2xl border-2 font-bold px-8">
           <Link href="/protected/estudos">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Voltar para Estudos
+            {t("studySession.backToStudies")}
           </Link>
         </Button>
       </div>
@@ -128,7 +133,7 @@ export default function SessaoPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-white">
         <Loader2 className="h-12 w-12 animate-spin text-slate-200" />
-        <p className="mt-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Carregando Ambiente</p>
+        <p className="mt-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">{t("studySession.loadingEnv")}</p>
       </div>
     );
   }
@@ -158,7 +163,7 @@ export default function SessaoPage() {
             }}
           >
             <ArrowLeft className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Sair</span>
+            <span className="hidden sm:inline">{t("sidebar.sair")}</span>
           </Button>
 
           <div className="h-8 w-[1px] bg-slate-200 hidden sm:block" />
@@ -172,7 +177,7 @@ export default function SessaoPage() {
             </div>
             <div className="min-w-0">
               <p className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-0.5 sm:mb-1">
-                Sessão Ativa
+                {t("studySession.activeSession")}
               </p>
               <h1 className="font-black text-slate-900 text-xs sm:text-sm uppercase tracking-tight leading-none truncate">
                 {subjectTitle}
@@ -197,7 +202,7 @@ export default function SessaoPage() {
               <>
                 <div className="h-5 w-px bg-slate-600" />
                 <div className="flex flex-col items-center">
-                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Meta</span>
+                  <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{t("studySession.goal")}</span>
                   <span className="text-xs font-black text-amber-400 tabular-nums">{session.calendar_events.duration_minutes} min</span>
                 </div>
               </>
@@ -242,9 +247,9 @@ export default function SessaoPage() {
                     <Timer className="h-4 w-4 text-white" />
                   </div>
                   <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Cronômetro</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t("studySession.timer")}</p>
                     <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block" /> Em sessão
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block" /> {t("studySession.inSession")}
                     </p>
                   </div>
                 </div>
@@ -265,7 +270,7 @@ export default function SessaoPage() {
               {/* Meta Info */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Matéria</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{t("estudos.materia")}</span>
                   <div className="flex items-center gap-1.5">
                     <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: subjectColor }} />
                     <span className="text-xs font-bold text-slate-700">{subjectTitle}</span>
@@ -273,8 +278,8 @@ export default function SessaoPage() {
                 </div>
                 {session.calendar_events && session.calendar_events.duration_minutes > 0 && (
                   <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-100">
-                    <span className="text-[10px] font-black text-amber-600 uppercase tracking-wider">Meta</span>
-                    <span className="text-xs font-bold text-amber-700">{session.calendar_events.duration_minutes} minutos</span>
+                    <span className="text-[10px] font-black text-amber-600 uppercase tracking-wider">{t("studySession.goal")}</span>
+                    <span className="text-xs font-bold text-amber-700">{session.calendar_events.duration_minutes} {t("materias.minutes")}</span>
                   </div>
                 )}
               </div>
@@ -284,7 +289,7 @@ export default function SessaoPage() {
                 className="w-full rounded-xl bg-slate-900 hover:bg-slate-800 font-bold"
                 onClick={() => setTimerPopup(false)}
               >
-                Fechar
+                {t("studySession.close")}
               </Button>
             </motion.div>
           </div>

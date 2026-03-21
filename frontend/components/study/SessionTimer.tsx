@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface SessionTimerProps {
   initialSeconds?: number;
@@ -15,6 +16,7 @@ export function SessionTimer({
   onTick,
   className = "",
 }: SessionTimerProps) {
+  const { t } = useTranslation();
   const [seconds, setSeconds] = useState(initialSeconds);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -46,7 +48,7 @@ export function SessionTimer({
         "flex items-center gap-3 px-4 py-2 rounded-2xl bg-white border border-slate-100 shadow-sm transition-all hover:border-slate-200 group",
         className
       )}
-      title="Tempo total de estudo"
+      title={t("study.timerTitle")}
     >
       <div className="relative flex h-2 w-2">
         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>

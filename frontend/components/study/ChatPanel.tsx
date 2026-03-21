@@ -7,6 +7,7 @@ import { MessageCircle, Send, Loader2, Bot, X, Plus, Sparkles, ChevronRight } fr
 import { Button } from "@/components/ui/button";
 import { apiGet, apiPost } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface ChatPanelProps {
   sessionId: string;
@@ -29,6 +30,7 @@ export function ChatPanel({
   subjectColor = "#6D44CC",
   subjectTitle = "este tema",
 }: ChatPanelProps) {
+  const { t } = useTranslation();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [highlights, setHighlights] = useState<SessionHighlight[]>([]);
   const [input, setInput] = useState("");
@@ -125,7 +127,7 @@ export function ChatPanel({
     setNextSteps([]);
 
     // 2. Adiciona a mensagem do usuário ao chat visualmente
-    const userMsg = { role: "user" as const, content: `Gostaria de aprender sobre: ${step}` };
+    const userMsg = { role: "user" as const, content: `${t("study.chatStartTopic")} ${step}` };
     setMessages((m) => [...m, userMsg]);
     setSending(true);
 
@@ -147,7 +149,7 @@ export function ChatPanel({
     } catch {
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: "Não consegui iniciar esse tópico agora. Pode tentar digitar?" },
+        { role: "assistant", content: t("study.chatError") },
       ]);
     } finally {
       setSending(false);
@@ -211,7 +213,7 @@ export function ChatPanel({
         setMessages([
           {
             role: "assistant",
-            content: `Olá! Vamos aprofundar em ${subjectTitle}. O que você gostaria de esclarecer agora?`,
+            content: t("study.chatFallbackIntro", { topic: subjectTitle }),
           },
         ]);
       } finally {
@@ -251,7 +253,7 @@ export function ChatPanel({
     } catch {
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: "Ops, tive um problema. Pode repetir?" },
+        { role: "assistant", content: t("study.chatError") },
       ]);
     } finally {
       setSending(false);
@@ -285,7 +287,7 @@ export function ChatPanel({
                 onClick={handleQuoteInChat}
               >
                 <MessageCircle className="mr-2 h-3.5 w-3.5" />
-                Adicionar ao Chat
+                {t("study.chatAdd")}
               </Button>
             </motion.div>
           )}
@@ -304,10 +306,10 @@ export function ChatPanel({
           </div>
           <div>
             <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest">
-              Chat com Tutor IA
+              {t("study.chatTitle")}
             </h3>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-              Dúvidas em tempo real
+              {t("study.chatSubtitle")}
             </p>
           </div>
         </div>
@@ -322,7 +324,7 @@ export function ChatPanel({
         {loadingIntro && (
           <div className="flex items-center justify-center py-4 gap-2 text-slate-400">
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-xs font-bold uppercase tracking-tighter">Iniciando conversa...</span>
+            <span className="text-xs font-bold uppercase tracking-tighter">{t("study.chatLoading")}</span>
           </div>
         )}
 
@@ -403,7 +405,7 @@ export function ChatPanel({
                       : "bg-slate-900 text-white"
                   )}
                 >
-                  {msg.role === "assistant" ? <Bot className="h-4 w-4 text-[#6D44CC]" /> : "EU"}
+                  {msg.role === "assistant" ? <Bot className="h-4 w-4 text-[#6D44CC]" /> : t("study.chatUser")}
                 </div>
 
                 <div
@@ -461,7 +463,7 @@ export function ChatPanel({
               {/* Texto do Tópico */}
               <div className="mt-1 w-full">
                 <span className="block text-[9px] uppercase tracking-wider text-slate-400 font-black mb-0.5 group-hover:text-indigo-400 transition-colors">
-                  Sugestão
+                  {t("study.chatSuggestion")}
                 </span>
                 <p className="text-xs font-bold text-slate-700 leading-tight line-clamp-2 group-hover:text-slate-900">
                   {step}
@@ -481,7 +483,7 @@ export function ChatPanel({
           <div className="relative flex items-start gap-3 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 shadow-sm mx-1">
             <div className="flex-1 min-w-0">
               <span className="block text-[10px] font-bold uppercase tracking-wider text-yellow-600 mb-1">
-                Respondendo a citação
+                {t("study.chatQuoteResponse")}
               </span>
               <p className="text-xs font-medium text-slate-700 leading-snug line-clamp-2 italic">
                 "{quotedText}"
@@ -490,7 +492,7 @@ export function ChatPanel({
             <button
               onClick={() => setQuotedText(null)}
               className="mt-0.5 text-yellow-600 hover:text-yellow-800 transition-colors p-1 rounded-md hover:bg-yellow-100/50"
-              title="Remover citação"
+              title={t("perfil.cancel")}
             >
               <X className="h-4 w-4" />
             </button>
@@ -502,7 +504,7 @@ export function ChatPanel({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-            placeholder="Tire sua dúvida agora..."
+            placeholder={t("study.chatPlaceholder")}
             className="flex-1 bg-transparent px-4 py-2 text-sm font-bold text-slate-700 outline-none placeholder:text-slate-400"
             disabled={sending || loadingIntro}
           />

@@ -1,15 +1,20 @@
+"use client";
+
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export default function NotFound() {
+  const { t } = useTranslation();
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-6 bg-slate-50 p-4">
-      <h1 className="text-2xl font-bold text-slate-900">Página não encontrada</h1>
-      <p className="text-slate-600">A página que você procura não existe.</p>
-      <Link
-        href="/auth"
-        className="px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800"
-      >
-        Ir para o login
+    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-4">
+      <h1 className="text-4xl font-bold mb-4">{t("notFound.title")}</h1>
+      <p className="text-muted-foreground mb-8">
+        {t("notFound.description")}
+      </p>
+      <Link href="/login">
+        <Button>{t("notFound.backToLogin")}</Button>
       </Link>
     </div>
   );

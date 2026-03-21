@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface FlashcardProps {
   question: string;
@@ -11,6 +12,7 @@ interface FlashcardProps {
 }
 
 export function Flashcard({ question, answer, color = "#4F46E5", index = 0 }: FlashcardProps) {
+  const { t } = useTranslation();
   const [flipped, setFlipped] = useState(false);
 
   return (
@@ -44,7 +46,7 @@ export function Flashcard({ question, answer, color = "#4F46E5", index = 0 }: Fl
           <p className="text-center text-slate-800 font-medium leading-relaxed">
             {question}
           </p>
-          <p className="mt-2 text-xs text-slate-500">Clique para ver a resposta</p>
+          <p className="mt-2 text-xs text-slate-500">{t("study.flashcardClickAnswer")}</p>
         </div>
 
         {/* Verso */}
@@ -60,7 +62,7 @@ export function Flashcard({ question, answer, color = "#4F46E5", index = 0 }: Fl
           }}
         >
           <p className="text-center font-medium leading-relaxed">{answer}</p>
-          <p className="mt-2 text-xs opacity-80">Clique para voltar</p>
+          <p className="mt-2 text-xs opacity-80">{t("study.flashcardClickBack")}</p>
         </div>
       </motion.div>
     </motion.div>

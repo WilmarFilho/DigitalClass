@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Switch } from "@/components/ui/switch";
 import { createClient } from "@/lib/supabase/client";
 import { useParams, useRouter } from "next/navigation";
+import { useTranslation } from "@/hooks/useTranslation";
 import {
   MonitorPlay,
   Loader2,
@@ -85,6 +86,7 @@ interface Notice {
 export default function EditAreaPage() {
   const params = useParams();
   const router = useRouter();
+  const { t, lang } = useTranslation();
   const areaId = params.id as string;
 
   const [area, setArea] = useState<TeacherArea | null>(null);
@@ -202,7 +204,7 @@ export default function EditAreaPage() {
       const n = await apiGet<Notice[]>(`/teachers/my-areas/${areaId}/notices`).catch(() => []);
       setNotices(n);
     } catch (e: any) {
-      setError("Não foi possível carregar os dados desta área.");
+      setError(t("minhaAreaEdit.loadingData"));
     } finally {
       setLoading(false);
     }
@@ -220,7 +222,7 @@ export default function EditAreaPage() {
       setSavedArea(true);
       setTimeout(() => setSavedArea(false), 2500);
     } catch (e: any) {
-      setError(e.message || "Erro ao salvar");
+      setError(e.message || t("minhaAreaEdit.errorSave"));
     } finally {
       setSavingArea(false);
     }
@@ -239,14 +241,14 @@ export default function EditAreaPage() {
       setSectionModal(false);
       setSectionForm({ title: "" });
     } catch (e: any) {
-      setError(e.message || "Erro ao criar seção");
+      setError(e.message || t("minhaAreaEdit.errorCreateSection"));
     } finally {
       setSavingSection(false);
     }
   }
 
   async function handleDeleteSection(id: string) {
-    if (!confirm("Remover esta seção? Todos os módulos nela serão removidos.")) return;
+    if (!confirm(t("minhaAreaEdit.confirmDeleteSection"))) return;
     try {
       await apiDelete(`/teachers/sections/${id}`);
       setSections((prev) => prev.filter(s => s.id !== id));
@@ -273,14 +275,14 @@ export default function EditAreaPage() {
       setModuleModal(null);
       setModuleForm({ title: "", description: "" });
     } catch (e: any) {
-      setError(e.message || "Erro ao criar módulo");
+      setError(e.message || t("minhaAreaEdit.errorCreateModule"));
     } finally {
       setSavingModule(false);
     }
   }
 
   async function handleDeleteModule(sectionId: string, moduleId: string) {
-    if (!confirm("Remover este módulo permanentemente?")) return;
+    if (!confirm(t("minhaAreaEdit.confirmDeleteModule"))) return;
     try {
       await apiDelete(`/teachers/modules/${moduleId}`);
       setSections(prev => prev.map(s => {
@@ -318,7 +320,7 @@ export default function EditAreaPage() {
       setLessonModal(null);
       setLessonForm({ title: "", description: "", type: "video", duration_minutes: "" });
     } catch (e: any) {
-      setError(e.message || "Erro ao criar aula");
+      setError(e.message || t("minhaAreaEdit.errorCreateLesson"));
     } finally {
       setSavingLesson(false);
     }
@@ -337,14 +339,14 @@ export default function EditAreaPage() {
       })));
       setEditLessonModal(null);
     } catch (e: any) {
-      setError(e.message || "Erro ao atualizar");
+      setError(e.message || t("minhaAreaEdit.errorUpdate"));
     } finally {
       setSavingEditLesson(false);
     }
   }
 
   async function handleDeleteLesson(moduleId: string, lessonId: string) {
-    if (!confirm("Remover esta aula permanentemente?")) return;
+    if (!confirm(t("minhaAreaEdit.confirmDeleteLesson"))) return;
     try {
       await apiDelete(`/teachers/my-areas/${areaId}/lessons/${lessonId}`);
       setSections(prev => prev.map(s => {
@@ -363,7 +365,7 @@ export default function EditAreaPage() {
 
   async function handleUpload(lessonId: string, file: File) {
     if (file.size > MAX_VIDEO_SIZE_MB * 1024 * 1024) {
-      setError(`O arquivo é muito grande. O limite máximo é ${MAX_VIDEO_SIZE_MB} MB. Seu arquivo tem ${(file.size / 1024 / 1024).toFixed(1)} MB.`);
+      setError(t("minhaAreaEdit.errorUploadSize", { limit: MAX_VIDEO_SIZE_MB, size: (file.size / 1024 / 1024).toFixed(1) }));
       return;
     }
     setUploadingLesson(lessonId);
@@ -384,7 +386,7 @@ export default function EditAreaPage() {
       });
 
       if (!res.ok) {
-        let errorMessage = "Falha no upload";
+        let errorMessage = t("minhaAreaEdit.errorUploadGeneric");
 
         try {
           // Tenta ler o corpo da resposta
@@ -400,9 +402,9 @@ export default function EditAreaPage() {
         } catch (parseError) {
           // Se não for JSON (ex: erro de Proxy ou Nginx), usa o status text
           if (res.status === 413) {
-            errorMessage = `O arquivo é muito grande para o servidor (Limite: ${MAX_VIDEO_SIZE_MB}MB).`;
+            errorMessage = t("minhaAreaEdit.errorUploadServerLimit", { limit: MAX_VIDEO_SIZE_MB });
           } else {
-            errorMessage = `Erro técnico (${res.status}): ${res.statusText}`;
+            errorMessage = t("minhaAreaEdit.errorTechnical", { status: res.status, statusText: res.statusText });
           }
         }
 
@@ -520,7 +522,7 @@ export default function EditAreaPage() {
   return (
     <div className="max-w-6xl mx-auto pb-20 px-4 sm:px-6 lg:px-0">
       <Button variant="ghost" className="mb-4 text-slate-500" onClick={() => router.push("/professor/minha-area")}>
-        <ArrowLeft className="h-4 w-4 mr-2" /> Voltar para Áreas
+        <ArrowLeft className="h-4 w-4 mr-2" /> {t("minhaAreaEdit.back")}
       </Button>
 
       <header className="flex flex-col gap-4">
@@ -534,17 +536,17 @@ export default function EditAreaPage() {
             </div>
             <div className="min-w-0">
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate">
-                {area?.title || "Carregando..."}
+                {area?.title || "..."}
               </h1>
-              <p className="text-xs sm:text-sm text-slate-500">Gerencie configurações, módulos e aulas.</p>
+              <p className="text-xs sm:text-sm text-slate-500">{t("minhaAreaEdit.manage")}</p>
             </div>
           </div>
 
           {/* Toggle do Tutor de IA no canto direito do título */}
           <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100">
             <div className="flex flex-col items-end">
-              <span className="text-[10px] font-bold text-slate-400 uppercase leading-none">Tutor de IA</span>
-              <span className="text-xs font-bold text-slate-600">{area?.ai_tutor_enabled ? 'Ativado' : 'Desativado'}</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase leading-none">{t("minhaAreaEdit.aiTutor")}</span>
+              <span className="text-xs font-bold text-slate-600">{area?.ai_tutor_enabled ? t("minhaAreaEdit.enabled") : t("minhaAreaEdit.disabled")}</span>
             </div>
             <Switch
               checked={area?.ai_tutor_enabled}
@@ -557,13 +559,13 @@ export default function EditAreaPage() {
           {area && (
             <Button variant="outline" className="rounded-xl text-xs sm:text-sm" asChild>
               <a href={`/protected/professores/area/${area.id}`} target="_blank">
-                <Eye className="h-4 w-4 mr-1 sm:mr-2" /> <span className="hidden sm:inline">Visualizar como</span> Aluno
+                <Eye className="h-4 w-4 mr-1 sm:mr-2" /> {t("minhaAreaEdit.viewAsStudent")}
               </a>
             </Button>
           )}
           {!editingArea && (
             <Button className="rounded-xl bg-slate-900 hover:bg-slate-800 text-xs sm:text-sm" onClick={() => setEditingArea(true)}>
-              <Settings2 className="h-4 w-4 mr-1 sm:mr-2" /> <span className="hidden sm:inline">Editar</span> Configurações
+              <Settings2 className="h-4 w-4 mr-1 sm:mr-2" /> {t("minhaAreaEdit.editSettings")}
             </Button>
           )}
 
@@ -583,7 +585,7 @@ export default function EditAreaPage() {
                 ) : (
                   <RefreshCw className="h-4 w-4 mr-2" />
                 )}
-                Atualizar IA
+                {t("minhaAreaEdit.updateAI")}
               </Button>
             </motion.div>
           )}
@@ -593,7 +595,7 @@ export default function EditAreaPage() {
         <div className="flex md:hidden items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
           <div className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-indigo-500" />
-            <span className="text-xs font-bold text-slate-700">Tutor de IA Especialista</span>
+            <span className="text-xs font-bold text-slate-700">{t("minhaAreaEdit.aiTutorExpert")}</span>
           </div>
           <Switch
             checked={area?.ai_tutor_enabled}
@@ -610,7 +612,7 @@ export default function EditAreaPage() {
           <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div className="p-4 sm:p-6 border-b border-slate-50">
               <h2 className="font-bold text-slate-800 flex items-center gap-2 text-sm sm:text-base">
-                <Palette className="h-4 w-4 text-indigo-500" /> Identidade da Área
+                <Palette className="h-4 w-4 text-indigo-500" /> {t("minhaAreaEdit.identity")}
               </h2>
             </div>
 
@@ -622,16 +624,16 @@ export default function EditAreaPage() {
               >
                 {!area?.banner_url && <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />}
                 <span className="relative z-10 text-white font-black text-xl drop-shadow-md text-center px-4 leading-tight">
-                  {areaForm.title || "Nome da sua Área"}
+                  {areaForm.title || (t("minhaAreaEdit.areaName") || "Nome da sua Área")}
                 </span>
                 {editingArea && (
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
                     <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 text-white text-xs font-bold bg-black/50 px-4 py-2 rounded-full backdrop-blur-sm">
-                      {uploadingBanner ? <Loader2 className="h-4 w-4 animate-spin" /> : <><ImagePlus className="h-4 w-4" /> Alterar Banner</>}
+                      {uploadingBanner ? <Loader2 className="h-4 w-4 animate-spin" /> : <><ImagePlus className="h-4 w-4" /> {t("minhaAreaEdit.changeBanner")}</>}
                     </div>
                   </div>
                 )}
-                <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/20 backdrop-blur-md rounded text-[10px] text-white/80 font-bold uppercase tracking-widest">Preview</div>
+                <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/20 backdrop-blur-md rounded text-[10px] text-white/80 font-bold uppercase tracking-widest">{t("minhaAreaEdit.preview")}</div>
               </div>
               <input ref={bannerFileRef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
                 const file = e.target.files?.[0];
@@ -661,27 +663,27 @@ export default function EditAreaPage() {
             </div>
 
             <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
-              <Field label="Nome da Área" required>
+              <Field label={t("minhaAreaEdit.areaName") || "Nome da Área"} required>
                 <input
                   value={areaForm.title}
                   onChange={(e) => setAreaForm(p => ({ ...p, title: e.target.value }))}
                   disabled={!editingArea}
-                  placeholder="Ex: Formação em React"
+                  placeholder={t("minhaAreaEdit.areaNamePlaceholder")}
                   className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all disabled:opacity-50"
                 />
               </Field>
 
-              <Field label="Descrição da Área" required>
+              <Field label={t("minhaAreaEdit.areaDesc") || "Descrição da Área"} required>
                 <input
                   value={areaForm.description}
                   onChange={(e) => setAreaForm(p => ({ ...p, description: e.target.value }))}
                   disabled={!editingArea}
-                  placeholder="Conteudo do ensino superior"
+                  placeholder={t("minhaAreaEdit.areaDescPlaceholder")}
                   className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 px-4 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all disabled:opacity-50"
                 />
               </Field>
 
-              <Field label="Preço da Mensalidade">
+              <Field label={t("minhaAreaEdit.monthlyPrice") || "Preço da Mensalidade"}>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm font-mono">R$</span>
                   <input
@@ -698,30 +700,30 @@ export default function EditAreaPage() {
                 <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-4 space-y-3">
                   <div className="flex items-center gap-2 text-emerald-700">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
-                    <span className="text-[10px] font-black uppercase tracking-[0.15em]">Simulação de Ganhos</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.15em]">{t("minhaAreaEdit.earningsSim")}</span>
                   </div>
 
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-500 font-medium">Valor da Mensalidade</span>
+                      <span className="text-slate-500 font-medium">{t("minhaAreaEdit.monthlyValue")}</span>
                       <span className="font-black text-slate-800">R$ {areaForm.monthly_price.toFixed(2)}</span>
                     </div>
                     <div className="h-px bg-slate-200" />
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-500 font-medium">Taxa Stripe (~3.99% + R$0,39)</span>
+                      <span className="text-slate-500 font-medium">{t("minhaAreaEdit.stripeFee")}</span>
                       <span className="font-bold text-red-500">
                         - R$ {(areaForm.monthly_price * 0.0399 + 0.39).toFixed(2)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-500 font-medium">Taxa Plataforma (20%)</span>
+                      <span className="text-slate-500 font-medium">{t("minhaAreaEdit.platformFee")}</span>
                       <span className="font-bold text-red-500">
                         - R$ {(areaForm.monthly_price * 0.20).toFixed(2)}
                       </span>
                     </div>
                     <div className="h-px bg-emerald-200" />
                     <div className="flex justify-between items-center pt-1">
-                      <span className="font-black text-emerald-700 text-[11px] uppercase tracking-wider">Seu ganho líquido</span>
+                      <span className="font-black text-emerald-700 text-[11px] uppercase tracking-wider">{t("minhaAreaEdit.netEarnings")}</span>
                       <span className="font-black text-emerald-700 text-base">
                         R$ {Math.max(0, areaForm.monthly_price - (areaForm.monthly_price * 0.0399 + 0.39) - (areaForm.monthly_price * 0.20)).toFixed(2)}
                       </span>
@@ -731,7 +733,7 @@ export default function EditAreaPage() {
               )}
 
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Cor Identidade">
+                <Field label={t("minhaAreaEdit.color") || "Cor Identidade"}>
                   <div className="flex items-center gap-2">
                     <input
                       type="color"
@@ -743,7 +745,7 @@ export default function EditAreaPage() {
                     <span className="text-xs font-mono text-slate-500 uppercase">{areaForm.color_code}</span>
                   </div>
                 </Field>
-                <Field label="Visibilidade">
+                <Field label={t("minhaAreaEdit.visibility") || "Visibilidade"}>
                   <button
                     disabled={!editingArea}
                     onClick={() => setAreaForm(p => ({ ...p, is_private: !p.is_private }))}
@@ -753,7 +755,7 @@ export default function EditAreaPage() {
                     )}
                   >
                     {areaForm.is_private ? <Lock className="h-3.5 w-3.5" /> : <Globe className="h-3.5 w-3.5" />}
-                    {areaForm.is_private ? "Privada" : "Pública"}
+                    {areaForm.is_private ? t("minhaAreaEdit.private") : t("minhaAreaEdit.public")}
                   </button>
                 </Field>
               </div>
@@ -765,7 +767,7 @@ export default function EditAreaPage() {
                     disabled={!areaForm.title.trim() || savingArea}
                     onClick={handleSaveArea}
                   >
-                    {savingArea ? <Loader2 className="h-4 w-4 animate-spin" /> : savedArea ? <><CheckCircle2 className="h-4 w-4 mr-2" /> Salvo!</> : "Salvar Alterações"}
+                    {savingArea ? <Loader2 className="h-4 w-4 animate-spin" /> : savedArea ? <><CheckCircle2 className="h-4 w-4 mr-2" /> {t("minhaAreaEdit.saved")}</> : t("minhaAreaEdit.saveChanges")}
                   </Button>
                   {area && (
                     <Button variant="ghost" className="text-slate-500 hover:bg-slate-100" onClick={() => {
@@ -778,7 +780,7 @@ export default function EditAreaPage() {
                         is_private: area.is_private,
                       });
                     }}>
-                      Descartar Mudanças
+                      {t("minhaAreaEdit.discard")}
                     </Button>
                   )}
                 </div>
@@ -790,8 +792,8 @@ export default function EditAreaPage() {
         {/* Coluna Direita: Conteúdo */}
         <main className="xl:col-span-8 min-w-0">
           <div className="flex bg-slate-100/50 p-1 sm:p-1.5 rounded-2xl w-full sm:w-fit border border-slate-200/60 mb-4 sm:mb-6">
-            <button onClick={() => setActiveTab("curriculum")} className={cn("flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all", activeTab === "curriculum" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}>Conteúdo e Módulos</button>
-            <button onClick={() => setActiveTab("notices")} className={cn("flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all", activeTab === "notices" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}>Mural de Avisos</button>
+            <button onClick={() => setActiveTab("curriculum")} className={cn("flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all", activeTab === "curriculum" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}>{t("minhaAreaEdit.contentModules") || "Conteúdo e Módulos"}</button>
+            <button onClick={() => setActiveTab("notices")} className={cn("flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all", activeTab === "notices" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}>{t("minhaAreaEdit.noticeBoard") || "Mural de Avisos"}</button>
           </div>
 
           {activeTab === "curriculum" ? (
@@ -799,12 +801,12 @@ export default function EditAreaPage() {
               <div className="p-4 sm:p-6 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="font-bold text-slate-800 flex items-center gap-2 text-sm sm:text-base">
-                    <MonitorPlay className="h-4 w-4 text-indigo-500" /> Currículo do Curso
+                    <MonitorPlay className="h-4 w-4 text-indigo-500" /> {t("minhaAreaEdit.contentModules")}
                   </h2>
-                  <p className="text-xs text-slate-400 mt-1">Organize em Seções e Módulos</p>
+                  <p className="text-xs text-slate-400 mt-1">{t("minhaAreaEdit.manage")}</p>
                 </div>
                 <Button onClick={() => setSectionModal(true)} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 w-full sm:w-auto">
-                  <Plus className="h-4 w-4 mr-2" /> Nova Seção
+                  <Plus className="h-4 w-4 mr-2" /> {t("minhaAreaEdit.newSection")}
                 </Button>
               </div>
 
@@ -814,8 +816,8 @@ export default function EditAreaPage() {
                     <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-200 mb-4">
                       <FolderOpen className="h-8 w-8" />
                     </div>
-                    <p className="text-slate-400 text-sm font-medium">Esta área não tem nenhuma seção de conteúdo.</p>
-                    <Button variant="link" className="text-indigo-600" onClick={() => setSectionModal(true)}>Adicionar primeira seção</Button>
+                    <p className="text-slate-400 text-sm font-medium">{t("minhaAreaEdit.noContent")}</p>
+                    <Button variant="link" className="text-indigo-600" onClick={() => setSectionModal(true)}>{t("minhaAreaEdit.addSection")}</Button>
                   </div>
                 ) : (
                   <div className="space-y-6">
@@ -828,7 +830,7 @@ export default function EditAreaPage() {
                           </h3>
                           <div className="flex items-center gap-2 shrink-0">
                             <Button size="sm" variant="ghost" className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 h-8 text-xs" onClick={() => setModuleModal({ sectionId: section.id })}>
-                              <Plus className="h-3 w-3 mr-1" /> <span className="hidden sm:inline">Novo </span>Módulo
+                              <Plus className="h-3 w-3 mr-1" /> <span className="hidden sm:inline">{t("minhaAreaEdit.newModule")}</span>
                             </Button>
                             <button onClick={() => handleDeleteSection(section.id)} className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
                               <Trash2 className="h-4 w-4" />
@@ -838,7 +840,7 @@ export default function EditAreaPage() {
 
                         <div className="p-2 sm:p-4 space-y-3 sm:space-y-4">
                           {(!section.modules || section.modules.length === 0) ? (
-                            <div className="text-center py-6 text-sm text-slate-400 font-medium">Esta seção não tem módulos.</div>
+                            <div className="text-center py-6 text-sm text-slate-400 font-medium">{t("minhaAreaEdit.noModules")}</div>
                           ) : (
                             section.modules.map((module, mIndex) => (
                               <div key={module.id} className="rounded-xl border border-slate-200 bg-white">
@@ -846,7 +848,7 @@ export default function EditAreaPage() {
                                   <h4 className="font-bold text-xs sm:text-sm text-slate-800 truncate min-w-0">Módulo {mIndex + 1}: {module.title}</h4>
                                   <div className="flex items-center gap-1 shrink-0">
                                     <Button size="sm" variant="ghost" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-7 text-xs px-1.5 sm:px-2" onClick={() => setLessonModal({ moduleId: module.id })}>
-                                      <Plus className="h-3 w-3 sm:mr-1" /> <span className="hidden sm:inline">Aula</span>
+                                      <Plus className="h-3 w-3 sm:mr-1" /> <span className="hidden sm:inline">{t("minhaAreaEdit.newLesson")}</span>
                                     </Button>
                                     <button onClick={() => handleDeleteModule(section.id, module.id)} className="h-7 w-7 flex items-center justify-center rounded-md text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all">
                                       <Trash2 className="h-3 w-3" />
@@ -856,7 +858,7 @@ export default function EditAreaPage() {
 
                                 <div className="p-2 sm:p-3">
                                   {(!module.lessons || module.lessons.length === 0) ? (
-                                    <div className="text-center py-4 text-xs text-slate-400 font-medium">Módulo vazio.</div>
+                                    <div className="text-center py-4 text-xs text-slate-400 font-medium">{t("minhaAreaEdit.noLessons")}</div>
                                   ) : (
                                     <ul className="space-y-2">
                                       {module.lessons.map((lesson, lIndex) => (
@@ -864,6 +866,7 @@ export default function EditAreaPage() {
                                           key={lesson.id}
                                           lesson={lesson}
                                           index={lIndex + 1}
+                                          t={t}
                                           uploading={uploadingLesson === lesson.id}
                                           onDelete={() => handleDeleteLesson(module.id, lesson.id)}
                                           onUpload={() => {
@@ -895,12 +898,12 @@ export default function EditAreaPage() {
               <div className="p-4 sm:p-6 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="font-bold text-slate-800 flex items-center gap-2 text-sm sm:text-base">
-                    <Megaphone className="h-4 w-4 text-indigo-500" /> Mural de Avisos
+                    <Megaphone className="h-4 w-4 text-indigo-500" /> {t("minhaAreaEdit.noticeBoard")}
                   </h2>
-                  <p className="text-xs text-slate-400 mt-1">Comunique-se com seus alunos</p>
+                  <p className="text-xs text-slate-400 mt-1">{t("teacherArea.postedBy")}</p>
                 </div>
                 <Button onClick={() => setNoticeModal(true)} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 w-full sm:w-auto">
-                  <Plus className="h-4 w-4 mr-2" /> Novo Aviso
+                  <Plus className="h-4 w-4 mr-2" /> {t("minhaAreaEdit.newNotice")}
                 </Button>
               </div>
 
@@ -910,8 +913,8 @@ export default function EditAreaPage() {
                     <div className="h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-200 mb-4">
                       <MessageSquare className="h-8 w-8" />
                     </div>
-                    <p className="text-slate-400 text-sm font-medium">Nenhum aviso publicado ainda.</p>
-                    <Button variant="link" className="text-indigo-600" onClick={() => setNoticeModal(true)}>Criar primeiro aviso</Button>
+                    <p className="text-slate-400 text-sm font-medium">{t("teacherArea.noNotices")}</p>
+                    <Button variant="link" className="text-indigo-600" onClick={() => setNoticeModal(true)}>{t("minhaAreaEdit.createNotice")}</Button>
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -920,7 +923,7 @@ export default function EditAreaPage() {
                         <div className="flex items-start justify-between">
                           <div>
                             <h4 className="font-bold text-slate-800">{notice.title}</h4>
-                            <p className="text-xs text-slate-400 mt-1">{new Date(notice.created_at).toLocaleDateString("pt-BR", { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                            <p className="text-xs text-slate-400 mt-1">{new Date(notice.created_at).toLocaleDateString(lang === 'pt-BR' ? 'pt-BR' : lang === 'es' ? 'es-ES' : 'en-US', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
                           </div>
                           <button onClick={() => handleDeleteNotice(notice.id)} className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all">
                             <Trash2 className="h-4 w-4" />
@@ -958,14 +961,14 @@ export default function EditAreaPage() {
               </div>
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-xl font-black text-slate-900">Nova Seção</h3>
-                  <p className="text-sm text-slate-500">Ex: Introdução, Formação Básica, etc.</p>
+                  <h3 className="text-xl font-black text-slate-900">{t("minhaAreaEdit.newSection")}</h3>
+                  <p className="text-sm text-slate-500">{t("minhaAreaEdit.modalSectionDesc")}</p>
                 </div>
-                <Field label="Nome da Seção" required>
+                <Field label={t("minhaAreaEdit.modalSectionTitle")} required>
                   <input value={sectionForm.title} onChange={e => setSectionForm({ title: e.target.value })} className="w-full h-12 rounded-xl border border-slate-200 px-4 font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
                 </Field>
                 <Button className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100" disabled={!sectionForm.title.trim() || savingSection} onClick={handleCreateSection}>
-                  {savingSection ? <Loader2 className="h-4 w-4 animate-spin" /> : "Criar Seção"}
+                  {savingSection ? <Loader2 className="h-4 w-4 animate-spin" /> : t("minhaAreaEdit.create")}
                 </Button>
               </div>
             </motion.div>
@@ -986,17 +989,17 @@ export default function EditAreaPage() {
               </div>
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-xl font-black text-slate-900">Novo Módulo</h3>
-                  <p className="text-sm text-slate-500">Crie os módulos que conterão suas aulas.</p>
+                  <h3 className="text-xl font-black text-slate-900">{t("minhaAreaEdit.newModule")}</h3>
+                  <p className="text-sm text-slate-500">{t("minhaAreaEdit.modalModuleInstruction")}</p>
                 </div>
-                <Field label="Nome do Módulo" required>
+                <Field label={t("minhaAreaEdit.modalModuleTitle")} required>
                   <input value={moduleForm.title} onChange={e => setModuleForm(p => ({ ...p, title: e.target.value }))} className="w-full h-12 rounded-xl border border-slate-200 px-4 font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
                 </Field>
-                <Field label="Descrição" required={false}>
+                <Field label={t("minhaAreaEdit.modalModuleDesc")} required={false}>
                   <textarea value={moduleForm.description} onChange={e => setModuleForm(p => ({ ...p, description: e.target.value }))} className="w-full h-24 rounded-xl border border-slate-200 px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none" />
                 </Field>
                 <Button className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100" disabled={!moduleForm.title.trim() || savingModule} onClick={handleCreateModule}>
-                  {savingModule ? <Loader2 className="h-4 w-4 animate-spin" /> : "Criar Módulo"}
+                  {savingModule ? <Loader2 className="h-4 w-4 animate-spin" /> : t("minhaAreaEdit.create")}
                 </Button>
               </div>
             </motion.div>
@@ -1020,12 +1023,12 @@ export default function EditAreaPage() {
 
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-xl font-black text-slate-900 leading-tight">Adicionar Aula</h3>
-                  <p className="text-sm text-slate-500">Defina o título e o tipo de conteúdo para seus alunos.</p>
+                  <h3 className="text-xl font-black text-slate-900 leading-tight">{t("minhaAreaEdit.newLesson")}</h3>
+                  <p className="text-sm text-slate-500">{t("minhaAreaEdit.modalLessonDesc")}</p>
                 </div>
 
                 <div className="space-y-4">
-                  <Field label="Título da Aula" required>
+                  <Field label={t("minhaAreaEdit.modalLessonTitle")} required>
                     <input
                       value={lessonForm.title}
                       onChange={(e) => setLessonForm(p => ({ ...p, title: e.target.value }))}
@@ -1054,9 +1057,9 @@ export default function EditAreaPage() {
                 </div>
 
                 <div className="pt-4 flex gap-3">
-                  <Button variant="ghost" className="flex-1 h-12 rounded-xl text-slate-500" onClick={() => setLessonModal(null)}>Cancelar</Button>
+                  <Button variant="ghost" className="flex-1 h-12 rounded-xl text-slate-500" onClick={() => setLessonModal(null)}>{t("minhaAreaEdit.cancel")}</Button>
                   <Button className="flex-1 h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100" disabled={!lessonForm.title.trim() || savingLesson} onClick={handleCreateLesson}>
-                    {savingLesson ? <Loader2 className="h-4 w-4 animate-spin" /> : "Criar Aula"}
+                    {savingLesson ? <Loader2 className="h-4 w-4 animate-spin" /> : t("minhaAreaEdit.create")}
                   </Button>
                 </div>
               </div>
@@ -1112,17 +1115,17 @@ export default function EditAreaPage() {
               className="w-full max-w-lg rounded-[2.5rem] bg-white shadow-2xl p-8 max-h-[90vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-black text-slate-900">Editar aula: {editLessonModal.lesson.title}</h3>
+                <h3 className="text-xl font-black text-slate-900">{t("minhaAreaEdit.editLesson")}: {editLessonModal.lesson.title}</h3>
                 <button onClick={() => setEditLessonModal(null)} className="h-10 w-10 rounded-full hover:bg-slate-100 flex items-center justify-center">
                   <X className="h-5 w-5 text-slate-400" />
                 </button>
               </div>
               <div className="space-y-4">
-                <Field label="Descrição da aula">
+                <Field label={t("minhaAreaEdit.modalLessonDesc")}>
                   <textarea
                     value={editLessonForm.description}
                     onChange={(e) => setEditLessonForm({ description: e.target.value })}
-                    placeholder="Descreva o conteúdo desta aula..."
+                    placeholder={t("minhaAreaEdit.lessonDescPlaceholder")}
                     className="w-full h-32 rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
                   />
                 </Field>
@@ -1132,17 +1135,17 @@ export default function EditAreaPage() {
                     disabled={savingEditLesson}
                     onClick={() => handleUpdateLesson(editLessonModal.lesson.id, editLessonForm.description)}
                   >
-                    {savingEditLesson ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar descrição"}
+                    {savingEditLesson ? <Loader2 className="h-4 w-4 animate-spin" /> : t("minhaAreaEdit.saveChanges")}
                   </Button>
                 </div>
                 <div className="border-t border-slate-100 pt-4">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Materiais complementares</p>
-                  <p className="text-sm text-slate-400 mb-3">Gerencie materiais na área do aluno ao assistir a aula.</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{t("minhaAreaEdit.materials")}</p>
+                  <p className="text-sm text-slate-400 mb-3">{t("minhaAreaEdit.materialsDesc")}</p>
                   <Button variant="outline" className="w-full rounded-xl" onClick={() => {
                     setMaterialsModal({ lesson: editLessonModal.lesson, moduleId: editLessonModal.moduleId });
                     setEditLessonModal(null);
                   }}>
-                    <FolderOpen className="h-4 w-4 mr-2" /> Gerenciar materiais desta aula
+                    <FolderOpen className="h-4 w-4 mr-2" /> {t("minhaAreaEdit.manageMaterials")}
                   </Button>
                 </div>
               </div>
@@ -1162,9 +1165,9 @@ export default function EditAreaPage() {
               className="w-full max-w-lg rounded-[2.5rem] bg-white shadow-2xl p-8 max-h-[90vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between gap-3 mb-6">
-                <h3 className="text-lg font-black text-slate-900 truncate min-w-0">Materiais: {materialsModal.lesson.title}</h3>
+                <h3 className="text-lg font-black text-slate-900 truncate min-w-0">{t("minhaAreaEdit.materials")}: {materialsModal.lesson.title}</h3>
                 <div className="flex items-center gap-1 shrink-0">
-                  <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={() => fetchMaterials(materialsModal.lesson.id)} disabled={loadingMaterials} title="Recarregar">
+                  <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={() => fetchMaterials(materialsModal.lesson.id)} disabled={loadingMaterials} title={t("common.reload")}>
                     <RefreshCw className={cn("h-4 w-4 text-slate-500", loadingMaterials && "animate-spin")} />
                   </Button>
                   <button onClick={() => setMaterialsModal(null)} className="h-9 w-9 rounded-full hover:bg-slate-100 flex items-center justify-center">
@@ -1172,12 +1175,12 @@ export default function EditAreaPage() {
                   </button>
                 </div>
               </div>
-              <p className="text-sm text-slate-500 mb-4">Adicione fotos, arquivos ou executáveis como material complementar para seus alunos.</p>
+              <p className="text-sm text-slate-500 mb-4">{t("minhaAreaEdit.materialsInstruction")}</p>
               <div className="space-y-3 mb-6">
                 {loadingMaterials ? (
                   <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div>
                 ) : materials.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-6">Nenhum material adicionado.</p>
+                  <p className="text-sm text-slate-400 text-center py-6">{t("minhaAreaEdit.noMaterials")}</p>
                 ) : (
                   materials.map(m => (
                     <div key={m.id} className="flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50">
@@ -1193,7 +1196,7 @@ export default function EditAreaPage() {
                 )}
               </div>
               <div className="border-t border-slate-100 pt-4">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Adicionar material</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{t("minhaAreaEdit.addMaterial")}</p>
                 <input
                   ref={materialFileRef}
                   type="file"
@@ -1216,7 +1219,7 @@ export default function EditAreaPage() {
                     onClick={() => materialFileRef.current?.click()}
                   >
                     {uploadingMaterial ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                    Enviar arquivo
+                    {t("minhaAreaEdit.uploadFile")}
                   </Button>
                 </div>
               </div>
@@ -1238,17 +1241,17 @@ export default function EditAreaPage() {
               </div>
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-xl font-black text-slate-900">Novo Aviso</h3>
-                  <p className="text-sm text-slate-500">O aviso ficará em destaque na área do aluno.</p>
+                  <h3 className="text-xl font-black text-slate-900">{t("minhaAreaEdit.newNotice")}</h3>
+                  <p className="text-sm text-slate-500">{t("minhaAreaEdit.noticeModalDesc")}</p>
                 </div>
-                <Field label="Título do Aviso" required>
+                <Field label={t("minhaAreaEdit.modalNoticeTitle")} required>
                   <input value={noticeForm.title} onChange={e => setNoticeForm(p => ({ ...p, title: e.target.value }))} placeholder="Ex: Aviso Importante!" className="w-full h-12 rounded-xl border border-slate-200 px-4 font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
                 </Field>
-                <Field label="Mensagem" required>
-                  <textarea value={noticeForm.content} onChange={e => setNoticeForm(p => ({ ...p, content: e.target.value }))} placeholder="Escreva a mensagem aqui..." className="w-full h-32 rounded-xl border border-slate-200 px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none" />
+                <Field label={t("minhaAreaEdit.modalNoticeContent")} required>
+                  <textarea value={noticeForm.content} onChange={e => setNoticeForm(p => ({ ...p, content: e.target.value }))} placeholder={t("minhaAreaEdit.noticePlaceholder")} className="w-full h-32 rounded-xl border border-slate-200 px-4 py-3 font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none" />
                 </Field>
                 <Button className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100" disabled={!noticeForm.title.trim() || !noticeForm.content.trim() || savingNotice} onClick={handleCreateNotice}>
-                  {savingNotice ? <Loader2 className="h-4 w-4 animate-spin" /> : "Publicar Aviso"}
+                  {savingNotice ? <Loader2 className="h-4 w-4 animate-spin" /> : t("minhaAreaEdit.publishNotice")}
                 </Button>
               </div>
             </motion.div>
@@ -1275,7 +1278,7 @@ export default function EditAreaPage() {
 
                 <div className="text-center space-y-2 mb-8">
                   <h3 className="text-2xl font-black text-slate-900 leading-tight">
-                    {typeof error === "string" ? "Ops! Ocorreu um problema" : error.title}
+                    {typeof error === "string" ? t("minhaAreaEdit.errorTitle") : (error.title || t("minhaAreaEdit.errorTitle"))}
                   </h3>
                   <p className="text-slate-500 font-medium leading-relaxed">
                     {typeof error === "string" ? error : error.message}
@@ -1286,12 +1289,12 @@ export default function EditAreaPage() {
                   onClick={() => setError(null)}
                   className="w-full h-14 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg shadow-xl shadow-indigo-100 transition-all active:scale-[0.98]"
                 >
-                  Entendido
+                  {t("minhaAreaEdit.understood")}
                 </Button>
 
                 <div className="mt-6 flex justify-center">
                   <div className="px-3 py-1 bg-slate-50 rounded-full border border-slate-100 italic text-[10px] text-slate-400 font-medium">
-                    Se o problema persistir, entre em contato com o suporte.
+                    {t("minhaAreaEdit.supportContact")}
                   </div>
                 </div>
               </div>
@@ -1306,7 +1309,7 @@ export default function EditAreaPage() {
 // --- Subcomponentes Refatorados ---
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function LessonRow({ lesson, index, uploading, onDelete, onUpload, onPreview, onEdit }: any) {
+function LessonRow({ lesson, index, t, uploading, onDelete, onUpload, onPreview, onEdit }: any) {
   return (
     <motion.li
       initial={{ opacity: 0, x: -10 }}
@@ -1332,11 +1335,11 @@ function LessonRow({ lesson, index, uploading, onDelete, onUpload, onPreview, on
           <div className="flex items-center gap-2 sm:gap-3 mt-0.5">
             {lesson.content_url ? (
               <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3" /> Conteúdo Pronto
+                <CheckCircle2 className="h-3 w-3" /> {t("minhaAreaEdit.contentReady")}
               </span>
             ) : (
               <span className="text-[9px] font-black text-amber-500 uppercase flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" /> Aguardando Upload
+                <AlertCircle className="h-3 w-3" /> {t("minhaAreaEdit.waitingUpload")}
               </span>
             )}
             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{lesson.type}</span>
@@ -1355,7 +1358,7 @@ function LessonRow({ lesson, index, uploading, onDelete, onUpload, onPreview, on
               onClick={onPreview}
             >
               <Play className="h-3.5 w-3.5 min-[500px]:mr-1" />
-              <span className="hidden lg:inline">Ver</span>
+              <span className="hidden lg:inline">{t("minhaAreaEdit.view")}</span>
             </Button>
           )}
 
@@ -1366,7 +1369,7 @@ function LessonRow({ lesson, index, uploading, onDelete, onUpload, onPreview, on
             onClick={onEdit}
           >
             <Settings2 className="h-3.5 w-3.5 min-[500px]:mr-1" />
-            <span className="hidden lg:inline">Editar</span>
+            <span className="hidden lg:inline">{t("minhaAreaEdit.edit")}</span>
           </Button>
 
           <Button
@@ -1385,7 +1388,7 @@ function LessonRow({ lesson, index, uploading, onDelete, onUpload, onPreview, on
               <>
                 <Upload className={cn("h-3.5 w-3.5", lesson.content_url || "min-[500px]:mr-1")} />
                 <span className="hidden min-[500px]:inline">
-                  {lesson.content_url ? "Trocar" : "Upload"}
+                  {lesson.content_url ? t("minhaAreaEdit.change") : t("minhaAreaEdit.upload")}
                 </span>
               </>
             )}

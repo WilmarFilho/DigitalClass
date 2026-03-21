@@ -18,6 +18,7 @@ import { apiGet } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface TeacherArea {
   id: string;
@@ -31,6 +32,7 @@ interface TeacherArea {
 
 export default function MinhaAreaPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [areas, setAreas] = useState<TeacherArea[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export default function MinhaAreaPage() {
       setHasMore(meta?.page < meta?.last_page);
       setPage(pageNum);
     } catch (e: any) {
-      setError("Não foi possível carregar suas áreas.");
+      setError(t("minhaArea.errorLoad"));
     } finally {
       if (pageNum === 1) setLoading(false);
       else setLoadingMore(false);
@@ -73,8 +75,8 @@ export default function MinhaAreaPage() {
             <LayoutDashboard className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Painel do Professor</h1>
-            <p className="text-sm text-slate-500">Gerencie suas dezenas de áreas e cursos.</p>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">{t("minhaArea.title")}</h1>
+            <p className="text-sm text-slate-500">{t("minhaArea.subtitle")}</p>
           </div>
         </div>
         
@@ -83,7 +85,7 @@ export default function MinhaAreaPage() {
             onClick={() => router.push("/professor/minha-area/nova")} 
             className="rounded-xl bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100"
           >
-            <Plus className="h-4 w-4 mr-2" /> Criar Nova Área
+            <Plus className="h-4 w-4 mr-2" /> {t("minhaArea.create")}
           </Button>
         </div>
       </header>
@@ -101,10 +103,10 @@ export default function MinhaAreaPage() {
             <div className="bg-white h-20 w-20 rounded-3xl shadow-xl flex items-center justify-center mx-auto mb-6 border border-slate-100">
                <MonitorPlay className="h-10 w-10 text-slate-200" />
             </div>
-            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Você ainda não tem áreas criadas</h3>
-            <p className="text-slate-400 text-xs mt-2 font-bold uppercase tracking-widest mb-6">Crie sua primeira área de membros para começar a ensinar.</p>
+            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">{t("minhaArea.noAreas")}</h3>
+            <p className="text-slate-400 text-xs mt-2 font-bold uppercase tracking-widest mb-6">{t("minhaArea.noAreasDesc")}</p>
             <Button onClick={() => router.push("/professor/minha-area/nova")} className="rounded-xl bg-indigo-600 hover:bg-indigo-700">
-               <Plus className="h-4 w-4 mr-2" /> Criar Área Agora
+               <Plus className="h-4 w-4 mr-2" /> {t("minhaArea.createAreaNow")}
             </Button>
          </div>
       ) : (
@@ -124,7 +126,7 @@ export default function MinhaAreaPage() {
                   className="rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 font-bold h-12 px-8"
               >
                 {loadingMore && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
-                {loadingMore ? "CARREGANDO..." : "CARREGAR MAIS ÁREAS"}
+                {loadingMore ? t("minhaArea.loadingMore") : t("minhaArea.loadMoreAreas")}
               </Button>
             </div>
           )}
@@ -135,6 +137,7 @@ export default function MinhaAreaPage() {
 }
 
 function AreaCard({ area, onClick }: { area: TeacherArea, onClick: () => void }) {
+  const { t } = useTranslation();
   return (
     <div 
       onClick={onClick}
@@ -151,9 +154,9 @@ function AreaCard({ area, onClick }: { area: TeacherArea, onClick: () => void })
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
         <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-white/90 backdrop-blur-sm px-3 py-1 text-[9px] font-black uppercase tracking-widest shadow-sm">
            {area.is_private ? (
-               <><Lock className="h-3 w-3 text-amber-500" /><span className="text-amber-600">Privada</span></>
+               <><Lock className="h-3 w-3 text-amber-500" /><span className="text-amber-600">{t("minhaArea.private")}</span></>
            ) : (
-               <><Globe className="h-3 w-3 text-indigo-500" /><span className="text-indigo-600">Pública</span></>
+               <><Globe className="h-3 w-3 text-indigo-500" /><span className="text-indigo-600">{t("minhaArea.public")}</span></>
            )}
         </div>
       </div>
@@ -170,10 +173,10 @@ function AreaCard({ area, onClick }: { area: TeacherArea, onClick: () => void })
 
         <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
            <span className="text-xs font-black tracking-tighter text-slate-700">
-             {area.monthly_price === 0 ? "GRÁTIS" : `R$ ${area.monthly_price.toFixed(2)} /mês`}
+             {area.monthly_price === 0 ? t("minhaArea.free") : t("minhaArea.pricePerMonth", { price: area.monthly_price.toFixed(2) })}
            </span>
            <div className="flex items-center gap-1.5 text-slate-400 group-hover:text-indigo-500 transition-colors">
-              <span className="text-[10px] font-bold uppercase tracking-widest">Editar</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest">{t("minhaArea.edit")}</span>
               <Settings className="h-3.5 w-3.5" />
            </div>
         </div>

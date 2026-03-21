@@ -1,23 +1,41 @@
-import { Suspense } from 'react';
-import { SmartStepper } from '@/components/onboarding/SmartStepper';
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export default function OnboardingPage() {
+  const router = useRouter();
+  const { t } = useTranslation();
+
+  useEffect(() => {
+    // Simular carregamento inicial
+    const timer = setTimeout(() => {
+      router.push("/dashboard");
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [router]);
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-3xl">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl mb-4 text-slate-900">
-            Bem-vindo à Digital <span className="text-slate-600">Class</span>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4 animate-in fade-in duration-700">
+      <div className="text-center space-y-6 max-w-md">
+        <div className="space-y-2">
+          <h1 className="text-4xl font-bold tracking-tight text-foreground">
+            {t("onboarding.welcome")}
           </h1>
-          <p className="text-slate-600 text-lg">
-            Personalize sua experiência para começarmos.
+          <p className="text-lg text-muted-foreground">
+            {t("onboarding.subtitle")}
           </p>
         </div>
 
-        {/* Mantenha o Suspense aqui */}
-        <Suspense fallback={<div className="flex justify-center p-10 text-slate-500">Iniciando configuração...</div>}>
-          <SmartStepper />
-        </Suspense>
+        <div className="flex flex-col items-center gap-4 py-8">
+          <Loader2 className="h-10 w-10 text-primary animate-spin" />
+          <p className="text-sm font-medium text-muted-foreground animate-pulse">
+            {t("onboarding.loading")}
+          </p>
+        </div>
       </div>
     </div>
   );

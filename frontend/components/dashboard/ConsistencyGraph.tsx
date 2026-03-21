@@ -4,9 +4,12 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { apiGet } from "@/lib/api";
 
+import { useTranslation } from "@/hooks/useTranslation";
+
 const colors = ["bg-[#E6E0F8]", "bg-[#D1FAE5]", "bg-[#34D399]", "bg-[#10B981]", "bg-[#059669]"];
 
 export function ConsistencyGraph() {
+  const { t } = useTranslation();
   const [data, setData] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -19,7 +22,7 @@ export function ConsistencyGraph() {
 
   return (
     <div className="rounded-2xl border border-[#E6E0F8] bg-white p-6 shadow-sm">
-      <h3 className="text-lg font-bold text-[#1A1A1A] mb-6">Consistência</h3>
+      <h3 className="text-lg font-bold text-[#1A1A1A] mb-6">{t("dashboard.consistency")}</h3>
       <div className="flex gap-1.5 overflow-x-auto pb-2">
         {loading ? (
           // Skeleton loader
@@ -44,13 +47,13 @@ export function ConsistencyGraph() {
         )}
       </div>
       <div className="flex items-center gap-2 mt-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-        <span>Menos</span>
+        <span>{t("dashboard.less")}</span>
         <div className="flex gap-1">
           {colors.map((c) => (
             <div key={c} className={cn("w-3 h-3 rounded-sm", c)} />
           ))}
         </div>
-        <span>Mais</span>
+        <span>{t("dashboard.more")}</span>
       </div>
     </div>
   );

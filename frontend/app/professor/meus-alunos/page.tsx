@@ -21,6 +21,7 @@ import {
   X,
   User,
 } from "lucide-react";
+import { useTranslation } from "@/hooks/useTranslation";
 import { apiGet, apiPatch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -49,6 +50,7 @@ interface TeacherProfile {
 }
 
 export default function MeusAlunosPage() {
+  const { t } = useTranslation();
   const [data, setData] = useState<StudentsData | null>(null);
   const [profile, setProfile] = useState<TeacherProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -128,9 +130,9 @@ export default function MeusAlunosPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <UsersRound className="h-7 w-7 text-indigo-600" />
-            Gestão de Alunos
+            {t("meusAlunos.title") || "Gestão de Alunos"}
           </h1>
-          <p className="text-sm text-slate-500 mt-1 ml-9">Acompanhe seu crescimento e faturamento em tempo real.</p>
+          <p className="text-sm text-slate-500 mt-1 ml-9">{t("meusAlunos.subtitle") || "Acompanhe seu crescimento e faturamento em tempo real."}</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -139,7 +141,7 @@ export default function MeusAlunosPage() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nome..."
+              placeholder={t("meusAlunos.searchPlaceholder") || "Buscar por nome..."}
               className="h-10 w-64 rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all shadow-sm"
             />
           </div>
@@ -153,30 +155,30 @@ export default function MeusAlunosPage() {
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           icon={UsersRound}
-          label="Total de Alunos"
+          label={t("meusAlunos.totalStudents") || "Total de Alunos"}
           value={String(data?.active_count ?? 0)}
-          subValue="+12% que mês passado"
+          subValue={t("meusAlunos.vsLastMonth") || "+12% que mês passado"}
           color="indigo"
         />
         <MetricCard
           icon={DollarSign}
-          label="MRR (Mensal)"
+          label={t("meusAlunos.mrr") || "MRR (Mensal)"}
           value={`R$ ${(data?.monthly_revenue ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-          subValue="Estimativa atual"
+          subValue={t("meusAlunos.currentEstimate") || "Estimativa atual"}
           color="emerald"
-          badge="Estimado"
+          badge={t("meusAlunos.estimatedBadge") || "Estimado"}
         />
         <MetricCard
           icon={TrendingUp}
-          label="Faturamento Total"
+          label={t("meusAlunos.totalRevenue") || "Faturamento Total"}
           value={`R$ ${(data?.total_revenue ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-          subValue="Acumulado histórico"
+          subValue={t("meusAlunos.historicalAccumulated") || "Acumulado histórico"}
           color="purple"
-          badge="Estimado"
+          badge={t("meusAlunos.estimatedBadge") || "Estimado"}
         />
         <MetricCard
           icon={Calendar}
-          label="Novas Matrículas"
+          label={t("meusAlunos.newEnrollments") || "Novas Matrículas"}
           value={String(
             filtered.filter((s) => {
               const d = new Date(s.subscribed_at);
@@ -184,7 +186,7 @@ export default function MeusAlunosPage() {
               return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
             }).length
           )}
-          subValue="Nos últimos 30 dias"
+          subValue={t("meusAlunos.last30Days") || "Nos últimos 30 dias"}
           color="amber"
         />
       </div>
@@ -195,13 +197,13 @@ export default function MeusAlunosPage() {
           <AlertCircle className="h-5 w-5 text-indigo-600" />
         </div>
         <div className="flex-1">
-          <p className="text-sm text-indigo-900 font-semibold leading-none">Módulo de Pagamento Digital Class</p>
+          <p className="text-sm text-indigo-900 font-semibold leading-none">{t("meusAlunos.paymentModuleTitle") || "Módulo de Pagamento Digital Class"}</p>
           <p className="text-xs text-indigo-700/70 mt-1">
-            Os dados acima são baseados na sua configuração de precificação. Em breve teremos repasses de forma automática, por enquanto entre em contato com o suporte para realizar o saque.
+            {t("meusAlunos.paymentModuleDesc") || "Os dados acima são baseados na sua configuração de precificação. Em breve teremos repasses de forma automática, por enquanto entre em contato com o suporte para realizar o saque."}
           </p>
         </div>
         <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-indigo-200">
-          Saber mais
+          {t("meusAlunos.learnMore") || "Saber mais"}
         </button>
       </div>
 
@@ -209,7 +211,7 @@ export default function MeusAlunosPage() {
       <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
           <h2 className="font-bold text-slate-800 tracking-tight">
-            Base de Alunos <span className="ml-2 text-xs font-medium px-2 py-0.5 bg-slate-200 text-slate-600 rounded-full">{filtered.length}</span>
+            {t("meusAlunos.studentBase") || "Base de Alunos"} <span className="ml-2 text-xs font-medium px-2 py-0.5 bg-slate-200 text-slate-600 rounded-full">{filtered.length}</span>
           </h2>
         </div>
 
@@ -223,7 +225,7 @@ export default function MeusAlunosPage() {
                 <UsersRound className="h-10 w-10 text-slate-200" />
               </div>
               <p className="text-slate-500 font-medium">
-                {search ? "Nenhum aluno corresponde à sua busca." : "Sua base de alunos está vazia."}
+                {search ? (t("meusAlunos.emptySearch") || "Nenhum aluno corresponde à sua busca.") : (t("meusAlunos.emptyBase") || "Sua base de alunos está vazia.")}
               </p>
             </motion.div>
           ) : (
@@ -231,10 +233,10 @@ export default function MeusAlunosPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-slate-50 bg-slate-50/20 text-[11px] uppercase tracking-wider text-slate-400 font-bold">
-                    <th className="px-6 py-4">Aluno</th>
-                    <th className="px-6 py-4">Data de Ingresso</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4 text-right">Ações</th>
+                    <th className="px-6 py-4">{t("meusAlunos.thStudent") || "Aluno"}</th>
+                    <th className="px-6 py-4">{t("meusAlunos.thDate") || "Data de Ingresso"}</th>
+                    <th className="px-6 py-4">{t("meusAlunos.thStatus") || "Status"}</th>
+                    <th className="px-6 py-4 text-right">{t("meusAlunos.thActions") || "Ações"}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -256,8 +258,8 @@ export default function MeusAlunosPage() {
               <Wallet className="h-5 w-5 text-emerald-600" />
             </div>
             <div>
-              <h2 className="font-bold text-slate-800 tracking-tight">Dados de Pagamento</h2>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Informações para repasse</p>
+              <h2 className="font-bold text-slate-800 tracking-tight">{t("meusAlunos.paymentData") || "Dados de Pagamento"}</h2>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t("meusAlunos.paymentDataDesc") || "Informações para repasse"}</p>
             </div>
           </div>
           {!editingPayment && (
@@ -265,7 +267,7 @@ export default function MeusAlunosPage() {
               onClick={openPaymentEdit}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all"
             >
-              <Pencil className="h-3.5 w-3.5" /> Editar
+              <Pencil className="h-3.5 w-3.5" /> {t("meusAlunos.editBtn") || "Editar"}
             </button>
           )}
         </div>
@@ -280,21 +282,21 @@ export default function MeusAlunosPage() {
               className="p-6 space-y-5"
             >
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Nome Completo</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{t("meusAlunos.fullName") || "Nome Completo"}</label>
                 <div className="relative flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition-all">
                   <div className="pl-3 text-slate-400"><User className="h-4 w-4" /></div>
-                  <input type="text" value={editFullName} onChange={e => setEditFullName(e.target.value)} placeholder="Seu nome completo" className="w-full bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-800 outline-none" />
+                  <input type="text" value={editFullName} onChange={e => setEditFullName(e.target.value)} placeholder={t("meusAlunos.fullName") || "Nome Completo"} className="w-full bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-800 outline-none" />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Conta Bancária (Agência + Conta)</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{t("meusAlunos.bankAccount") || "Conta Bancária (Agência + Conta)"}</label>
                 <div className="relative flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition-all">
                   <div className="pl-3 text-slate-400"><Building className="h-4 w-4" /></div>
                   <input type="text" value={editConta} onChange={e => setEditConta(e.target.value)} placeholder="Ex: Ag 0001 Cc 1234567-8" className="w-full bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-800 outline-none" />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Chave PIX Principal</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{t("meusAlunos.pixKey") || "Chave PIX Principal"}</label>
                 <div className="relative flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-2xl p-1.5 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10 transition-all">
                   <div className="pl-3 text-slate-400"><Copy className="h-4 w-4" /></div>
                   <input type="text" value={editPix} onChange={e => setEditPix(e.target.value)} placeholder="E-mail, CPF ou Celular" className="w-full bg-transparent px-2 py-1.5 text-sm font-semibold text-slate-800 outline-none" />
@@ -302,7 +304,7 @@ export default function MeusAlunosPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Dia do Repasse</label>
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{t("meusAlunos.transferDay") || "Dia do Repasse"}</label>
                   <div className="relative">
                     <select value={editDia} onChange={e => setEditDia(Number(e.target.value))} className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all cursor-pointer">
                       <option value={5}>Dia 5</option>
@@ -313,7 +315,7 @@ export default function MeusAlunosPage() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Preferência</label>
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">{t("meusAlunos.preference") || "Preferência"}</label>
                   <div className="relative">
                     <select value={editPref} onChange={e => setEditPref(e.target.value)} className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all cursor-pointer">
                       <option value="pix">PIX</option>
@@ -332,14 +334,14 @@ export default function MeusAlunosPage() {
                   onClick={() => setEditingPayment(false)}
                   className="flex-1 h-12 rounded-xl font-bold border-slate-200"
                 >
-                  <X className="h-4 w-4 mr-2" /> Cancelar
+                  <X className="h-4 w-4 mr-2" /> {t("meusAlunos.cancel") || "Cancelar"}
                 </Button>
                 <Button
                   onClick={savePaymentDetails}
                   disabled={savingPayment}
                   className="flex-1 h-12 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20"
                 >
-                  {savingPayment ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Check className="h-4 w-4 mr-2" /> Salvar Alterações</>}
+                  {savingPayment ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Check className="h-4 w-4 mr-2" /> {t("meusAlunos.saveChanges") || "Salvar Alterações"}</>}
                 </Button>
               </div>
             </motion.div>
@@ -354,16 +356,16 @@ export default function MeusAlunosPage() {
               {!profile?.conta_bancaria && !profile?.chave_pix ? (
                 <div className="py-8 text-center">
                   <Wallet className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-                  <p className="text-sm font-bold text-slate-400">Nenhum dado de pagamento cadastrado</p>
-                  <p className="text-xs text-slate-400 mt-1">Clique em "Editar" para configurar seus dados bancários.</p>
+                  <p className="text-sm font-bold text-slate-400">{t("meusAlunos.noPaymentData") || "Nenhum dado de pagamento cadastrado"}</p>
+                  <p className="text-xs text-slate-400 mt-1">{t("meusAlunos.noPaymentDataDesc") || 'Clique em "Editar" para configurar seus dados bancários.'}</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <PaymentField icon={User} label="Nome Completo" value={profile?.full_name} />
-                  <PaymentField icon={Building} label="Conta Bancária" value={profile?.conta_bancaria} />
-                  <PaymentField icon={Copy} label="Chave PIX" value={profile?.chave_pix} />
-                  <PaymentField icon={Calendar} label="Dia do Repasse" value={profile?.dia_repasse ? `Dia ${profile.dia_repasse}` : null} />
-                  <PaymentField icon={Wallet} label="Preferência" value={profile?.preferencia_repasse === "transferencia_bancaria" ? "Transf. Bancária" : "PIX"} />
+                  <PaymentField icon={User} label={t("meusAlunos.fullName") || "Nome Completo"} value={profile?.full_name} />
+                  <PaymentField icon={Building} label={t("meusAlunos.bankAccount") || "Conta Bancária"} value={profile?.conta_bancaria} />
+                  <PaymentField icon={Copy} label={t("meusAlunos.pixKey") || "Chave PIX"} value={profile?.chave_pix} />
+                  <PaymentField icon={Calendar} label={t("meusAlunos.transferDay") || "Dia do Repasse"} value={profile?.dia_repasse ? `Dia ${profile.dia_repasse}` : null} />
+                  <PaymentField icon={Wallet} label={t("meusAlunos.preference") || "Preferência"} value={profile?.preferencia_repasse === "transferencia_bancaria" ? "Transf. Bancária" : "PIX"} />
                 </div>
               )}
             </motion.div>

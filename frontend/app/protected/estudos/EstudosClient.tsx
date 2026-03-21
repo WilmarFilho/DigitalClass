@@ -9,6 +9,7 @@ import { Modal } from "@/components/ui/modal";
 import { apiGet, apiPost } from "@/lib/api";
 import { Label } from "@radix-ui/react-label";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface Subject {
   id: string;
@@ -34,6 +35,7 @@ interface CalendarEvent {
 
 export function EstudosClient() {
   const router = useRouter();
+  const { t, lang } = useTranslation();
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [todayEvents, setTodayEvents] = useState<CalendarEvent[]>([]);
@@ -106,7 +108,7 @@ export function EstudosClient() {
 
   const handleStartSession = async () => {
     if (!selectedEventId) {
-      setError("Selecione um evento para iniciar a sessão");
+      setError(t("estudos.selectEventError"));
       return;
     }
     setCreating(true);
@@ -128,7 +130,7 @@ export function EstudosClient() {
       setNewSessionOpen(false);
       router.push(`/protected/estudos/sessao?sessionId=${session.id}&subjectId=${finalSubjectId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao iniciar sessão");
+      setError(err instanceof Error ? err.message : t("estudos.startSessionError"));
     } finally {
       setCreating(false);
     }
@@ -138,10 +140,10 @@ export function EstudosClient() {
     const d = new Date(iso);
     const today = new Date();
     const diff = Math.floor((today.getTime() - d.getTime()) / 86400000);
-    if (diff === 0) return "Hoje";
-    if (diff === 1) return "Ontem";
-    if (diff < 7) return `${diff} dias atrás`;
-    return d.toLocaleDateString("pt-BR", { day: "numeric", month: "short" });
+    if (diff === 0) return t("estudos.today");
+    if (diff === 1) return t("estudos.yesterday");
+    if (diff < 7) return t("estudos.daysAgo", { days: diff });
+    return d.toLocaleDateString(lang, { day: "numeric", month: "short" });
   };
 
   return (
@@ -153,9 +155,9 @@ export function EstudosClient() {
             <Brain className="h-7 w-7 text-[#6D44CC]" />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-[#1A1A1A] tracking-tight">Meus Estudos</h1>
+            <h1 className="text-2xl font-black text-[#1A1A1A] tracking-tight">{t("estudos.title")}</h1>
             <p className="text-sm font-medium text-slate-400 flex items-center gap-1.5">
-              <History className="h-3.5 w-3.5 text-[#6D44CC]" /> Últimas sessões e histórico de foco
+              <History className="h-3.5 w-3.5 text-[#6D44CC]" /> {t("estudos.subtitle")}
             </p>
           </div>
         </div>
@@ -175,7 +177,7 @@ export function EstudosClient() {
           disabled={weekEvents.length === 0}
           className="bg-[#6D44CC] hover:bg-[#5B39A8] text-white rounded-xl px-8 h-12 font-bold shadow-lg shadow-[#6D44CC]/20 transition-all hover:scale-[1.02]"
         >
-          <Plus className="h-5 w-5 mr-2" /> NOVA SESSÃO
+          <Plus className="h-5 w-5 mr-2" /> {t("estudos.newSession")}
         </Button>
       </div>
 
@@ -187,12 +189,12 @@ export function EstudosClient() {
               <AlertCircle className="h-5 w-5 text-amber-600" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-bold text-amber-900">Nenhuma matéria encontrada</p>
-              <p className="text-xs font-medium text-amber-700/80">Você precisa cadastrar disciplinas antes de começar a cronometrar seus estudos.</p>
+              <p className="text-sm font-bold text-amber-900">{t("estudos.noSubjects")}</p>
+              <p className="text-xs font-medium text-amber-700/80">{t("estudos.noSubjectsDesc")}</p>
             </div>
             <Link href="/protected/materias">
               <Button size="sm" variant="outline" className="border-amber-200 hover:bg-amber-100 text-amber-800 font-bold rounded-lg transition-colors">
-                Ir para Matérias
+                {t("estudos.goToSubjects")}
               </Button>
             </Link>
           </div>
@@ -204,7 +206,7 @@ export function EstudosClient() {
         <div className="space-y-4">
           <div className="flex items-center gap-2 px-2">
             <Calendar className="h-5 w-5 text-[#6D44CC]" />
-            <h3 className="text-sm font-black text-[#1A1A1A] uppercase tracking-[0.2em]">Planejado para Hoje</h3>
+            <h3 className="text-sm font-black text-[#1A1A1A] uppercase tracking-[0.2em]">{t("estudos.plannedToday")}</h3>
           </div>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {todayEvents.map((ev) => (
@@ -220,7 +222,7 @@ export function EstudosClient() {
                       <BookOpen className="h-5 w-5 text-[#6D44CC]" />
                     </div>
                     <span className="text-[10px] font-black text-[#6D44CC] uppercase tracking-widest bg-[#F5F3FF] px-2 py-1 rounded-md">
-                      HOJE
+                      {t("estudos.today")}
                     </span>
                   </div>
 
@@ -256,7 +258,7 @@ export function EstudosClient() {
                         ) : (
                           <Play className="h-3 w-3 mr-1.5" />
                         )}
-                        INICIAR
+                        {t("estudos.start")}
                       </Button>
                     </div>
                   </div>
@@ -271,7 +273,7 @@ export function EstudosClient() {
       <div className="space-y-4">
         <div className="flex items-center gap-2 px-2">
           <History className="h-5 w-5 text-slate-400" />
-          <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Histórico Recente</h3>
+          <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">{t("estudos.recentHistory")}</h3>
         </div>
 
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -284,9 +286,9 @@ export function EstudosClient() {
               <div className="w-16 h-16 mb-4 rounded-full bg-[#F5F3FF] flex items-center justify-center">
                 <Brain className="h-8 w-8 text-[#D1C9F0]" />
               </div>
-              <h3 className="text-lg font-bold text-[#1A1A1A] mb-2">Nenhuma sessão ainda</h3>
+              <h3 className="text-lg font-bold text-[#1A1A1A] mb-2">{t("estudos.noSessions")}</h3>
               <p className="text-sm font-medium text-slate-400 max-w-sm">
-                Seu histórico de estudos aparecerá aqui. Planeje seu primeiro estudo no calendário e clique em Iniciar!
+                {t("estudos.noSessionsDesc")}
               </p>
             </div>
           ) : (
@@ -342,7 +344,7 @@ export function EstudosClient() {
               className="rounded-xl border-[#E6E0F8] text-[#6D44CC] hover:bg-[#F5F3FF] font-bold h-12 px-8"
             >
               {loadingMore && <Loader2 className="animate-spin h-5 w-5 mr-2" />}
-              {loadingMore ? "CARREGANDO..." : "CARREGAR MAIS SESSÕES"}
+              {loadingMore ? t("estudos.loading") : t("estudos.loadMore")}
             </Button>
           </div>
         )}
@@ -352,7 +354,7 @@ export function EstudosClient() {
       <Modal
         open={newSessionOpen}
         onClose={() => setNewSessionOpen(false)}
-        title="O que vamos estudar agora?"
+        title={t("estudos.modalTitle")}
         className="max-w-md p-0 overflow-hidden"
       >
         <div className="p-8 space-y-6">
@@ -362,13 +364,13 @@ export function EstudosClient() {
               {weekEvents.length > 0 ? (
                 <div className="space-y-2 mb-4">
                   <Label className="text-[10px] font-black uppercase text-[#6D44CC] tracking-widest">
-                    Planejamento da Semana
+                    {t("estudos.weekPlanning")}
                   </Label>
                   <div className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                     {weekEvents.map((ev) => {
                       const isSelected = selectedEventId === ev.id;
                       const dateObj = new Date(ev.scheduled_date + 'T12:00:00'); // Prevent timezone shift
-                      const dateFormatted = dateObj.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }).toUpperCase();
+                      const dateFormatted = dateObj.toLocaleDateString(lang, { weekday: 'short', day: '2-digit', month: '2-digit' }).toUpperCase();
 
                       return (
                         <button
@@ -415,17 +417,17 @@ export function EstudosClient() {
               ) : (
                 <div className="py-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                   <Calendar className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                  <p className="text-sm font-bold text-slate-500">Nenhum evento planejado para esta semana</p>
-                  <p className="text-xs text-slate-400 mt-1">Crie eventos no seu calendário primeiro.</p>
+                  <p className="text-sm font-bold text-slate-500">{t("estudos.noEventsWeek")}</p>
+                  <p className="text-xs text-slate-400 mt-1">{t("estudos.createEventsFirst")}</p>
                 </div>
               )}
             </div>
 
             <div className="bg-[#F5F3FF] rounded-2xl p-4 border border-[#E6E0F8]">
               <div className="flex gap-3">
-                <div className="p-2 bg-white rounded-xl shadow-sm italic text-[#6D44CC] text-xs font-bold">Dica:</div>
+                <div className="p-2 bg-white rounded-xl shadow-sm italic text-[#6D44CC] text-xs font-bold">{t("estudos.tip")}</div>
                 <p className="text-xs text-[#6D44CC] font-medium leading-relaxed">
-                  Tente manter o foco por pelo menos 25 minutos para entrar em estado de flow.
+                  {t("estudos.tipDesc")}
                 </p>
               </div>
             </div>
@@ -435,14 +437,14 @@ export function EstudosClient() {
 
           <div className="flex gap-3 pt-2">
             <Button variant="ghost" onClick={() => setNewSessionOpen(false)} className="flex-1 h-12 rounded-xl font-bold text-slate-400">
-              DEPOIS
+              {t("estudos.later")}
             </Button>
             <Button
               onClick={handleStartSession}
               disabled={creating || !selectedEventId}
               className="flex-[2] h-12 bg-[#6D44CC] rounded-xl font-bold shadow-lg shadow-[#6D44CC]/20"
             >
-              {creating ? <Loader2 className="h-5 w-5 animate-spin" /> : "COMEÇAR AGORA"}
+              {creating ? <Loader2 className="h-5 w-5 animate-spin" /> : t("estudos.startNow")}
             </Button>
           </div>
         </div>

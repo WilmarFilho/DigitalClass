@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/contexts/RoleContext";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "@/hooks/useTranslation";
 import { TeacherBankDetailsModal } from "@/components/perfil/TeacherBankDetailsModal";
 
 interface Profile {
@@ -48,6 +49,7 @@ interface AuthUser {
 }
 
 export default function PerfilPage() {
+  const { t } = useTranslation();
   const { setRole } = useRole();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -198,9 +200,9 @@ export default function PerfilPage() {
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
           <div className="h-8 w-1.5 bg-indigo-600 rounded-full" />
-          Meu Perfil
+          {t("perfil.title")}
         </h1>
-        <p className="text-sm text-slate-500 ml-3">Gerencie suas informações e preferências de conta.</p>
+        <p className="text-sm text-slate-500 ml-3">{t("perfil.subtitle")}</p>
       </header>
 
       <div className="grid gap-8 lg:grid-cols-12">
@@ -224,7 +226,7 @@ export default function PerfilPage() {
                   ) : (
                     <>
                       <ImagePlus className="h-4 w-4" />
-                      Alterar Banner
+                      {t("perfil.changeBanner")}
                     </>
                   )}
                 </div>
@@ -295,7 +297,7 @@ export default function PerfilPage() {
                 <div className="h-10 w-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
                   <Clock className="h-5 w-5" />
                 </div>
-                <h4 className="font-bold text-slate-800 text-sm">Meta de Estudo</h4>
+                <h4 className="font-bold text-slate-800 text-sm">{t("perfil.studyGoal")}</h4>
               </div>
               <div className="flex items-center gap-2">
                 <AnimatePresence>
@@ -306,7 +308,7 @@ export default function PerfilPage() {
                       exit={{ opacity: 0, scale: 0.8 }}
                       className="flex items-center gap-1 text-emerald-600 text-xs font-bold"
                     >
-                      <CheckCircle2 className="h-3.5 w-3.5" /> Salvo
+                      <CheckCircle2 className="h-3.5 w-3.5" /> {t("perfil.saved")}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -314,7 +316,7 @@ export default function PerfilPage() {
                   <button
                     onClick={() => setEditingHours(true)}
                     className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-50"
-                    title="Editar meta"
+                    title={t("perfil.editGoal")}
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
@@ -341,8 +343,8 @@ export default function PerfilPage() {
                   className="w-full h-2 bg-slate-100 rounded-full appearance-none cursor-pointer accent-orange-500"
                 />
                 <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium">
-                  <span>1h mínimo</span>
-                  <span>12h limite</span>
+                  <span>1h {t("perfil.min")}</span>
+                  <span>12h {t("perfil.max")}</span>
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -351,7 +353,7 @@ export default function PerfilPage() {
                     onClick={() => saveHours(hoursValue)}
                     disabled={savingHours}
                   >
-                    {savingHours ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar Meta"}
+                    {savingHours ? <Loader2 className="h-4 w-4 animate-spin" /> : t("perfil.saveGoal")}
                   </Button>
                   <Button
                     size="sm"
@@ -359,7 +361,7 @@ export default function PerfilPage() {
                     className="rounded-xl font-bold text-xs"
                     onClick={() => { setEditingHours(false); setHoursValue(profile?.hours_per_day ?? 2); }}
                   >
-                    Cancelar
+                    {t("perfil.cancel")}
                   </Button>
                 </div>
               </motion.div>
@@ -373,8 +375,8 @@ export default function PerfilPage() {
                   />
                 </div>
                 <p className="text-[11px] text-slate-400 flex items-center justify-between font-medium">
-                  <span>0h sugerido</span>
-                  <span>12h limite</span>
+                  <span>0h {t("perfil.suggested")}</span>
+                  <span>12h {t("perfil.max")}</span>
                 </p>
               </div>
             )}
@@ -386,15 +388,15 @@ export default function PerfilPage() {
           <div className="rounded-3xl border border-slate-200 bg-white shadow-sm p-8">
             <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
               <Target className="h-5 w-5 text-indigo-500" />
-              Preferências Acadêmicas
+              {t("perfil.academicPrefs")}
             </h3>
 
             <div className="grid gap-8 md:grid-cols-2">
               <EditableTagList
-                label="Objetivos Atuais"
+                label={t("perfil.currentGoals")}
                 items={profile?.learning_goals ?? []}
                 colorScheme="indigo"
-                placeholder="Ex: Passar no ENEM"
+                placeholder={t("perfil.currentGoalsPlaceholder")}
                 onSave={async (items) => {
                   const updated = await apiPatch<Profile>("/profiles/me", { learning_goals: items });
                   setProfile(updated);
@@ -402,10 +404,10 @@ export default function PerfilPage() {
               />
 
               <EditableTagList
-                label="Áreas de Interesse"
+                label={t("perfil.interests")}
                 items={profile?.interests ?? []}
                 colorScheme="purple"
-                placeholder="Ex: Física Quântica"
+                placeholder={t("perfil.interestsPlaceholder")}
                 onSave={async (items) => {
                   const updated = await apiPatch<Profile>("/profiles/me", { interests: items });
                   setProfile(updated);
@@ -420,12 +422,10 @@ export default function PerfilPage() {
               <div className="max-w-md">
                 <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                   <ArrowLeftRight className="h-5 w-5 text-slate-400" />
-                  Modo de Acesso
+                  {t("perfil.accessMode")}
                 </h3>
                 <p className="text-sm text-slate-500 mt-2 leading-relaxed">
-                  Sua conta é híbrida. Você pode alternar sua visão entre
-                  <strong className="text-slate-700"> Mentor</strong> e
-                  <strong className="text-slate-700"> Aluno</strong> instantaneamente.
+                  {t("perfil.accessModeDesc")}
                 </p>
               </div>
 
@@ -442,11 +442,11 @@ export default function PerfilPage() {
                     <motion.div key="loading" exit={{ opacity: 0 }}><Loader2 className="h-5 w-5 animate-spin" /></motion.div>
                   ) : switched ? (
                     <motion.div key="done" initial={{ y: 20 }} animate={{ y: 0 }} className="flex items-center gap-2">
-                      <CheckCircle2 className="h-5 w-5" /> Perfil Atualizado
+                      <CheckCircle2 className="h-5 w-5" /> {t("perfil.profileUpdated")}
                     </motion.div>
                   ) : (
                     <motion.div key="idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2">
-                      Alternar
+                      {t("perfil.switch")}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -457,14 +457,14 @@ export default function PerfilPage() {
               <RoleSelectorCard
                 active={profile?.role === "student"}
                 type="student"
-                title="Visão Aluno"
-                desc="Consuma conteúdos, responda quizzes e acompanhe seu progresso."
+                title={t("perfil.studentVision")}
+                desc={t("perfil.studentVisionDesc")}
               />
               <RoleSelectorCard
                 active={profile?.role === "teacher"}
                 type="teacher"
-                title="Visão Professor"
-                desc="Crie módulos, gerencie alunos e analise métricas de ensino."
+                title={t("perfil.teacherVision")}
+                desc={t("perfil.teacherVisionDesc")}
               />
             </div>
           </div>
@@ -484,6 +484,7 @@ export default function PerfilPage() {
 // Subcomponentes auxiliares para organização e limpeza do código
 
 function BadgeRole({ role }: { role: string }) {
+  const { t } = useTranslation();
   const isTeacher = role === "teacher";
   return (
     <div className={cn(
@@ -491,7 +492,7 @@ function BadgeRole({ role }: { role: string }) {
       isTeacher ? "bg-emerald-50 border-emerald-100 text-emerald-700" : "bg-indigo-50 border-indigo-100 text-indigo-700"
     )}>
       {isTeacher ? <GraduationCap className="h-3.5 w-3.5" /> : <BookOpen className="h-3.5 w-3.5" />}
-      {isTeacher ? "Professor" : "Estudante"}
+      {isTeacher ? t("sidebar.professor") : t("sidebar.estudante")}
     </div>
   );
 }
@@ -525,6 +526,7 @@ function EditableTagList({ label, items, colorScheme, placeholder, onSave }: {
   placeholder: string;
   onSave: (items: string[]) => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [localItems, setLocalItems] = useState<string[]>(items);
   const [newTag, setNewTag] = useState("");
@@ -628,7 +630,7 @@ function EditableTagList({ label, items, colorScheme, placeholder, onSave }: {
               onClick={handleSave}
               disabled={saving}
             >
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Confirmar Alterações"}
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t("perfil.confirmChanges")}
             </Button>
             <Button
               size="sm"
@@ -639,7 +641,7 @@ function EditableTagList({ label, items, colorScheme, placeholder, onSave }: {
                 setNewTag("");
               }}
             >
-              Cancelar
+              {t("perfil.cancel")}
             </Button>
           </div>
         </motion.div>
@@ -650,7 +652,7 @@ function EditableTagList({ label, items, colorScheme, placeholder, onSave }: {
               {tag}
             </span>
           )) : (
-            <EmptyTag label={colorScheme === "indigo" ? "Nenhum objetivo definido" : "Nenhum interesse listado"} />
+            <EmptyTag label={colorScheme === "indigo" ? t("perfil.noGoals") : t("perfil.noInterests")} />
           )}
         </div>
       )}

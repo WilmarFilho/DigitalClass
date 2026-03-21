@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Flashcard } from "@/components/study/Flashcard";
 import { apiGet } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface SessionDetail {
   id: string;
@@ -38,6 +39,7 @@ interface SessionDetail {
 export default function DetalheSessaoPage() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("sessionId");
+  const { t, lang } = useTranslation();
   const [detail, setDetail] = useState<SessionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,13 +49,13 @@ export default function DetalheSessaoPage() {
 
   useEffect(() => {
     if (!sessionId) {
-      setError("Sessão não encontrada");
+      setError(t("studySession.notFound"));
       setLoading(false);
       return;
     }
     apiGet<SessionDetail>("/study/sessions/" + sessionId + "/detail")
       .then(setDetail)
-      .catch(() => setError("Não foi possível carregar a sessão"))
+      .catch(() => setError(t("studySession.loadError")))
       .finally(() => setLoading(false));
   }, [sessionId]);
 
@@ -63,11 +65,11 @@ export default function DetalheSessaoPage() {
         <div className="p-4 bg-red-50 rounded-full">
           <ArrowLeft className="h-10 w-10 text-red-400" />
         </div>
-        <p className="text-slate-600 font-medium">{error ?? "Sessão não encontrada"}</p>
+        <p className="text-slate-600 font-medium">{error ?? t("studySession.notFound")}</p>
         <Button asChild className="bg-[#6D44CC] hover:bg-[#5B39A8] rounded-xl px-8">
           <Link href="/protected/estudos">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Voltar para Estudos
+            {t("studySession.backToStudies")}
           </Link>
         </Button>
       </div>
@@ -78,23 +80,23 @@ export default function DetalheSessaoPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-[#FAFAFE] gap-4">
         <Loader2 className="h-12 w-12 animate-spin text-[#6D44CC]" />
-        <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Carregando detalhes...</p>
+        <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">{t("studyDetail.loading")}</p>
       </div>
     );
   }
 
   const subjectColor = detail.subjects?.color_code ?? "#6D44CC";
-  const subjectTitle = detail.subjects?.title ?? "Matéria";
+  const subjectTitle = detail.subjects?.title ?? t("studySession.quizLabel");
 
   const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString("pt-BR", {
+    new Date(iso).toLocaleDateString(lang, {
       day: "numeric",
       month: "long",
       year: "numeric",
     });
 
   const formatTime = (iso: string) =>
-    new Date(iso).toLocaleTimeString("pt-BR", {
+    new Date(iso).toLocaleTimeString(lang, {
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -121,7 +123,7 @@ export default function DetalheSessaoPage() {
               <div className="flex items-center gap-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                 <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {formatDate(detail.created_at)}</span>
                 <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {formatTime(detail.created_at)}</span>
-                <span className="text-[#6D44CC]">{detail.duration_minutes ?? 0} MINUTOS</span>
+                <span className="text-[#6D44CC]">{detail.duration_minutes ?? 0} {t("studyDetail.minutes")}</span>
               </div>
             </div>
           </div>
@@ -135,7 +137,7 @@ export default function DetalheSessaoPage() {
           <section className="space-y-4">
             <div className="flex items-center gap-2 px-2">
               <Bot className="h-5 w-5 text-[#6D44CC]" />
-              <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Mentoria IA</h3>
+              <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">{t("studyDetail.mentorship")}</h3>
             </div>
             <div className="rounded-[32px] border border-[#E6E0F8] bg-white p-6 shadow-sm space-y-6">
               {detail.chat_messages.map((msg, i) => (
@@ -150,7 +152,7 @@ export default function DetalheSessaoPage() {
                     {msg.role === "assistant" ? (
                       <Bot className="h-5 w-5 text-[#6D44CC]" />
                     ) : (
-                      <span className="text-xs font-black text-slate-400 tracking-tighter">VOCÊ</span>
+                      <span className="text-xs font-black text-slate-400 tracking-tighter">{t("studyDetail.user")}</span>
                     )}
                   </div>
                   <div className={cn(
@@ -172,7 +174,7 @@ export default function DetalheSessaoPage() {
           <section className="space-y-4">
             <div className="flex items-center gap-2 px-2">
               <Highlighter className="h-5 w-5 text-amber-500" />
-              <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Trechos Marcados</h3>
+              <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">{t("studyDetail.highlights")}</h3>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               {detail.highlights.map((highlight, index) => (
@@ -195,7 +197,7 @@ export default function DetalheSessaoPage() {
           <section className="space-y-4">
             <div className="flex items-center gap-2 px-2">
               <HelpCircle className="h-5 w-5 text-[#6D44CC]" />
-              <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Questionários</h3>
+              <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">{t("studyDetail.quizzes")}</h3>
             </div>
             <div className="space-y-3">
               {detail.quiz_batches.map((batch, bi) => (
@@ -213,8 +215,8 @@ export default function DetalheSessaoPage() {
                         <HelpCircle className="h-4 w-4 text-[#6D44CC]" />
                       </div>
                       <div>
-                        <p className="text-sm font-black text-[#1A1A1A]">Conjunto de Questões #{bi + 1}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase">{batch.length} perguntas geradas</p>
+                        <p className="text-sm font-black text-[#1A1A1A]">{t("studyDetail.quizSet", { num: bi + 1 })}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase">{t("studyDetail.questionsGenerated", { count: batch.length })}</p>
                       </div>
                     </div>
                     {expandedQuiz === bi ? <ChevronUp className="h-5 w-5 text-slate-400" /> : <ChevronDown className="h-5 w-5 text-slate-400" />}
@@ -233,7 +235,7 @@ export default function DetalheSessaoPage() {
                                 <Bot className="h-3 w-3 text-white" />
                               </div>
                               <p className="text-xs font-bold text-emerald-700">
-                                Resposta: {correctOpt ?? q.answer}
+                                {t("studyDetail.answer")}: {correctOpt ?? q.answer}
                               </p>
                             </div>
                           </div>
@@ -252,7 +254,7 @@ export default function DetalheSessaoPage() {
           <section className="space-y-4">
             <div className="flex items-center gap-2 px-2">
               <Layers className="h-5 w-5 text-[#6D44CC]" />
-              <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Flashcards Revistos</h3>
+              <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">{t("studyDetail.flashcardsReviewed")}</h3>
             </div>
             <div className="space-y-4">
               {detail.flashcard_batches.map((batch, bi) => (
@@ -270,8 +272,8 @@ export default function DetalheSessaoPage() {
                         {bi + 1}
                       </div>
                       <div>
-                        <p className="font-black text-[#1A1A1A]">Deck de Estudo</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{batch.length} cards disponíveis</p>
+                        <p className="font-black text-[#1A1A1A]">{t("studyDetail.studyDeck")}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t("studyDetail.cardsAvailable", { count: batch.length })}</p>
                       </div>
                     </div>
                     {expandedFlashcard === bi ? <ChevronUp className="h-5 w-5 text-slate-400" /> : <ChevronRight className="h-5 w-5 text-slate-400" />}
@@ -294,7 +296,7 @@ export default function DetalheSessaoPage() {
                           onClick={() => setFlashcardIndex((i) => Math.max(0, i - 1))}
                           disabled={flashcardIndex === 0}
                         >
-                          <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
+                          <ChevronLeft className="h-4 w-4 mr-1" /> {t("studyDetail.previous")}
                         </Button>
                         <div className="px-4 py-1.5 bg-slate-100 rounded-full text-[10px] font-black text-slate-500 uppercase tracking-tighter">
                           {flashcardIndex + 1} / {batch.length}
@@ -308,7 +310,7 @@ export default function DetalheSessaoPage() {
                           }
                           disabled={flashcardIndex >= batch.length - 1}
                         >
-                          Próximo <ChevronRight className="h-4 w-4 ml-1" />
+                          {t("studyDetail.next")} <ChevronRight className="h-4 w-4 ml-1" />
                         </Button>
                       </div>
                     </div>
@@ -327,9 +329,9 @@ export default function DetalheSessaoPage() {
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-[#F5F3FF]">
                 <Bot className="h-8 w-8 text-[#6D44CC]/40" />
               </div>
-              <h3 className="text-lg font-bold text-slate-800">Sessão Silenciosa</h3>
+              <h3 className="text-lg font-bold text-slate-800">{t("studyDetail.silentSession")}</h3>
               <p className="mx-auto max-w-xs text-sm font-medium text-slate-400 leading-relaxed mt-2">
-                Nesta sessão você optou por estudar sem a interação da IA. O tempo foi contabilizado com sucesso!
+                {t("studyDetail.silentSessionDesc")}
               </p>
             </div>
           )}

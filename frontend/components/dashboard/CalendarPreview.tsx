@@ -7,9 +7,7 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Play, Loade
 import { cn } from "@/lib/utils";
 import { apiGet, apiPost } from "@/lib/api";
 import { Modal } from "@/components/ui/modal";
-
-const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-const MONTHS = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface CalendarEvent {
   id: string;
@@ -23,13 +21,20 @@ const today = new Date();
 
 export function CalendarPreview() {
   const router = useRouter();
+  const { t, lang } = useTranslation();
+  const locale = lang === "en" ? "en-US" : lang === "es" ? "es-ES" : "pt-BR";
+
   const [currentDate, setCurrentDate] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [startingSessionId, setStartingSessionId] = useState<string | null>(null);
-  
-  // Modal state
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  const DAYS = Array.from({ length: 7 }, (_, i) => 
+    new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(new Date(2021, 0, 3 + i))
+  );
+
+  const MONTH_NAME = new Intl.DateTimeFormat(locale, { month: 'long' }).format(currentDate);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -57,7 +62,11 @@ export function CalendarPreview() {
   };
 
   const formatDuration = (mins: number) => {
-    if (mins >= 60) return `${Math.floor(mins / 60)}h${mins % 60 ? `${mins % 60}m` : ""}`;
+    if (mins >= 60) {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      return `${h}h${m ? `${m}m` : ""}`;
+    }
     return `${mins}min`;
   };
 
@@ -75,7 +84,7 @@ export function CalendarPreview() {
             <div className="p-2 bg-[#F5F3FF] rounded-lg">
               <CalendarIcon className="h-5 w-5 text-[#6D44CC]" />
             </div>
-            <h3 className="text-lg font-bold text-[#1A1A1A]">Calendário</h3>
+            <h3 className="text-lg font-bold text-[#1A1A1A]">{t("calendar.title")}</h3>
           </div>
           
           <div className="flex items-center justify-between min-[470px]:justify-start gap-3 bg-[#F8F7FF] p-1 rounded-xl border border-[#E6E0F8] w-full min-[470px]:w-auto">
@@ -83,7 +92,7 @@ export function CalendarPreview() {
               <ChevronLeft className="h-4 w-4" />
             </button>
             <span className="text-xs font-bold text-[#4A4A4A] min-w-[110px] text-center uppercase tracking-wider">
-              {MONTHS[month]} {year}
+              {MONTH_NAME} {year}
             </span>
             <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm transition-all text-[#6D44CC]">
               <ChevronRight className="h-4 w-4" />
@@ -150,10 +159,10 @@ export function CalendarPreview() {
         <div className="mt-8 pt-6 border-t border-[#E6E0F8]">
           <div className="flex items-center justify-between mb-4">
             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-              Eventos de Hoje
+              {t("calendar.eventsToday")}
             </h4>
             <span className="text-[10px] font-bold bg-[#E6E0F8] text-[#6D44CC] px-2 py-1 rounded-md uppercase">
-              {today.getDate()} {MONTHS[today.getMonth()].slice(0, 3)}
+              {today.getDate()} {new Intl.DateTimeFormat(locale, { month: 'short' }).format(today)}
             </span>
           </div>
 
@@ -161,7 +170,7 @@ export function CalendarPreview() {
             <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-[#6D44CC] border-t-transparent rounded-full animate-spin" /></div>
           ) : todayEvents.length === 0 ? (
             <div className="text-center py-6 bg-slate-50 rounded-2xl border border-dashed border-[#E6E0F8]">
-               <p className="text-sm text-slate-400 font-medium">Nenhum evento planejado para hoje.</p>
+             <p className="text-sm text-slate-400 font-medium">{t("calendar.noEventsToday")}</p>
             </div>
           ) : (
             <div className="grid gap-3">
@@ -176,10 +185,10 @@ export function CalendarPreview() {
                   />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-[#1A1A1A] truncate">
-                      {e.subjects?.title || "Sessão de Estudo"}
+                      {e.subjects?.title || t("calendar.studySession")}
                     </p>
                     <p className="text-[11px] font-medium text-slate-400">
-                      Duração: {formatDuration(e.duration_minutes)}
+                      {t("calendar.duration")}: {formatDuration(e.duration_minutes)}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -205,11 +214,11 @@ export function CalendarPreview() {
                       ) : (
                         <Play className="h-3 w-3" />
                       )}
-                      ESTUDAR
+                      {t("calendar.study")}
                     </button>
                     <Link href="/protected/calendario">
                       <button className="text-[10px] font-bold text-slate-400 hover:text-[#6D44CC] transition-colors uppercase tracking-wider px-2">
-                        DETALHES
+                        {t("calendar.details")}
                       </button>
                     </Link>
                   </div>
@@ -224,11 +233,11 @@ export function CalendarPreview() {
       <Modal
         open={selectedDate !== null}
         onClose={() => setSelectedDate(null)}
-        title={`Eventos do dia ${selectedDate ? selectedDate.getDate() : ''}`}
+        title={t("calendar.eventsOnDay").replace("{day}", selectedDate ? selectedDate.getDate().toString() : '')}
       >
         <div className="space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2">
           {selectedDayEvents.length === 0 ? (
-            <p className="text-center text-sm text-slate-500 italic py-4">Nenhum evento para este dia.</p>
+            <p className="text-center text-sm text-slate-500 italic py-4">{t("calendar.noEventsOnDay")}</p>
           ) : (
             selectedDayEvents.map((e) => (
               <div
@@ -241,7 +250,7 @@ export function CalendarPreview() {
                 />
                 <div className="space-y-1">
                   <h4 className="font-bold text-slate-800 leading-tight">
-                    {e.subjects?.title || "Sessão de Estudo"}
+                    {e.subjects?.title || t("calendar.studySession")}
                   </h4>
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
                     <Clock className="w-3.5 h-3.5" />
@@ -257,7 +266,7 @@ export function CalendarPreview() {
                href="/protected/calendario" 
                className="text-sm font-bold text-[#6D44CC] hover:text-[#5636a5] transition-colors"
              >
-               Ir para o calendário completo →
+               {t("calendar.goToFullCalendar")}
              </Link>
           </div>
         </div>

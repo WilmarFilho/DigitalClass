@@ -25,26 +25,23 @@ import {
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
-
-type Language = "pt-BR" | "en" | "es";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export default function ConfiguracoesPage() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const [language, setLanguage] = useState<Language>("pt-BR");
+  const { t, lang: language } = useTranslation();
 
   // Avoid hydration mismatch
   useEffect(() => {
     setMounted(true);
-    const saved = localStorage.getItem("dc-language") as Language | null;
-    if (saved) setLanguage(saved);
   }, []);
 
-  const handleLanguageChange = (lang: Language) => {
-    setLanguage(lang);
+  const handleLanguageChange = (lang: string) => {
     localStorage.setItem("dc-language", lang);
     // Update html lang attribute
     document.documentElement.lang = lang;
+    window.dispatchEvent(new Event('languageChange'));
   };
 
   const currentTheme = mounted ? theme : "system";
@@ -59,30 +56,29 @@ export default function ConfiguracoesPage() {
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
           <Settings className="h-6 w-6 text-slate-400" />
-          Configurações
+          {t("settings.title")}
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 ml-8">Ajuste suas preferências de interface e privacidade.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 ml-8">{t("settings.subtitle")}</p>
       </header>
 
       <div className="grid gap-8 lg:grid-cols-2">
         {/* Coluna Esquerda */}
         <div className="space-y-6">
-          <Section icon={Palette} title="Aparência">
+          <Section icon={Palette} title={t("settings.appearance")}>
             <div className="space-y-6">
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200">Tema do Sistema</p>
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200">{t("settings.systemTheme")}</p>
                   {mounted && resolvedTheme && (
                     <span className="inline-flex items-center rounded-lg bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-tighter">
-                      {resolvedTheme === "dark" ? "Escuro Ativo" : "Claro Ativo"}
+                      {resolvedTheme === "dark" ? `${t("settings.themeDark")} ${t("settings.themeActive")}` : `${t("settings.themeLight")} ${t("settings.themeActive")}`}
                     </span>
                   )}
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   {[
-                    { value: "light", label: "Claro", icon: Sun, colors: "bg-white border-slate-200" },
-                    { value: "dark", label: "Escuro", icon: Moon, colors: "bg-slate-900 border-slate-800" },
-                    { value: "system", label: "Sistema", icon: Monitor, colors: "bg-gradient-to-br from-white to-slate-200 border-slate-300" },
+                    { value: "light", label: t("settings.themeLight"), icon: Sun, colors: "bg-white border-slate-200" },
+                    { value: "dark", label: t("settings.themeDark"), icon: Moon, colors: "bg-slate-900 border-slate-800" },
                   ].map((item) => (
                     <button
                       key={item.value}
@@ -112,12 +108,12 @@ export default function ConfiguracoesPage() {
               </div>
 
               <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
-                <label className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 block">Idioma da Interface</label>
+                <label className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 block">{t("settings.language")}</label>
                 <div className="relative">
                   <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <select
                     value={language}
-                    onChange={(e) => handleLanguageChange(e.target.value as Language)}
+                    onChange={(e) => handleLanguageChange(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all appearance-none"
                   >
                     <option value="pt-BR">Português (Brasil)</option>
@@ -126,25 +122,25 @@ export default function ConfiguracoesPage() {
                   </select>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
-                  <Clock className="h-3 w-3" /> A mudança de idioma será aplicada gradualmente em futuras atualizações.
+                  <Clock className="h-3 w-3" /> {t("settings.langInfo")}
                 </p>
               </div>
             </div>
           </Section>
 
-          <SectionWithOverlay icon={Shield} title="Privacidade">
+          <SectionWithOverlay icon={Shield} title={t("settings.privacy")}>
             <div className="divide-y divide-slate-50 dark:divide-slate-700">
               <ToggleRow
                 icon={Eye}
-                label="Perfil Público"
-                description="Permite que outros alunos vejam seus certificados e progresso."
+                label={t("settings.publicProfile")}
+                description={t("settings.publicProfileDesc")}
                 value={true}
                 onChange={() => { }}
               />
               <ToggleRow
                 icon={EyeOff}
-                label="Dados de Aprendizado"
-                description="Compartilhar métricas anônimas com a Digital Class para melhoria da IA."
+                label={t("settings.learningData")}
+                description={t("settings.learningDataDesc")}
                 value={false}
                 onChange={() => { }}
               />
@@ -154,39 +150,39 @@ export default function ConfiguracoesPage() {
 
         {/* Coluna Direita */}
         <div className="space-y-6">
-          <SectionWithOverlay icon={Bell} title="Notificações">
+          <SectionWithOverlay icon={Bell} title={t("settings.notifications")}>
             <div className="divide-y divide-slate-50 dark:divide-slate-700">
               <ToggleRow
                 icon={Mail}
-                label="Newsletter Semanal"
-                description="Destaques da comunidade e novos cursos disponíveis."
+                label={t("settings.newsletter")}
+                description={t("settings.newsletterDesc")}
                 value={true}
                 onChange={() => { }}
               />
               <ToggleRow
                 icon={Smartphone}
-                label="Alertas Mobile"
-                description="Notificações push sobre prazos e novas mensagens."
+                label={t("settings.mobileAlerts")}
+                description={t("settings.mobileAlertsDesc")}
                 value={true}
                 onChange={() => { }}
               />
               <ToggleRow
                 icon={Volume2}
-                label="Feedback Sonoro"
-                description="Sons discretos ao completar tarefas e quizzes."
+                label={t("settings.soundFeedback")}
+                description={t("settings.soundFeedbackDesc")}
                 value={true}
                 onChange={() => { }}
               />
             </div>
           </SectionWithOverlay>
 
-          <SectionWithOverlay icon={Globe} title="Segurança & Dados">
+          <SectionWithOverlay icon={Globe} title={t("settings.security")}>
             <div className="space-y-1">
-              <LinkRow icon={Lock} label="Segurança da Conta" sublabel="Alterar senha e 2FA" />
-              <LinkRow icon={Link2} label="Contas Conectadas" sublabel="Google, GitHub ou Apple" />
-              <LinkRow icon={Download} label="Download de Dados" sublabel="Exportar histórico em JSON/CSV" />
+              <LinkRow icon={Lock} label={t("settings.accountSecurity")} sublabel={t("settings.accountSecurityDesc")} />
+              <LinkRow icon={Link2} label={t("settings.connectedAccounts")} sublabel={t("settings.connectedAccountsDesc")} />
+              <LinkRow icon={Download} label={t("settings.downloadData")} sublabel={t("settings.downloadDataDesc")} />
               <div className="pt-2">
-                <LinkRow icon={Trash2} label="Excluir Minha Conta" destructive />
+                <LinkRow icon={Trash2} label={t("settings.deleteAccount")} destructive />
               </div>
             </div>
           </SectionWithOverlay>
@@ -227,6 +223,8 @@ function Section({ icon: Icon, title, children }: { icon: any; title: string; ch
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function SectionWithOverlay({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
+  const { t } = useTranslation();
+
   return (
     <div className="relative rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 shadow-sm overflow-hidden">
       <div className="px-6 py-4 border-bottom border-slate-50 bg-slate-50/30 dark:bg-slate-800/70 flex items-center gap-2">
@@ -237,9 +235,9 @@ function SectionWithOverlay({ icon: Icon, title, children }: { icon: any; title:
       {/* Overlay "Em breve" */}
       <div className="absolute inset-0 z-10 bg-white/70 dark:bg-slate-900/70 backdrop-blur-[2px] flex flex-col items-center justify-center rounded-3xl cursor-default">
         <div className="px-5 py-2.5 rounded-2xl bg-slate-900 dark:bg-white shadow-xl">
-          <span className="text-sm font-black text-white dark:text-slate-900 uppercase tracking-widest">Em breve</span>
+          <span className="text-sm font-black text-white dark:text-slate-900 uppercase tracking-widest">{t("settings.comingSoon")}</span>
         </div>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 font-medium">Estamos trabalhando nessa funcionalidade.</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 font-medium">{t("settings.workingOnIt")}</p>
       </div>
     </div>
   );

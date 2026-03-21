@@ -6,17 +6,24 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiPost } from "@/lib/api";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface Message {
+    id: string;
     role: "assistant" | "user";
     content: string;
+    timestamp: Date;
 }
 
 export function MemberAreaChat({ teacherAreaId }: { teacherAreaId: string }) {
+    const { t } = useTranslation();
+
     const [messages, setMessages] = useState<Message[]>([
         {
+            id: "1",
             role: "assistant",
-            content: "Olá! Sou o assistente especializado desta área. Posso tirar dúvidas sobre as aulas, PDFs e vídeos subidos pelo professor. Como posso te ajudar hoje?"
+            content: t("chat.welcome"),
+            timestamp: new Date(),
         }
     ]);
     const [input, setInput] = useState("");
@@ -34,7 +41,7 @@ export function MemberAreaChat({ teacherAreaId }: { teacherAreaId: string }) {
 
         const userMsg = input;
         setInput("");
-        setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
+        setMessages((prev) => [...prev, { id: Date.now().toString(), role: "user", content: userMsg, timestamp: new Date() }]);
         setLoading(true);
 
         try {
@@ -44,9 +51,9 @@ export function MemberAreaChat({ teacherAreaId }: { teacherAreaId: string }) {
                 history: messages
             });
 
-            setMessages((prev) => [...prev, { role: "assistant", content: response.message }]);
+            setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: response.message, timestamp: new Date() }]);
         } catch (error) {
-            setMessages((prev) => [...prev, { role: "assistant", content: "Ops, tive um problema ao consultar o material do professor. Tente novamente!" }]);
+            setMessages((prev) => [...prev, { id: Date.now().toString(), role: "assistant", content: t("chat.error"), timestamp: new Date() }]);
         } finally {
             setLoading(false);
         }
@@ -61,8 +68,10 @@ export function MemberAreaChat({ teacherAreaId }: { teacherAreaId: string }) {
                         <Bot className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                        <h3 className="text-sm font-black text-slate-900 leading-none">Tutor Especialista</h3>
-                        <span className="text-[10px] font-bold text-[#6D44CC] uppercase tracking-wider">Baseado no conteúdo do curso</span>
+                        <h3 className="font-semibold text-slate-100">{t("chat.tutorTitle")}</h3>
+                        <p className="text-[10px] text-indigo-400 font-medium uppercase tracking-wider">
+                            {t("chat.tutorSubtitle")}
+                        </p>
                     </div>
                 </div>
                 <Sparkles className="h-4 w-4 text-slate-300" />
@@ -109,7 +118,7 @@ export function MemberAreaChat({ teacherAreaId }: { teacherAreaId: string }) {
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                        placeholder="Dúvida sobre a aula ou PDF..."
+                        placeholder={t("chat.placeholder")}
                         className="flex-1 w-full bg-transparent px-4 py-2 text-sm font-bold text-slate-700 outline-none placeholder:text-slate-400"
                     />
                     <Button

@@ -18,6 +18,7 @@ import {
 import { apiGet, apiPost, apiDelete } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/hooks/useTranslation";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface TeacherArea {
@@ -52,6 +53,7 @@ type Tab = "following" | "explore";
 
 export default function ProfessoresPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("following");
   const [following, setFollowing] = useState<FollowingArea[]>([]);
   const [allAreas, setAllAreas] = useState<TeacherArea[]>([]);
@@ -175,7 +177,7 @@ export default function ProfessoresPage() {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-slate-200" />
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Conectando à Comunidade</p>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">{t("professores.loading")}</p>
       </div>
     );
   }
@@ -187,11 +189,11 @@ export default function ProfessoresPage() {
         <div>
           <div className="flex items-center gap-2 mb-2">
             <div className="h-1 w-8 bg-indigo-600 rounded-full" />
-            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">Mentoria & Conteúdo</p>
+            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">{t("professores.subtitle")}</p>
           </div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
             <GraduationCap className="h-8 w-8 text-slate-900" />
-            Especialistas
+            {t("professores.title")}
           </h1>
         </div>
 
@@ -202,7 +204,7 @@ export default function ProfessoresPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar mentor ou área..."
+                placeholder={t("professores.searchPlaceholder")}
                 className="w-full rounded-2xl border-slate-200 bg-white pl-10 pr-4 py-2.5 text-xs font-bold shadow-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
               />
             </div>
@@ -211,8 +213,8 @@ export default function ProfessoresPage() {
           <div className="flex p-1.5 bg-slate-200/50 backdrop-blur-sm rounded-2xl w-fit">
             {(
               [
-                { value: "following", label: `Meus Mentores (${following.length})` },
-                { value: "explore", label: "Explorar" },
+                { value: "following", label: `${t("professores.tabFollowing")} (${following.length})` },
+                { value: "explore", label: t("professores.tabExplore") },
               ] as { value: Tab; label: string }[]
             ).map(({ value, label }) => (
               <button
@@ -247,17 +249,17 @@ export default function ProfessoresPage() {
                 <Users className="h-10 w-10 text-slate-200" />
               </div>
               <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">
-                {tab === "following" ? "Sua rede está vazia" : "Nenhum mentor encontrado"}
+                {tab === "following" ? t("professores.emptyFollowing") : t("professores.emptyExplore")}
               </h3>
               <p className="text-slate-400 text-xs mt-2 font-bold uppercase tracking-widest">
-                {tab === "following" ? "Comece a seguir especialistas para liberar conteúdos." : "Tente um termo de busca diferente."}
+                {tab === "following" ? t("professores.emptyFollowingDesc") : t("professores.emptyExploreDesc")}
               </p>
               {tab === "following" && (
                 <Button
                   onClick={() => setTab("explore")}
                   className="mt-8 bg-slate-900 hover:bg-black text-white rounded-2xl px-8 font-black text-[10px] uppercase tracking-[0.2em]"
                 >
-                  Explorar Agora <ArrowRight className="ml-2 h-4 w-4" />
+                  {t("professores.exploreNow")} <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               )}
             </div>
@@ -281,7 +283,7 @@ export default function ProfessoresPage() {
                 <div className="flex justify-center mt-10">
                   <Button variant="outline" onClick={() => loadFollowing(pageFollowing + 1)} disabled={loadingMoreFollowing} className="rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 font-bold h-12 px-8">
                     {loadingMoreFollowing && <Loader2 className="animate-spin mr-2 h-5 w-5" />}
-                    {loadingMoreFollowing ? "CARREGANDO..." : "CARREGAR MAIS"}
+                    {loadingMoreFollowing ? t("professores.loading") : t("professores.loadMore")}
                   </Button>
                 </div>
               )}
@@ -290,7 +292,7 @@ export default function ProfessoresPage() {
                 <div className="flex justify-center mt-10">
                   <Button variant="outline" onClick={() => loadExplore(pageExplore + 1, search)} disabled={loadingMoreExplore} className="rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 font-bold h-12 px-8">
                     {loadingMoreExplore && <Loader2 className="animate-spin mr-2 h-5 w-5" />}
-                    {loadingMoreExplore ? "CARREGANDO..." : "CARREGAR MAIS COMPRADAS"}
+                    {loadingMoreExplore ? t("professores.loading") : t("professores.loadMore")}
                   </Button>
                 </div>
               )}
@@ -320,6 +322,8 @@ function AreaCard({
   onSubscribe: () => void;
   onUnsubscribe: () => void;
 }) {
+  const { t } = useTranslation();
+
   const initials = area.teacher.full_name
     .split(" ")
     .slice(0, 2)
@@ -341,7 +345,7 @@ function AreaCard({
         {isFollowing && (
           <div className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full bg-white/90 backdrop-blur-sm px-3 py-1 text-[9px] font-black text-emerald-600 uppercase tracking-widest shadow-sm">
             <CheckCircle2 className="h-3 w-3" />
-            Inscrito
+            {t("professores.subscribed")}
           </div>
         )}
       </div>
@@ -383,9 +387,9 @@ function AreaCard({
           <div className="flex items-center gap-1.5 text-slate-900">
             {area.monthly_price === 0 ? null : <DollarSign className="h-3 w-3 text-slate-400" />}
             <span className="text-xs font-black tracking-tighter">
-              {area.monthly_price === 0 ? "GRÁTIS" : `R$ ${area.monthly_price.toFixed(2)}`}
+              {area.monthly_price === 0 ? t("professores.free") : `R$ ${area.monthly_price.toFixed(2)}`}
             </span>
-            {area.monthly_price === 0 ? null : <span className="text-[9px] font-bold text-slate-400 uppercase">/mês</span>}
+            {area.monthly_price === 0 ? null : <span className="text-[9px] font-bold text-slate-400 uppercase">/{t("professores.month")}</span>}
           </div>
         </div>
 
@@ -398,7 +402,7 @@ function AreaCard({
                 onClick={onOpen}
               >
                 <BookOpen className="h-3.5 w-3.5 mr-2" />
-                Aulas
+                {t("professores.lessons")}
               </Button>
               <Button
                 size="sm"
@@ -422,7 +426,7 @@ function AreaCard({
               ) : (
                 <>
                   <Star className="h-3.5 w-3.5 mr-2 fill-current" />
-                  Assinar Acesso
+                  {t("professores.subscribe")}
                 </>
               )}
             </Button>

@@ -6,6 +6,7 @@ import { HelpCircle, Check, X, Loader2, History, ChevronDown, ChevronUp, Trophy 
 import { Button } from "@/components/ui/button";
 import { apiGet, apiPost } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface QuizQuestion {
   id?: string;
@@ -20,6 +21,7 @@ interface QuizPanelProps {
 }
 
 export function QuizPanel({ sessionId, subjectColor = "#6D44CC" }: QuizPanelProps) {
+  const { t } = useTranslation();
   const [batches, setBatches] = useState<QuizQuestion[][]>([]);
   const [currentBatch, setCurrentBatch] = useState<QuizQuestion[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -132,10 +134,10 @@ export function QuizPanel({ sessionId, subjectColor = "#6D44CC" }: QuizPanelProp
           </div>
           <div>
             <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest">
-              Questionários
+              {t("study.quizTitle")}
             </h3>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-              Avaliação de Performance
+              {t("study.quizSubtitle")}
             </p>
           </div>
         </div>
@@ -158,7 +160,7 @@ export function QuizPanel({ sessionId, subjectColor = "#6D44CC" }: QuizPanelProp
             >
               <span className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
                 <History className="h-3.5 w-3.5" />
-                Histórico ({batches.length})
+                {t("study.quizHistory", { count: batches.length })}
               </span>
               {expandedBatch === 0 ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
             </button>
@@ -178,7 +180,7 @@ export function QuizPanel({ sessionId, subjectColor = "#6D44CC" }: QuizPanelProp
                         onClick={() => handleRevisar(batch)}
                         className="text-left px-3 py-2 rounded-lg text-[11px] font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors bg-white border border-slate-100 shadow-sm"
                       >
-                        Quiz #{i + 1} • {batch.length} questões
+                        {t("study.quizSet", { number: i + 1, count: batch.length })}
                       </button>
                     ))}
                   </div>
@@ -195,11 +197,11 @@ export function QuizPanel({ sessionId, subjectColor = "#6D44CC" }: QuizPanelProp
               <Trophy className="h-12 w-12 text-slate-200" />
             </div>
             <div>
-              <p className="text-sm font-black text-slate-800 uppercase tracking-tight">Pronto para o desafio?</p>
-              <p className="text-xs text-slate-400 mt-1 max-w-[220px]">Gere questões personalizadas baseadas no seu estudo.</p>
+              <p className="text-sm font-black text-slate-800 uppercase tracking-tight">{t("study.quizEmpty")}</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-[220px]">{t("study.quizEmptyDesc")}</p>
             </div>
             <Button onClick={handleGenerate} className="bg-slate-900 hover:bg-black text-white rounded-xl px-8 font-bold text-xs uppercase tracking-widest shadow-lg">
-              Gerar Questionário
+              {t("study.quizGenerate")}
             </Button>
           </div>
         )}
@@ -207,7 +209,7 @@ export function QuizPanel({ sessionId, subjectColor = "#6D44CC" }: QuizPanelProp
         {loading && (
           <div className="flex h-40 flex-col items-center justify-center gap-3">
             <Loader2 className="h-10 w-10 animate-spin text-slate-200" />
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Compilando questões...</p>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t("study.quizCreating")}</p>
           </div>
         )}
 
@@ -221,7 +223,7 @@ export function QuizPanel({ sessionId, subjectColor = "#6D44CC" }: QuizPanelProp
               className="space-y-6"
             >
               <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
-                <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-2 block">Pergunta {currentIndex + 1}</span>
+                <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-2 block">{t("study.quizQuestion", { number: currentIndex + 1 })}</span>
                 <p className="text-base font-bold text-slate-800 leading-snug">{current.question}</p>
               </div>
 
@@ -273,7 +275,7 @@ export function QuizPanel({ sessionId, subjectColor = "#6D44CC" }: QuizPanelProp
                     onClick={handleNext} 
                     className="w-full py-7 rounded-2xl bg-slate-900 hover:bg-black text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl"
                   >
-                    {isLast ? "Finalizar Quiz" : "Próxima Questão"}
+                    {isLast ? t("study.quizFinish") : t("study.quizNext")}
                   </Button>
                 </motion.div>
               )}
@@ -296,11 +298,11 @@ export function QuizPanel({ sessionId, subjectColor = "#6D44CC" }: QuizPanelProp
         {!loading && !current && hasContent && (
           <div className="flex flex-col items-center gap-4 py-6">
              <div className="text-center mb-4">
-                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Resultado Final</p>
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{t("study.quizResult")}</p>
                 <p className="text-3xl font-black text-slate-900">{correctCount} / {batches[batches.length-1]?.length || 0}</p>
              </div>
             <Button onClick={handleGenerate} variant="outline" className="rounded-xl border-2 font-bold text-xs uppercase tracking-widest py-6 px-8">
-              Novo Questionário
+              {t("study.quizNew")}
             </Button>
           </div>
         )}

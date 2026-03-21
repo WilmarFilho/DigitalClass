@@ -7,11 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useState } from "react";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export function ForgotPasswordForm({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<"div">) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -29,8 +31,8 @@ export function ForgotPasswordForm({
       });
       if (error) throw error;
       setSuccess(true);
-    } catch (error: unknown) {
-      setError(error instanceof Error ? error.message : "Ocorreu um erro.");
+    } catch (error: any) {
+      setError(error instanceof Error ? error.message : t("auth.signUpError"));
     } finally {
       setIsLoading(false);
     }
@@ -40,15 +42,15 @@ export function ForgotPasswordForm({
     return (
       <div className={cn("flex flex-col gap-4 md:gap-8", className)} {...props}>
         <div className="flex flex-col gap-1 md:gap-2">
-          <h2 className="text-xl md:text-3xl font-bold tracking-tight text-gray-900">Verifique seu e-mail</h2>
+          <h2 className="text-xl md:text-3xl font-bold tracking-tight text-gray-900">{t("auth.checkEmailTitle")}</h2>
           <p className="text-xs md:text-sm text-gray-500">
-            Instruções para redefinir a senha foram enviadas.
+            {t("auth.checkEmailSubtitle")}
           </p>
         </div>
 
         <div className="bg-[#E6E0F8] rounded-lg p-4 md:p-6">
           <p className="text-xs md:text-sm text-[#6D44CC] font-semibold">
-            📧 Se você se cadastrou com e-mail e senha, receberá um link para redefinir sua senha.
+            {t("auth.checkEmailInfo")}
           </p>
         </div>
 
@@ -56,7 +58,7 @@ export function ForgotPasswordForm({
           href="/auth"
           className="inline-flex items-center justify-center w-full h-10 md:h-12 bg-[#6D44CC] hover:bg-[#5a38a8] text-white font-bold text-sm md:text-base rounded-md transition-all"
         >
-          Voltar ao Login
+          {t("auth.backToLogin")}
         </Link>
       </div>
     );
@@ -65,21 +67,21 @@ export function ForgotPasswordForm({
   return (
     <div className={cn("flex flex-col gap-4 md:gap-8", className)} {...props}>
       <div className="flex flex-col gap-1 md:gap-2">
-        <h2 className="text-xl md:text-3xl font-bold tracking-tight text-gray-900">Redefinir senha</h2>
+        <h2 className="text-xl md:text-3xl font-bold tracking-tight text-gray-900">{t("auth.resetPasswordTitle")}</h2>
         <p className="text-xs md:text-sm text-gray-500">
-          Digite seu e-mail e enviaremos um link para redefinir sua senha.
+          {t("auth.resetPasswordSubtitle")}
         </p>
       </div>
 
       <form onSubmit={handleForgotPassword} className="space-y-3 md:space-y-5">
         <div className="space-y-2">
           <Label htmlFor="email" className="text-xs uppercase font-bold text-gray-400 tracking-wider">
-            Endereço de E-mail
+            {t("auth.emailLabel")}
           </Label>
           <Input
             id="email"
             type="email"
-            placeholder="nome@exemplo.com"
+            placeholder={t("auth.emailPlaceholder")}
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -94,14 +96,14 @@ export function ForgotPasswordForm({
           disabled={isLoading}
           className="w-full h-10 md:h-12 bg-[#6D44CC] hover:bg-[#5a38a8] text-white font-bold text-sm md:text-base rounded-md transition-all"
         >
-          {isLoading ? "Enviando..." : "Enviar link de redefinição"}
+          {isLoading ? t("auth.sending") : t("auth.sendResetLink")}
         </Button>
       </form>
 
       <p className="text-center text-xs md:text-sm text-gray-500">
-        Já tem uma conta?{" "}
+        {t("auth.alreadyHaveAccount")}{" "}
         <Link href="/auth" className="text-[#F38B4B] font-bold hover:underline">
-          Entrar
+          {t("auth.loginButton")}
         </Link>
       </p>
     </div>
