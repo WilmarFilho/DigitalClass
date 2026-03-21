@@ -8,9 +8,22 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
+import { AiService } from './ai.service';
 import { StripeService } from '../stripe/stripe.service';
 import { CreateTeacherAreaDto } from './dto/create-teacher-area.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
+import * as ffmpeg from 'fluent-ffmpeg';
+import * as streamifier from 'streamifier';
+import { Readable, PassThrough } from 'stream';
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+
+
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 export const LESSONS_BUCKET = 'lessons';
 
@@ -25,6 +38,7 @@ export class TeachersService {
 
   constructor(
     private readonly supabaseService: SupabaseService,
+    private readonly aiService: AiService,
     private readonly stripeService: StripeService,
     private readonly configService: ConfigService,
   ) { }
@@ -43,6 +57,37 @@ export class TeachersService {
       return 'O recurso solicitado não foi encontrado no armazenamento.';
     }
     return msg;
+  }
+
+
+
+  private async extractAudioFromBuffer(buffer: Buffer): Promise<Buffer> {
+    const ffmpeg = require('fluent-ffmpeg');
+    const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+    ffmpeg.setFfmpegPath(ffmpegPath);
+
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'video-'));
+    const inputPath = path.join(tempDir, 'input.mp4');
+    const outputPath = path.join(tempDir, 'output.mp3');
+
+    fs.writeFileSync(inputPath, buffer);
+
+    return new Promise((resolve, reject) => {
+      ffmpeg(inputPath)
+        .audioCodec('libmp3lame')
+        .audioBitrate(48)
+        .noVideo()
+        .save(outputPath)
+        .on('end', () => {
+          const audioBuffer = fs.readFileSync(outputPath);
+
+          // limpa tudo
+          fs.rmSync(tempDir, { recursive: true, force: true });
+
+          resolve(audioBuffer);
+        })
+        .on('error', reject);
+    });
   }
 
   private async assertTeacher(userId: string) {
@@ -667,6 +712,7 @@ export class TeachersService {
     const ext = originalName.split('.').pop() ?? 'bin';
     const path = `${teacherId}/${lessonId}.${ext}`;
 
+    // 1. Upload para o Storage
     const { data: uploadData, error: uploadError } = await this.supabase()
       .storage
       .from(LESSONS_BUCKET)
@@ -680,8 +726,9 @@ export class TeachersService {
       .getPublicUrl(uploadData.path);
 
     const publicUrl = urlData.publicUrl;
-
     const fileType = mimeType.startsWith('video') ? 'video' : 'pdf';
+
+    // 2. Atualiza a URL no banco imediatamente
     const { data, error } = await this.supabase()
       .from('lessons')
       .update({ content_url: publicUrl, type: fileType })
@@ -690,8 +737,130 @@ export class TeachersService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
+
+    this.processFileContent(lessonId, fileBuffer, fileType).catch(err =>
+      this.logger.error(`Erro no processamento background da aula ${lessonId}: ${err.message}`)
+    );
+
     return data;
   }
+
+  private async processFileContent(lessonId: string, buffer: Buffer, type: 'video' | 'pdf') {
+    if (type === 'pdf') {
+      await this.extractPdfText(lessonId, buffer);
+    } else if (type === 'video') {
+      await this.transcribeVideo(lessonId, buffer);
+    }
+  }
+
+  private async extractPdfText(lessonId: string, buffer: Buffer) {
+
+    try {
+
+      const pdfParse = require('pdf-parse');
+
+      const data = await pdfParse(buffer, {
+        max: 0, // sem limite de páginas
+        version: 'v1.10.100', // força versão estável do pdf.js
+      });
+
+      const { error } = await this.supabase()
+        .from('lessons')
+        .update({ content_text: data.text || '' })
+        .eq('id', lessonId);
+
+      if (error) throw error;
+
+      this.logger.log(`Texto extraído com sucesso do PDF da aula ${lessonId}`);
+    } catch (err) {
+      this.logger.error(
+        `Falha ao extrair PDF ${lessonId}: ${err.message}`,
+      );
+    }
+  }
+
+  private async splitAudio(buffer: Buffer): Promise<Buffer[]> {
+    const ffmpeg = require('fluent-ffmpeg');
+    const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+    ffmpeg.setFfmpegPath(ffmpegPath);
+
+    // 📁 cria pasta temporária
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'audio-'));
+    const inputPath = path.join(tempDir, 'input.mp3');
+
+    // 💾 salva o buffer como arquivo
+    fs.writeFileSync(inputPath, buffer);
+
+    return new Promise((resolve, reject) => {
+      ffmpeg(inputPath)
+        .output(path.join(tempDir, 'chunk-%03d.mp3'))
+        .audioCodec('libmp3lame')
+        .audioBitrate(48) // 🔥 menor = mais leve
+        .outputOptions([
+          '-f segment',
+          '-segment_time 300',
+          '-reset_timestamps 1'
+        ])
+        .on('end', () => {
+          const files = fs.readdirSync(tempDir)
+            .filter(f => f.startsWith('chunk-'))
+            .sort();
+
+          const buffers = files.map(file =>
+            fs.readFileSync(path.join(tempDir, file))
+          );
+
+          // 🧹 limpa arquivos depois
+          fs.rmSync(tempDir, { recursive: true, force: true });
+
+          resolve(buffers);
+        })
+        .on('error', reject)
+        .run();
+    });
+  }
+
+
+  private async transcribeChunks(buffers: Buffer[]): Promise<string> {
+    let finalText = '';
+
+    for (let i = 0; i < buffers.length; i++) {
+      this.logger.log(`Transcrevendo parte ${i + 1}/${buffers.length}`);
+
+      const text = await this.aiService.generateTranscription(buffers[i]);
+
+      finalText += text + '\n';
+    }
+
+    return finalText;
+  }
+
+  private async transcribeVideo(lessonId: string, videoBuffer: Buffer) {
+    try {
+      this.logger.log(`Extraindo áudio...`);
+
+      const audioBuffer = await this.extractAudioFromBuffer(videoBuffer);
+
+      this.logger.log(`Dividindo áudio...`);
+
+      const chunks = await this.splitAudio(audioBuffer);
+
+      this.logger.log(`Total de partes: ${chunks.length}`);
+
+      const transcription = await this.transcribeChunks(chunks);
+
+      await this.supabase()
+        .from('lessons')
+        .update({ transcription })
+        .eq('id', lessonId);
+
+      this.logger.log(`Transcrição finalizada`);
+    } catch (err) {
+      this.logger.error(`Erro ao transcrever vídeo: ${err.message}`);
+    }
+  }
+
+
 
   async uploadAreaBanner(
     teacherId: string,

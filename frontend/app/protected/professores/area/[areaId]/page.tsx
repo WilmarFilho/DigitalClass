@@ -19,6 +19,7 @@ import { apiGet } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { MemberAreaChat } from "@/components/teacher/MemberAreaChat";
 
 interface TeacherArea {
   id: string;
@@ -75,7 +76,7 @@ export default function TeacherAreaPage() {
   const [area, setArea] = useState<TeacherArea | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
-  const [activeTab, setActiveTab] = useState<"curriculum" | "notices">("curriculum");
+  const [activeTab, setActiveTab] = useState<"curriculum" | "notices" | "chat">("curriculum");
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -279,12 +280,16 @@ export default function TeacherAreaPage() {
                 )}
               </button>
             </div>
-            <Link
-              href="/protected/professores"
-              className="hidden sm:inline-flex text-indigo-600 font-medium hover:underline"
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm transition-all",
+                activeTab === 'chat' ? "bg-[#6D44CC] text-white shadow-lg" : "text-slate-500 hover:bg-slate-50"
+              )}
             >
-              Ver outros professores
-            </Link>
+              <MessageSquare className="h-5 w-5" />
+              Tire suas Dúvidas
+            </button>
           </div>
 
           {activeTab === "curriculum" ? (
@@ -379,7 +384,7 @@ export default function TeacherAreaPage() {
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     `}</style>
             </div>
-          ) : (
+          ) : activeTab === "notices" ? (
 
             <div className="flex-1 overflow-y-auto bg-[#F8FAFC]">
               <div className="max-w-5xl mx-auto p-6 md:p-10 space-y-10">
@@ -470,7 +475,16 @@ export default function TeacherAreaPage() {
               </div>
             </div>
 
+          ) : activeTab === 'chat' && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className=" mx-auto w-full"
+            >
+              <MemberAreaChat teacherAreaId={areaId} />
+            </motion.div>
           )}
+
         </div>
       </main>
     </div>
