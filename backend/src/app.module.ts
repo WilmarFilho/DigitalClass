@@ -10,6 +10,7 @@ import { StudyModule } from './study/study.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { TeachersModule } from './teachers/teachers.module';
 import { StripeModule } from './stripe/stripe.module';
+import { CommunityModule } from './community/community.module';
 import { SupabaseStrategy } from './auth/strategies/supabase.strategy';
 
 @Module({
@@ -23,6 +24,7 @@ import { SupabaseStrategy } from './auth/strategies/supabase.strategy';
     DashboardModule,
     TeachersModule,
     StripeModule,
+    CommunityModule,
   ],
   controllers: [AppController],
   providers: [AppService, SupabaseStrategy],

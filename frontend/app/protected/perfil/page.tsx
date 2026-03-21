@@ -17,6 +17,9 @@ import {
   Pencil,
   Plus,
   X,
+  Users,
+  UserCheck,
+  FileText,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { apiGet, apiPost, apiPatch, apiUpload } from "@/lib/api";
@@ -48,6 +51,12 @@ interface AuthUser {
   avatar_url: string | null;
 }
 
+interface TeacherStats {
+  follower_count: number;
+  subscriber_count: number;
+  post_count: number;
+}
+
 export default function PerfilPage() {
   const { t } = useTranslation();
   const { setRole } = useRole();
@@ -56,6 +65,7 @@ export default function PerfilPage() {
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
   const [switched, setSwitched] = useState(false);
+  const [teacherStats, setTeacherStats] = useState<TeacherStats | null>(null);
   const [isBankModalOpen, setIsBankModalOpen] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
@@ -84,6 +94,19 @@ export default function PerfilPage() {
         const p = await apiGet<Profile>("/profiles/me");
         setProfile(p);
         setHoursValue(p?.hours_per_day ?? 2);
+
+        if (p?.role === "teacher" && p.id) {
+          Promise.all([
+            apiGet<any>(`/community/teachers/${p.id}/profile`).catch(() => null),
+            apiGet<any>("/teachers/my-students").catch(() => null),
+          ]).then(([communityProfile, studentsData]) => {
+            setTeacherStats({
+              follower_count: communityProfile?.follower_count ?? 0,
+              subscriber_count: studentsData?.active_count ?? 0,
+              post_count: communityProfile?.post_count ?? 0,
+            });
+          });
+        }
       } catch (err) {
         console.error("Erro ao carregar perfil", err);
       } finally {
@@ -287,6 +310,33 @@ export default function PerfilPage() {
                   {profile?.id?.slice(0, 8)}
                 </div>
               </div>
+
+              {/* Stats do professor */}
+              {profile?.role === "teacher" && (
+                <div className="mt-6 grid grid-cols-3 divide-x divide-slate-100 rounded-2xl border border-slate-100 bg-slate-50/60 overflow-hidden">
+                  <TeacherStatItem
+                    icon={Users}
+                    value={teacherStats?.follower_count ?? "—"}
+                    label="Seguidores"
+                    color="text-[#6D44CC]"
+                    bg="bg-[#E6E0F8]/50"
+                  />
+                  <TeacherStatItem
+                    icon={UserCheck}
+                    value={teacherStats?.subscriber_count ?? "—"}
+                    label="Assinantes"
+                    color="text-emerald-600"
+                    bg="bg-emerald-50"
+                  />
+                  <TeacherStatItem
+                    icon={FileText}
+                    value={teacherStats?.post_count ?? "—"}
+                    label="Posts"
+                    color="text-orange-500"
+                    bg="bg-orange-50"
+                  />
+                </div>
+              )}
             </div>
           </div>
 
@@ -662,6 +712,34 @@ function EditableTagList({ label, items, colorScheme, placeholder, onSave }: {
 
 function EmptyTag({ label }: { label: string }) {
   return <span className="text-xs text-slate-400 italic font-medium bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">{label}</span>;
+}
+
+function TeacherStatItem({
+  icon: Icon,
+  value,
+  label,
+  color,
+  bg,
+}: {
+  icon: React.ElementType;
+  value: number | string;
+  label: string;
+  color: string;
+  bg: string;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-1.5 py-4 px-2">
+      <div className={cn("h-8 w-8 rounded-xl flex items-center justify-center", bg)}>
+        <Icon className={cn("h-4 w-4", color)} />
+      </div>
+      <span className="text-lg font-black text-slate-900 leading-none">
+        {value === "—" ? <span className="text-slate-300 text-base">—</span> : value}
+      </span>
+      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center leading-tight">
+        {label}
+      </span>
+    </div>
+  );
 }
 
 function ProfileSkeleton() {

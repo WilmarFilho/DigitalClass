@@ -16,7 +16,9 @@ import {
   MonitorPlay,
   Menu,
   X,
-  UsersRound
+  UsersRound,
+  Rss,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRole } from "@/contexts/RoleContext";
@@ -25,15 +27,17 @@ import { motion, AnimatePresence } from "framer-motion";
 
 const studentNav = [
   { href: "/protected", icon: LayoutDashboard, labelKey: "sidebar.dashboard", fallback: "Dashboard", newTab: false },
+  { href: "/protected/feed", icon: Rss, labelKey: "sidebar.meuFeed", fallback: "Meu Feed", newTab: false },
   { href: "/protected/calendario", icon: Calendar, labelKey: "sidebar.calendario", fallback: "Calendário", newTab: false },
   { href: "/protected/materias", icon: BookOpen, labelKey: "sidebar.materias", fallback: "Minhas Matérias", newTab: false },
   { href: "/protected/estudos", icon: Brain, labelKey: "sidebar.estudos", fallback: "Meus Estudos", newTab: false },
-  { href: "/protected/professores", icon: GraduationCap, labelKey: "sidebar.professores", fallback: "Meus Professores", newTab: false },
+  { href: "/protected/professores", icon: GraduationCap, labelKey: "sidebar.professores", fallback: "Professores", newTab: false },
 ];
 
 const teacherNav = [
   { href: "/protected", icon: LayoutDashboard, labelKey: "sidebar.dashboard", fallback: "Dashboard", newTab: false },
   { href: "/professor/minha-area", icon: MonitorPlay, labelKey: "sidebar.minhaArea", fallback: "Minhas Áreas", newTab: false },
+  { href: "/professor/comunidade", icon: Users, labelKey: "sidebar.minhaComunidade", fallback: "Minha Comunidade", newTab: false },
   { href: "/professor/meus-alunos", icon: UsersRound, labelKey: "sidebar.meusAlunos", fallback: "Meus Alunos", newTab: false },
 ];
 
