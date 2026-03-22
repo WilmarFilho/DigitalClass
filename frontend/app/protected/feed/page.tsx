@@ -345,7 +345,7 @@ function ClipsTab({ currentUserId }: { currentUserId: string }) {
   );
 
   return (
-    <div ref={sectionRef} className="-mx-6 md:-mx-10 mt-2 relative">
+    <div ref={sectionRef} className="-mx-6 md:-mx-10 mt-[4em] relative">
       {/* Desktop: grid layout */}
       <div className="hidden md:grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 px-6 md:px-10">
         {clips.map((clip, i) => (
@@ -359,14 +359,14 @@ function ClipsTab({ currentUserId }: { currentUserId: string }) {
       <div
         ref={containerRef}
         className="md:hidden overflow-y-scroll snap-y snap-mandatory"
-        style={{ height: "calc(100dvh - 64px)" }}
+        style={{ height: "calc(95dvh - 64px)" }}
       >
         {clips.map((clip, i) => (
           <div
             key={clip.id}
             data-index={String(i)}
             className="relative w-full snap-start snap-always"
-            style={{ height: "calc(100dvh - 64px)" }}
+            style={{ height: "calc(95dvh - 64px)" }}
           >
             <ClipPlayer clip={clip} currentUserId={currentUserId} isActive={activeIndex === i} />
           </div>
