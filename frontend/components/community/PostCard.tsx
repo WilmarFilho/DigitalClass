@@ -50,7 +50,6 @@ export function PostCard({ post, currentUserId, onDelete, showDeleteButton, show
   const [commentCount, setCommentCount] = useState(post.comment_count);
   const [showComments, setShowComments] = useState(false);
 
-  console.log(post)
   const [deleting, setDeleting] = useState(false);
 
   const handleLike = async () => {

@@ -171,14 +171,11 @@ export function SmartStepper() {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
 
-    console.log("[ONBOARDING] handleSubmit - session:", !!session, "token length:", token?.length ?? 0);
     if (token) {
       try {
         const parts = token.split(".");
         const payload = parts[1] ? JSON.parse(atob(parts[1])) : null;
-        console.log("[ONBOARDING] JWT payload:", { sub: payload?.sub, exp: payload?.exp, alg: JSON.parse(atob(parts[0]))?.alg });
       } catch {
-        console.log("[ONBOARDING] Could not decode JWT");
       }
     }
 
@@ -192,7 +189,6 @@ export function SmartStepper() {
 
     try {
       const basePath = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      console.log("[ONBOARDING] POST", `${basePath}/profiles`);
       const res = await fetch(`${basePath}/profiles`, {
         method: "POST",
         headers: {
@@ -212,11 +208,10 @@ export function SmartStepper() {
         router.push("/protected");
       } else {
         const data = await res.json().catch(() => ({}));
-        console.log("[ONBOARDING] API error:", res.status, data);
         const msg = Array.isArray(data.message) ? data.message[0] : data.message;
         setError(msg || t("onboarding.errorGeneric"));
       }
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       setError(t("onboarding.errorConnection"));
     } finally {
@@ -249,9 +244,8 @@ export function SmartStepper() {
         {Array.from({ length: maxStep + 1 }, (_, i) => (
           <div
             key={i}
-            className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-              i <= step ? "bg-slate-800" : "bg-slate-200"
-            }`}
+            className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= step ? "bg-slate-800" : "bg-slate-200"
+              }`}
           />
         ))}
       </div>
@@ -305,11 +299,10 @@ export function SmartStepper() {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setRole(id)}
-                    className={`relative p-6 rounded-xl border-2 transition-all flex flex-col items-center gap-4 text-left ${
-                      role === id
-                        ? "border-slate-800 bg-slate-50 shadow-md"
-                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
-                    }`}
+                    className={`relative p-6 rounded-xl border-2 transition-all flex flex-col items-center gap-4 text-left ${role === id
+                      ? "border-slate-800 bg-slate-50 shadow-md"
+                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
+                      }`}
                   >
                     {role === id && (
                       <motion.div
@@ -321,9 +314,8 @@ export function SmartStepper() {
                       </motion.div>
                     )}
                     <Icon
-                      className={`w-12 h-12 ${
-                        role === id ? "text-slate-800" : "text-slate-400"
-                      }`}
+                      className={`w-12 h-12 ${role === id ? "text-slate-800" : "text-slate-400"
+                        }`}
                     />
                     <div className="text-center">
                       <h3 className="font-semibold text-lg text-slate-900">{title}</h3>
@@ -487,11 +479,10 @@ export function SmartStepper() {
                       key={h}
                       type="button"
                       onClick={() => setHours(String(h))}
-                      className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                        hours === String(h)
-                          ? "bg-slate-800 text-white shadow-md"
-                          : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                      }`}
+                      className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${hours === String(h)
+                        ? "bg-slate-800 text-white shadow-md"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        }`}
                     >
                       {h}{t("onboarding.hoursUnit")}
                     </button>

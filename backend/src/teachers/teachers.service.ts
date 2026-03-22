@@ -1307,7 +1307,6 @@ export class TeachersService {
   }
 
   private async assertCanAccessLesson(userId: string, lessonId: string) {
-    console.log('lessonId AAAAAAaaa', lessonId);
     const { data: lesson } = await this.supabase()
       .from('lessons')
       .select('area_id, module_id')
@@ -1316,7 +1315,6 @@ export class TeachersService {
     if (!lesson) throw new NotFoundException('Aula não encontrada');
     let areaId = lesson.area_id;
     if (!areaId && lesson.module_id) {
-      console.log('lesson.module_id', lesson.module_id);
       const { data: mod } = await this.supabase()
         .from('teacher_area_modules')
         .select('section_id')

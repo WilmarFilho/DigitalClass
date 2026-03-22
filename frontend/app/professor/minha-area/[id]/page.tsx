@@ -505,7 +505,6 @@ export default function EditAreaPage() {
     try {
       const updatedArea = await apiPost<TeacherArea>(`/teachers/my-areas/${areaId}/ai-sync`, {});
       setArea(updatedArea);
-      console.log("Base de conhecimento atualizada!");
     } catch (error) {
       console.error("Falha na sincronização");
     } finally {

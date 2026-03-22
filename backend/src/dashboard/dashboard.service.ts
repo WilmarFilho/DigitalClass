@@ -5,7 +5,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
 
-  constructor(private readonly supabaseService: SupabaseService) {}
+  constructor(private readonly supabaseService: SupabaseService) { }
 
   async getStats(userId: string) {
     const supabase = this.supabaseService.getClient();
@@ -189,9 +189,6 @@ export class DashboardService {
     if (swsError) {
       this.logger.error(`getLastAssets - error fetching sessions with subject_id: ${swsError.message}`);
     }
-
-
-    console.log('aaa', sessionsWithSubjectId);
 
     // Busca nomes das matérias
     const subjectIds = [...new Set((sessionsWithSubjectId ?? []).map((s) => s.subject_id).filter(Boolean))] as string[];

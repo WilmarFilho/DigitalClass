@@ -73,7 +73,6 @@ export default function MeusAlunosPage() {
     ]).then(([studentsData, profileData]) => {
       setData(studentsData);
       setProfile(profileData);
-      console.log(profileData);
     }).finally(() => setLoading(false));
   }, []);
 

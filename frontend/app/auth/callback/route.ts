@@ -13,10 +13,6 @@ export async function GET(request: Request) {
   const protocol = "https";
   const origin = `${protocol}://${host}`;
 
-  console.log('--- AUTH CALLBACK INICIADO ---');
-  console.log('Origin Corrigida:', origin);
-  console.log('Code presente:', !!code);
-
   if (!code) {
     console.error('Erro: Código ausente no callback');
     return NextResponse.redirect(`${origin}/auth`);
@@ -48,7 +44,6 @@ export async function GET(request: Request) {
       }
     );
 
-    console.log('Trocando código por sessão...');
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
     if (exchangeError) {
@@ -59,7 +54,6 @@ export async function GET(request: Request) {
       );
     }
 
-    console.log('Sessão estabelecida. Buscando usuário...');
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) {
@@ -67,12 +61,9 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${origin}/auth/error?error=no_user_found`);
     }
 
-    console.log('Usuário ID:', user.id);
-
     // Lógica de redirecionamento baseada no perfil
     let redirectTo = "/onboarding";
 
-    console.log('Buscando perfil no banco...');
     const { data: profile, error: dbError } = await supabase
       .from("profiles")
       .select("role")
@@ -84,13 +75,8 @@ export async function GET(request: Request) {
     }
 
     if (profile?.role) {
-      console.log('Perfil encontrado, role:', profile.role);
       redirectTo = "/protected";
-    } else {
-      console.log('Perfil não encontrado ou sem role, seguindo para onboarding');
     }
-
-    console.log('Finalizando: Redirecionando para', `${origin}${redirectTo}`);
 
     // IMPORTANTE: Use a URL absoluta com a origin corrigida
     return NextResponse.redirect(`${origin}${redirectTo}`);
