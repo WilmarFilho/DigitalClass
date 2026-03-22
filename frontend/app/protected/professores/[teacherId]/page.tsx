@@ -78,7 +78,7 @@ export default function TeacherPublicPage() {
     try {
       const { data } = await apiGet<any>(`/community/teachers/${teacherId}/areas?limit=20`);
       setAreas(data ?? []);
-    } catch {}
+    } catch { }
   }
 
   async function loadPosts() {
@@ -148,7 +148,7 @@ export default function TeacherPublicPage() {
           )}
         </div>
 
-        <div className="px-6 pb-6">
+        <div className="px-6 pb-6 relative">
           {/* Avatar + actions row */}
           <div className="flex items-end justify-between -mt-8 mb-4">
             <div className="h-16 w-16 rounded-2xl border-4 border-white dark:border-slate-900 bg-[#6D44CC] flex items-center justify-center text-white font-bold text-xl overflow-hidden shadow-lg">
@@ -180,7 +180,7 @@ export default function TeacherPublicPage() {
           <h1 className="text-xl font-bold text-[#1A1A1A] dark:text-white">{profile.full_name}</h1>
 
           {/* Stats */}
-          <div className="flex items-center gap-6 mt-3">
+          <div className="flex flex-col min-[431px]:flex-row items-start min-[431px]:items-center gap-4 min-[431px]:gap-6 mt-3">
             <Stat value={profile.follower_count} label="seguidores" icon={Users} />
             <Stat value={profile.area_count} label="áreas" icon={BookOpen} />
             <Stat value={profile.post_count} label="posts" icon={FileText} />
@@ -231,7 +231,7 @@ export default function TeacherPublicPage() {
           ) : (
             <div className="space-y-6">
               {posts.map((post) => (
-                <PostCard key={post.id} post={post} currentUserId={currentUserId} />
+                <PostCard key={post.id} post={post} currentUserId={currentUserId} showMoreVisible={false} />
               ))}
             </div>
           )}
