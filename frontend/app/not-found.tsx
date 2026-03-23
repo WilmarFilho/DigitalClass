@@ -13,7 +13,7 @@ export default function NotFound() {
       <p className="text-muted-foreground mb-8">
         {t("notFound.description")}
       </p>
-      <Link href="/login">
+      <Link href="/auth/login">
         <Button>{t("notFound.backToLogin")}</Button>
       </Link>
     </div>
