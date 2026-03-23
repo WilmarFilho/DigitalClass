@@ -12,7 +12,7 @@ export default function OnboardingPage() {
   useEffect(() => {
     // Simular carregamento inicial
     const timer = setTimeout(() => {
-      router.push("/dashboard");
+      router.push("/protected");
     }, 2000);
 
     return () => clearTimeout(timer);
