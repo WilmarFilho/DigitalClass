@@ -22,8 +22,12 @@ async function ProtectedLayoutContent({
     .eq("id", user.id)
     .maybeSingle();
 
-  const userName = profile?.full_name;
-  const userRole = (profile?.role as "student" | "teacher") ?? "student";
+  if (!profile || !profile.role) {
+    redirect("/onboarding");
+  }
+
+  const userName = profile.full_name;
+  const userRole = profile.role as "student" | "teacher";
 
   // Delay bruto para visualizar a animação do loader (remover em produção)
   await new Promise((r) => setTimeout(r, 1500));
