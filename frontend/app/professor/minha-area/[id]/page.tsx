@@ -298,7 +298,7 @@ export default function EditAreaPage() {
       setModuleModal(null);
       setModuleForm({ title: "", description: "" });
     } catch (e: any) {
-      setError(e.message || t("minhaAreaEdit.errorCreateModule"));
+      setError(e.message || t("https://replit.com/agent4.errorCreateModule"));
     } finally {
       setSavingModule(false);
     }
