@@ -45,12 +45,21 @@ export class AwsService {
   async uploadToS3(bucketType: 'input' | 'output', key: string, fileBuffer: Buffer, mimeType: string): Promise<string> {
     const bucket = bucketType === 'input' ? this.inputBucket : this.outputBucket;
     
-    await this.s3Client.send(new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: fileBuffer,
-      ContentType: mimeType,
-    }));
+    this.logger.log(`Iniciando S3 PutObject para o bucket [${bucket}] com chave [${key}]. Tamanho do arquivo: ${fileBuffer.length} bytes...`);
+    const start = Date.now();
+
+    try {
+      await this.s3Client.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: fileBuffer,
+        ContentType: mimeType,
+      }));
+      this.logger.log(`Upload S3 concluído em ${Date.now() - start}ms.`);
+    } catch (e: any) {
+      this.logger.error(`Falha no upload para o S3: ${e.message}`, e.stack);
+      throw e;
+    }
 
     return `https://${this.cloudFrontDomain}/${key}`;
   }
@@ -131,9 +140,12 @@ export class AwsService {
     };
 
     try {
+      this.logger.log(`Enviando CreateJobCommand para MediaConvert (Input: ${inputUrl}, Output: ${outputUrl})...`);
+      const start = Date.now();
       await this.mediaConvertClient.send(new CreateJobCommand(params as any));
+      this.logger.log(`MediaConvert Job criado com sucesso em ${Date.now() - start}ms.`);
     } catch (e: any) {
-      this.logger.error(`MediaConvert Job Failed: ${e.message}`);
+      this.logger.error(`MediaConvert Job Failed: ${e.message}`, e.stack);
       throw e;
     }
   }

@@ -925,6 +925,7 @@ export class TeachersService {
     let publicUrl: string;
 
     try {
+      this.logger.log(`[uploadLessonFile] Início do processamento AWS para ${originalName}. isVideo: ${isVideo}, MIME: ${mimeType}`);
       if (isVideo) {
         await this.awsService.uploadToS3('input', s3Key, fileBuffer, mimeType);
         
@@ -932,15 +933,19 @@ export class TeachersService {
         await this.awsService.startMediaConvertJob(s3Key, outputPrefix);
         
         publicUrl = this.awsService.getCloudFrontUrl(`${outputPrefix}_720p.m3u8`);
+        this.logger.log(`[uploadLessonFile] URL do MediaConvert gerada: ${publicUrl}`);
       } else {
         publicUrl = await this.awsService.uploadToS3('output', s3Key, fileBuffer, mimeType);
+        this.logger.log(`[uploadLessonFile] URL S3 gerada diretamente: ${publicUrl}`);
       }
     } catch (e: any) {
+      this.logger.error(`[uploadLessonFile] Falha no fluxo AWS (S3/MediaConvert): ${e.message}`, e.stack);
       throw new BadRequestException(`Upload AWS falhou: ${e.message}`);
     }
 
     const fileType = isVideo ? 'video' : 'pdf';
 
+    this.logger.debug(`[uploadLessonFile] Atualizando registro no Supabase: id=${lessonId}, publicUrl=${publicUrl}`);
     // Atualiza a URL no banco imediatamente
     const { data, error } = await this.supabase()
       .from('lessons')
@@ -1530,17 +1535,20 @@ export class TeachersService {
     const timeBasedPrefix = `materials/${lessonId}/${Date.now()}`;
     const s3Key = isVideo ? `${timeBasedPrefix}.${ext}` : `${timeBasedPrefix}-${sanitizedName}`;
 
-    this.logger.log(`Subindo arquivo ${originalName} (MIME: ${mimeType}) pro AWS S3...`);
+    this.logger.log(`[uploadLessonMaterial] Subindo arquivo ${originalName} (MIME: ${mimeType}) pro AWS S3...`);
     try {
       if (isVideo) {
         // Send to Input Bucket
+        this.logger.debug(`[uploadLessonMaterial] Enviando vídeo para S3 input bucket s3Key=${s3Key}`);
         await this.awsService.uploadToS3('input', s3Key, fileBuffer, mimeType);
         
         // Start MediaConvert
         const outputPrefix = `${timeBasedPrefix}`;
+        this.logger.debug(`[uploadLessonMaterial] Disparando MediaConvert job outputPrefix=${outputPrefix}`);
         await this.awsService.startMediaConvertJob(s3Key, outputPrefix);
         
         const expectedHlsUrl = this.awsService.getCloudFrontUrl(`${outputPrefix}_720p.m3u8`);
+        this.logger.debug(`[uploadLessonMaterial] Sucesso. Registrando no banco URL: ${expectedHlsUrl}`);
         
         return this.createLessonMaterial(teacherId, lessonId, {
           type: materialType,
@@ -1550,8 +1558,10 @@ export class TeachersService {
 
       } else {
         // Send directly to Output Bucket so it can be served via CloudFront
+        this.logger.debug(`[uploadLessonMaterial] Enviando arquivo estático s3Key=${s3Key} para S3 output bucket`);
         const directUrl = await this.awsService.uploadToS3('output', s3Key, fileBuffer, mimeType);
         
+        this.logger.debug(`[uploadLessonMaterial] Registrando no banco URL: ${directUrl}`);
         return this.createLessonMaterial(teacherId, lessonId, {
           type: materialType,
           title: originalName,
@@ -1559,6 +1569,7 @@ export class TeachersService {
         });
       }
     } catch (e: any) {
+      this.logger.error(`[uploadLessonMaterial] AWS falhou: ${e.message}`, e.stack);
       throw new BadRequestException(`Upload AWS falhou: ${e.message}`);
     }
   }
