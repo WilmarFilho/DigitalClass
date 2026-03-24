@@ -52,6 +52,14 @@ export class StripeWebhookController {
           await this.handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
           break;
 
+        case 'checkout.session.async_payment_succeeded':
+          await this.handleAsyncPaymentSucceeded(event.data.object as Stripe.Checkout.Session);
+          break;
+
+        case 'checkout.session.async_payment_failed':
+          await this.handleAsyncPaymentFailed(event.data.object as Stripe.Checkout.Session);
+          break;
+
         case 'invoice.payment_failed':
           await this.handlePaymentFailed(event.data.object as Stripe.Invoice);
           break;
@@ -83,13 +91,53 @@ export class StripeWebhookController {
       return;
     }
 
+    // Para pagamentos assíncronos (boleto), o payment_status será 'unpaid'.
+    // Nesse caso, NÃO ativamos a inscrição agora — aguardamos o evento async_payment_succeeded.
+    if (session.payment_status !== 'paid') {
+      this.logger.log(
+        `Checkout completed mas payment_status="${session.payment_status}" (aguardando compensação). student=${studentId}, area=${areaId}`,
+      );
+      return;
+    }
+
+    await this.activateSubscription(studentId, areaId, subscriptionId, paymentIntentId);
+  }
+
+  private async handleAsyncPaymentSucceeded(session: Stripe.Checkout.Session) {
+    const studentId = session.metadata?.student_id;
+    const areaId = session.metadata?.area_id;
+    const paymentIntentId = session.payment_intent as string;
+
+    if (!studentId || !areaId) {
+      this.logger.warn('async_payment_succeeded missing metadata (student_id, area_id)');
+      return;
+    }
+
+    this.logger.log(`Boleto/Pix compensado! Ativando acesso: student=${studentId}, area=${areaId}`);
+    await this.activateSubscription(studentId, areaId, null, paymentIntentId);
+  }
+
+  private async handleAsyncPaymentFailed(session: Stripe.Checkout.Session) {
+    const studentId = session.metadata?.student_id;
+    const areaId = session.metadata?.area_id;
+
+    this.logger.warn(
+      `Pagamento assíncrono falhou (boleto expirado ou recusado). student=${studentId}, area=${areaId}`,
+    );
+  }
+
+  private async activateSubscription(
+    studentId: string,
+    areaId: string,
+    subscriptionId: string | null,
+    paymentIntentId: string | null,
+  ) {
     const isOneTime = !subscriptionId;
 
     this.logger.log(
-      `Checkout completed: student=${studentId}, area=${areaId}, sub=${subscriptionId || 'one_time'}, pi=${paymentIntentId || 'none'}`,
+      `Ativando acesso: student=${studentId}, area=${areaId}, sub=${subscriptionId || 'one_time'}, pi=${paymentIntentId || 'none'}`,
     );
 
-    // Upsert the teacher_subscriptions record
     const { error } = await this.supabase()
       .from('teacher_subscriptions')
       .upsert(

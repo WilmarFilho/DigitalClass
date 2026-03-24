@@ -123,17 +123,19 @@ export class StripeService {
       metadata: params.metadata,
     };
 
+    console.log('sessionParams', sessionParams);
+
     if (params.mode === 'subscription') {
       sessionParams.subscription_data = {
         metadata: params.metadata,
       };
     } else {
-      sessionParams.payment_method_types = ['card', 'pix', 'boleto'];
-      sessionParams.payment_method_options = {
-        pix: {
-          expires_after_seconds: 3600,
-        },
-      };
+      sessionParams.currency = 'brl';
+
+      // 2. Tente usar 'payment_method_configuration' se o array direto falhar
+      // Mas o padrão para sua conta Connect deve ser este:
+      sessionParams.payment_method_types = ['card', 'boleto'];
+
       sessionParams.payment_intent_data = {
         metadata: params.metadata,
       };

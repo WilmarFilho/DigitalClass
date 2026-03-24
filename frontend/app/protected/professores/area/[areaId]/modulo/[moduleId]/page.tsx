@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import Hls from "hls.js";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -172,22 +171,24 @@ export default function ModulePlayerPage() {
   const currentLesson = module?.lessons.find(l => l.id === selectedLessonId);
 
   useEffect(() => {
-    let hls: Hls | null = null;
+    let hls: any = null;
     const video = videoRef.current;
 
     if (!video || !currentLesson?.content_url) return;
 
     if (currentLesson.type === "video") {
       const url = currentLesson.content_url;
-      
+
       if (url.includes('.m3u8')) {
-        if (Hls.isSupported()) {
-          hls = new Hls();
-          hls.loadSource(url);
-          hls.attachMedia(video);
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          video.src = url;
-        }
+        import('hls.js').then(({ default: Hls }) => {
+          if (Hls.isSupported()) {
+            hls = new Hls();
+            hls.loadSource(url);
+            hls.attachMedia(video);
+          } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = url;
+          }
+        });
       } else {
         video.src = url;
       }

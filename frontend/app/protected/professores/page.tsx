@@ -140,8 +140,10 @@ export default function ProfessoresPage() {
     setSubscribing(area.id);
     try {
       if (area.monthly_price > 0) {
+
         // Paid area → redirect to Stripe Checkout
         const result = await apiPost<{ url: string }>(`/teachers/areas/${area.id}/checkout`, {});
+
         if (result.url) {
           window.location.href = result.url;
           return;

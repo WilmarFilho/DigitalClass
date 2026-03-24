@@ -521,12 +521,15 @@ export class TeachersService {
   // ─── Stripe Checkout ───────────────────────────────────────────────────────
 
   async createCheckoutSession(studentId: string, studentEmail: string, areaId: string) {
+
     // 1. Get the area and its Stripe price
     const { data: area } = await this.supabase()
       .from('teacher_areas')
       .select('id, title, stripe_price_id, monthly_price, payment_model')
       .eq('id', areaId)
       .maybeSingle();
+
+    console.log('area', area);
 
     if (!area) throw new NotFoundException('Área não encontrada');
     if (!area.stripe_price_id) {
@@ -535,6 +538,8 @@ export class TeachersService {
     if (Number(area.monthly_price) <= 0) {
       throw new ForbiddenException('Esta área é gratuita. Use o endpoint de subscribe.');
     }
+
+
 
     // 2. Check if student already subscribed
     const { data: existingSub } = await this.supabase()
@@ -547,6 +552,8 @@ export class TeachersService {
     if (existingSub?.subscription_status === 'active') {
       throw new ForbiddenException('Você já possui uma assinatura ativa nesta área.');
     }
+
+
 
     // 3. Get or create Stripe customer (email from JWT, name from profiles)
     const { data: profile } = await this.supabase()
@@ -917,7 +924,7 @@ export class TeachersService {
 
     const isVideo = mimeType.startsWith('video');
     const ext = originalName.split('.').pop() ?? (isVideo ? 'mp4' : 'bin');
-    
+
     // Base prefix
     const timeBasedPrefix = `lessons/${teacherId}/${lessonId}-${Date.now()}`;
     const s3Key = isVideo ? `${timeBasedPrefix}.${ext}` : `${timeBasedPrefix}-${originalName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
@@ -928,10 +935,10 @@ export class TeachersService {
       this.logger.log(`[uploadLessonFile] Início do processamento AWS para ${originalName}. isVideo: ${isVideo}, MIME: ${mimeType}`);
       if (isVideo) {
         await this.awsService.uploadToS3('input', s3Key, fileBuffer, mimeType);
-        
+
         const outputPrefix = `${timeBasedPrefix}`;
         await this.awsService.startMediaConvertJob(s3Key, outputPrefix);
-        
+
         publicUrl = this.awsService.getCloudFrontUrl(`${outputPrefix}_720p.m3u8`);
         this.logger.log(`[uploadLessonFile] URL do MediaConvert gerada: ${publicUrl}`);
       } else {
@@ -1526,11 +1533,11 @@ export class TeachersService {
       .eq('id', lesson.area_id)
       .maybeSingle();
     if (area?.teacher_id !== teacherId) throw new ForbiddenException();
-    
+
     const isVideo = mimeType.startsWith('video/');
     const ext = originalName.split('.').pop() ?? (isVideo ? 'mp4' : 'bin');
     const sanitizedName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
-    
+
     // Base prefix for both S3 keys
     const timeBasedPrefix = `materials/${lessonId}/${Date.now()}`;
     const s3Key = isVideo ? `${timeBasedPrefix}.${ext}` : `${timeBasedPrefix}-${sanitizedName}`;
@@ -1541,15 +1548,15 @@ export class TeachersService {
         // Send to Input Bucket
         this.logger.debug(`[uploadLessonMaterial] Enviando vídeo para S3 input bucket s3Key=${s3Key}`);
         await this.awsService.uploadToS3('input', s3Key, fileBuffer, mimeType);
-        
+
         // Start MediaConvert
         const outputPrefix = `${timeBasedPrefix}`;
         this.logger.debug(`[uploadLessonMaterial] Disparando MediaConvert job outputPrefix=${outputPrefix}`);
         await this.awsService.startMediaConvertJob(s3Key, outputPrefix);
-        
+
         const expectedHlsUrl = this.awsService.getCloudFrontUrl(`${outputPrefix}_720p.m3u8`);
         this.logger.debug(`[uploadLessonMaterial] Sucesso. Registrando no banco URL: ${expectedHlsUrl}`);
-        
+
         return this.createLessonMaterial(teacherId, lessonId, {
           type: materialType,
           title: originalName,
@@ -1560,7 +1567,7 @@ export class TeachersService {
         // Send directly to Output Bucket so it can be served via CloudFront
         this.logger.debug(`[uploadLessonMaterial] Enviando arquivo estático s3Key=${s3Key} para S3 output bucket`);
         const directUrl = await this.awsService.uploadToS3('output', s3Key, fileBuffer, mimeType);
-        
+
         this.logger.debug(`[uploadLessonMaterial] Registrando no banco URL: ${directUrl}`);
         return this.createLessonMaterial(teacherId, lessonId, {
           type: materialType,

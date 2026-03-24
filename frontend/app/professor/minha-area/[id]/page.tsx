@@ -501,8 +501,6 @@ export default function EditAreaPage() {
       const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
       const formData = new FormData();
       formData.append("file", file);
-      
-      console.log(`[handleUploadMaterial] Iniciando upload estático (type=${type}) para: ${BASE_URL}/teachers/lessons/${lessonId}/materials/upload`);
       const matStartTime = Date.now();
 
       const res = await fetch(`${BASE_URL}/teachers/lessons/${lessonId}/materials/upload?type=${type}`, {
@@ -510,8 +508,7 @@ export default function EditAreaPage() {
         headers: { "Authorization": `Bearer ${session?.access_token}` },
         body: formData,
       });
-      
-      console.log(`[handleUploadMaterial] Resposta do backend em ${Date.now() - matStartTime}ms. Status: ${res.status}`);
+
       if (!res.ok) {
         console.error(`[handleUploadMaterial] Erro HTTP ${res.status}:`, await res.text());
         throw new Error("Falha no upload");
