@@ -115,7 +115,6 @@ export class AwsService {
                     Codec: "H_264",
                     H264Settings: {
                       Bitrate: 3000000,
-                      MaxBitrate: 3000000,
                       CodecProfile: "MAIN",
                       RateControlMode: "CBR",
                     }
