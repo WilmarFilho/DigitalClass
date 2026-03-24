@@ -139,6 +139,7 @@ export default function EditAreaPage() {
   });
   const [savingLesson, setSavingLesson] = useState(false);
   const [uploadingLesson, setUploadingLesson] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewLesson, setPreviewLesson] = useState<Lesson | null>(null);
@@ -414,6 +415,7 @@ export default function EditAreaPage() {
       return;
     }
     setUploadingLesson(lessonId);
+    setUploadProgress(0);
     setError(null);
     try {
       const formData = new FormData();
@@ -424,59 +426,53 @@ export default function EditAreaPage() {
       const { data: { session } } = await supabase.auth.getSession();
 
       const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      console.log(`[handleUpload] Iniciando fetch para o backend: ${BASE_URL}/teachers/my-areas/${areaId}/lessons/${lessonId}/upload`);
-      const uploadStartTime = Date.now();
-      
-      const res = await fetch(`${BASE_URL}/teachers/my-areas/${areaId}/lessons/${lessonId}/upload`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${session?.access_token}` },
-        body: formData,
-      });
-      
-      console.log(`[handleUpload] Resposta recebida do backend em ${Date.now() - uploadStartTime}ms. Status: ${res.status}`);
+      const url = `${BASE_URL}/teachers/my-areas/${areaId}/lessons/${lessonId}/upload`;
 
-      if (!res.ok) {
-        let errorMessage = t("minhaAreaEdit.errorUploadGeneric");
+      const updated = await new Promise<Lesson>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", url);
+        xhr.setRequestHeader("Authorization", `Bearer ${session?.access_token}`);
 
-        try {
-          // Tenta ler o corpo da resposta
-          const errBody = await res.json();
-
-          // O NestJS coloca o erro em 'message'. 
-          // Pode ser string ou Array de strings (caso do ValidationPipe)
-          if (errBody && errBody.message) {
-            errorMessage = Array.isArray(errBody.message)
-              ? errBody.message[0]
-              : errBody.message;
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            setUploadProgress(pct);
           }
-        } catch (parseError) {
-          // Se não for JSON (ex: erro de Proxy ou Nginx), usa o status text
-          if (res.status === 413) {
-            errorMessage = t("minhaAreaEdit.errorUploadServerLimit", { limit: MAX_VIDEO_SIZE_MB });
-          } else {
-            errorMessage = t("minhaAreaEdit.errorTechnical", { status: res.status, statusText: res.statusText });
-          }
-        }
-
-        throw new Error(errorMessage);
-      }
-
-      const updated = await res.json() as Lesson;
-
-      setSections(prev => prev.map(s => {
-        return {
-          ...s,
-          modules: s.modules.map(m => {
-            return { ...m, lessons: m.lessons.map(l => l.id === lessonId ? updated : l) };
-          })
         };
-      }));
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error("Resposta inválida")); }
+          } else {
+            let msg = t("minhaAreaEdit.errorUploadGeneric");
+            try {
+              const body = JSON.parse(xhr.responseText);
+              if (body?.message) msg = Array.isArray(body.message) ? body.message[0] : body.message;
+            } catch {
+              if (xhr.status === 413) msg = t("minhaAreaEdit.errorUploadServerLimit", { limit: MAX_VIDEO_SIZE_MB });
+              else msg = t("minhaAreaEdit.errorTechnical", { status: xhr.status, statusText: xhr.statusText });
+            }
+            reject(new Error(msg));
+          }
+        };
+
+        xhr.onerror = () => reject(new Error("Erro de rede no upload"));
+        xhr.send(formData);
+      });
+
+      setSections(prev => prev.map(s => ({
+        ...s,
+        modules: s.modules.map(m => ({
+          ...m, lessons: m.lessons.map(l => l.id === lessonId ? updated : l)
+        }))
+      })));
 
     } catch (e: any) {
       console.error("Upload Error:", e);
       setError(e.message || "Erro no upload");
     } finally {
       setUploadingLesson(null);
+      setUploadProgress(0);
       setPendingUploadId(null);
     }
   }
@@ -979,6 +975,7 @@ export default function EditAreaPage() {
                                           index={lIndex + 1}
                                           t={t}
                                           uploading={uploadingLesson === lesson.id}
+                                          uploadProgress={uploadingLesson === lesson.id ? uploadProgress : 0}
                                           onDelete={() => handleDeleteLesson(module.id, lesson.id)}
                                           onUpload={() => {
                                             setPendingUploadId(lesson.id);
@@ -1432,12 +1429,11 @@ export default function EditAreaPage() {
 // --- Subcomponentes Refatorados ---
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function LessonRow({ lesson, index, t, uploading, onDelete, onUpload, onPreview, onEdit }: any) {
+function LessonRow({ lesson, index, t, uploading, uploadProgress, onDelete, onUpload, onPreview, onEdit }: any) {
   return (
     <motion.li
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
-      /* Mudança principal: flex-col abaixo de 990px (custom: max-[990px]) e itens-start */
       className="group flex flex-col min-[1100px]:flex-row min-[1100px]:items-center gap-4 rounded-2xl border border-slate-100 bg-slate-50 p-4 min-[1100px]:p-3 hover:bg-white hover:border-indigo-100 hover:shadow-md hover:shadow-indigo-500/5 transition-all"
     >
       {/* Wrapper para o conteúdo da esquerda (Ícone + Título) */}
@@ -1455,18 +1451,35 @@ function LessonRow({ lesson, index, t, uploading, onDelete, onUpload, onPreview,
 
         <div className="flex-1 min-w-0">
           <h4 className="text-sm font-bold text-slate-800 truncate">{lesson.title}</h4>
-          <div className="flex items-center gap-2 sm:gap-3 mt-0.5">
-            {lesson.content_url ? (
-              <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3" /> {t("minhaAreaEdit.contentReady")}
-              </span>
-            ) : (
-              <span className="text-[9px] font-black text-amber-500 uppercase flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" /> {t("minhaAreaEdit.waitingUpload")}
-              </span>
-            )}
-            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{lesson.type}</span>
-          </div>
+          {uploading ? (
+            <div className="mt-1.5 w-full">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">
+                  {uploadProgress < 100 ? "Enviando..." : "Processando..."}
+                </span>
+                <span className="text-[10px] font-bold text-indigo-600">{uploadProgress}%</span>
+              </div>
+              <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 sm:gap-3 mt-0.5">
+              {lesson.content_url ? (
+                <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" /> {t("minhaAreaEdit.contentReady")}
+                </span>
+              ) : (
+                <span className="text-[9px] font-black text-amber-500 uppercase flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> {t("minhaAreaEdit.waitingUpload")}
+                </span>
+              )}
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{lesson.type}</span>
+            </div>
+          )}
         </div>
       </div>
 

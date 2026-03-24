@@ -128,6 +128,12 @@ export class StripeService {
         metadata: params.metadata,
       };
     } else {
+      sessionParams.payment_method_types = ['card', 'pix', 'boleto'];
+      sessionParams.payment_method_options = {
+        pix: {
+          expires_after_seconds: 3600,
+        },
+      };
       sessionParams.payment_intent_data = {
         metadata: params.metadata,
       };

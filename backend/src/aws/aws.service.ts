@@ -15,7 +15,7 @@ export class AwsService {
 
   constructor(private configService: ConfigService) {
     const region = this.configService.get<string>('AWS_REGION') || 'us-east-1';
-    
+
     this.s3Client = new S3Client({
       region,
       credentials: {
@@ -26,8 +26,12 @@ export class AwsService {
 
     const endpoint = this.configService.get<string>('AWS_MEDIACONVERT_ENDPOINT') || '';
     if (endpoint) {
+      // O MediaConvert (endpoint específico) pode rodar numa região diferente da do S3
+      const mcRegionMatch = endpoint.match(/mediaconvert\.([a-z0-9-]+)\.amazonaws/);
+      const mcRegion = mcRegionMatch ? mcRegionMatch[1] : region;
+
       this.mediaConvertClient = new MediaConvertClient({
-        region,
+        region: mcRegion,
         endpoint,
         credentials: {
           accessKeyId: this.configService.get<string>('AWS_ACCESS_KEY_ID') || '',
@@ -44,7 +48,7 @@ export class AwsService {
 
   async uploadToS3(bucketType: 'input' | 'output', key: string, fileBuffer: Buffer, mimeType: string): Promise<string> {
     const bucket = bucketType === 'input' ? this.inputBucket : this.outputBucket;
-    
+
     this.logger.log(`Iniciando S3 PutObject para o bucket [${bucket}] com chave [${key}]. Tamanho do arquivo: ${fileBuffer.length} bytes...`);
     const start = Date.now();
 
