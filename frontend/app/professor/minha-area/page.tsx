@@ -26,6 +26,7 @@ interface TeacherArea {
   description: string | null;
   color_code: string;
   monthly_price: number;
+  payment_model: 'recurring' | 'one_time';
   is_private: boolean;
   banner_url: string | null;
 }
@@ -173,7 +174,11 @@ function AreaCard({ area, onClick }: { area: TeacherArea, onClick: () => void })
 
         <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
            <span className="text-xs font-black tracking-tighter text-slate-700">
-             {area.monthly_price === 0 ? t("minhaArea.free") : t("minhaArea.pricePerMonth", { price: area.monthly_price.toFixed(2) })}
+             {area.monthly_price === 0
+               ? t("minhaArea.free")
+               : area.payment_model === 'one_time'
+                 ? t("minhaArea.oneTimePrice", { price: area.monthly_price.toFixed(2) })
+                 : t("minhaArea.pricePerMonth", { price: area.monthly_price.toFixed(2) })}
            </span>
            <div className="flex items-center gap-1.5 text-slate-400 group-hover:text-indigo-500 transition-colors">
               <span className="text-[10px] font-bold uppercase tracking-widest">{t("minhaArea.edit")}</span>

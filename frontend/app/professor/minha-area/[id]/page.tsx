@@ -32,6 +32,7 @@ import {
   Play,
   RefreshCw,
   Sparkles,
+  CreditCard,
 } from "lucide-react";
 import { apiGet, apiPost, apiDelete, apiUpload, apiPatch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ interface TeacherArea {
   description: string | null;
   color_code: string;
   monthly_price: number;
+  payment_model: 'recurring' | 'one_time';
   is_private: boolean;
   banner_url: string | null;
   ai_tutor_enabled: boolean;
@@ -109,6 +111,7 @@ export default function EditAreaPage() {
     color_code: "#4F46E5",
     monthly_price: 0,
     is_private: false,
+    payment_model: "recurring" as "recurring" | "one_time",
   });
 
   const [savingArea, setSavingArea] = useState(false);
@@ -178,6 +181,7 @@ export default function EditAreaPage() {
         color_code: a.color_code,
         monthly_price: a.monthly_price,
         is_private: a.is_private,
+        payment_model: a.payment_model ?? 'recurring',
       });
 
       const s = await apiGet<Section[]>(`/teachers/my-areas/${areaId}/sections`).catch(() => []);
@@ -216,6 +220,7 @@ export default function EditAreaPage() {
       const updated = await apiPost<TeacherArea>(`/teachers/my-areas/${areaId}`, {
         ...areaForm,
         monthly_price: Number(areaForm.monthly_price),
+        payment_model: Number(areaForm.monthly_price) > 0 ? areaForm.payment_model : 'recurring',
       });
       setArea(updated);
       setEditingArea(false);
@@ -682,7 +687,7 @@ export default function EditAreaPage() {
                 />
               </Field>
 
-              <Field label={t("minhaAreaEdit.monthlyPrice") || "Preço da Mensalidade"}>
+              <Field label={t("minhaAreaEdit.monthlyPrice") || "Preço"}>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm font-mono">R$</span>
                   <input
@@ -695,6 +700,44 @@ export default function EditAreaPage() {
                 </div>
               </Field>
 
+              {/* SELETOR DE MODELO DE PAGAMENTO */}
+              {areaForm.monthly_price > 0 && (
+                <Field label={t("minhaAreaEdit.paymentModelLabel") || "Modelo de Cobrança"}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      disabled={!editingArea}
+                      onClick={() => setAreaForm(p => ({ ...p, payment_model: "recurring" }))}
+                      className={cn(
+                        "p-3 rounded-xl border-2 flex flex-col items-center gap-2 transition-all text-center disabled:opacity-50",
+                        areaForm.payment_model === "recurring"
+                          ? "bg-indigo-50 border-indigo-600 text-indigo-600"
+                          : "bg-slate-50/50 border-transparent hover:bg-slate-100"
+                      )}
+                    >
+                      <RefreshCw className="w-5 h-5" />
+                      <span className="text-sm font-bold">{t("minhaAreaEdit.recurring")}</span>
+                      <span className="text-[10px] text-slate-400">{t("minhaAreaEdit.recurringDesc")}</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!editingArea}
+                      onClick={() => setAreaForm(p => ({ ...p, payment_model: "one_time" }))}
+                      className={cn(
+                        "p-3 rounded-xl border-2 flex flex-col items-center gap-2 transition-all text-center disabled:opacity-50",
+                        areaForm.payment_model === "one_time"
+                          ? "bg-indigo-50 border-indigo-600 text-indigo-600"
+                          : "bg-slate-50/50 border-transparent hover:bg-slate-100"
+                      )}
+                    >
+                      <CreditCard className="w-5 h-5" />
+                      <span className="text-sm font-bold">{t("minhaAreaEdit.oneTime")}</span>
+                      <span className="text-[10px] text-slate-400">{t("minhaAreaEdit.oneTimeDesc")}</span>
+                    </button>
+                  </div>
+                </Field>
+              )}
+
               {areaForm.monthly_price > 0 && (
                 <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-4 space-y-3">
                   <div className="flex items-center gap-2 text-emerald-700">
@@ -704,7 +747,7 @@ export default function EditAreaPage() {
 
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-500 font-medium">{t("minhaAreaEdit.monthlyValue")}</span>
+                      <span className="text-slate-500 font-medium">{areaForm.payment_model === 'one_time' ? t("minhaAreaEdit.oneTimeValue") : t("minhaAreaEdit.monthlyValue")}</span>
                       <span className="font-black text-slate-800">R$ {areaForm.monthly_price.toFixed(2)}</span>
                     </div>
                     <div className="h-px bg-slate-200" />
@@ -777,6 +820,7 @@ export default function EditAreaPage() {
                         color_code: area.color_code,
                         monthly_price: area.monthly_price,
                         is_private: area.is_private,
+                        payment_model: area.payment_model ?? 'recurring',
                       });
                     }}>
                       {t("minhaAreaEdit.discard")}

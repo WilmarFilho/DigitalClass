@@ -27,6 +27,7 @@ interface TeacherArea {
   description: string | null;
   color_code: string;
   monthly_price: number;
+  payment_model: 'recurring' | 'one_time';
   banner_url: string | null;
   teacher: {
     id: string;
@@ -391,7 +392,7 @@ function AreaCard({
             <span className="text-xs font-black tracking-tighter">
               {area.monthly_price === 0 ? t("professores.free") : `R$ ${area.monthly_price.toFixed(2)}`}
             </span>
-            {area.monthly_price === 0 ? null : <span className="text-[9px] font-bold text-slate-400 uppercase">/{t("professores.month")}</span>}
+            {area.monthly_price === 0 ? null : <span className="text-[9px] font-bold text-slate-400 uppercase">/{area.payment_model === 'one_time' ? t("professores.oneTime") : t("professores.month")}</span>}
           </div>
         </div>
 

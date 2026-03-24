@@ -76,14 +76,17 @@ export class StripeWebhookController {
     const studentId = session.metadata?.student_id;
     const areaId = session.metadata?.area_id;
     const subscriptionId = session.subscription as string;
+    const paymentIntentId = session.payment_intent as string;
 
     if (!studentId || !areaId) {
       this.logger.warn('checkout.session.completed missing metadata (student_id, area_id)');
       return;
     }
 
+    const isOneTime = !subscriptionId;
+
     this.logger.log(
-      `Checkout completed: student=${studentId}, area=${areaId}, sub=${subscriptionId}`,
+      `Checkout completed: student=${studentId}, area=${areaId}, sub=${subscriptionId || 'one_time'}, pi=${paymentIntentId || 'none'}`,
     );
 
     // Upsert the teacher_subscriptions record
@@ -93,8 +96,8 @@ export class StripeWebhookController {
         {
           student_id: studentId,
           teacher_area_id: areaId,
-          stripe_subscription_id: subscriptionId,
-          subscription_status: 'active',
+          stripe_subscription_id: subscriptionId || null,
+          subscription_status: isOneTime ? 'lifetime' : 'active',
           payment_failure_count: 0,
         },
         { onConflict: 'student_id,teacher_area_id' },
@@ -103,7 +106,7 @@ export class StripeWebhookController {
     if (error) {
       this.logger.error(`Failed to upsert subscription: ${error.message}`);
     } else {
-      this.logger.log(`Subscription activated for student ${studentId} in area ${areaId}`);
+      this.logger.log(`${isOneTime ? 'One-time access' : 'Subscription'} activated for student ${studentId} in area ${areaId}`);
     }
   }
 

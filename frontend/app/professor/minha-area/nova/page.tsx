@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, ArrowLeft, Globe, Lock, AlertCircle, Layout, Settings } from "lucide-react";
+import { Loader2, ArrowLeft, Globe, Lock, AlertCircle, Layout, Settings, RefreshCw, CreditCard } from "lucide-react";
 import { apiPost } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ interface TeacherArea {
   description: string | null;
   color_code: string;
   monthly_price: number;
+  payment_model: 'recurring' | 'one_time';
   is_private: boolean;
   banner_url: string | null;
 }
@@ -45,6 +46,7 @@ export default function NovaAreaPage() {
     color: "indigo",
     monthly_price: 0,
     is_private: false,
+    payment_model: "recurring" as "recurring" | "one_time",
   });
   
   const selectedColor = COLORS.find(c => c.id === formData.color)?.value || COLORS[0].value;
@@ -63,6 +65,7 @@ export default function NovaAreaPage() {
         color_code: selectedColor,
         monthly_price: Number(formData.monthly_price),
         is_private: formData.is_private,
+        payment_model: formData.monthly_price > 0 ? formData.payment_model : 'recurring',
       });
       // In a real app we might use toast.success(t("minhaAreaEdit.saved")) here if toast was available
       router.push(`/professor/minha-area/${area.id}`);
@@ -164,6 +167,42 @@ export default function NovaAreaPage() {
             <p className="text-xs text-slate-400 mt-1">{t("novaArea.priceHint")}</p>
           </Field>
 
+          {/* SELETOR DE MODELO DE PAGAMENTO */}
+          {formData.monthly_price > 0 && (
+            <Field label={t("novaArea.paymentModelLabel")}>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, payment_model: "recurring" })}
+                  className={cn(
+                    "p-3 rounded-xl border-2 flex flex-col items-center gap-2 transition-all text-center",
+                    formData.payment_model === "recurring"
+                      ? "bg-indigo-50 border-indigo-600 text-indigo-600"
+                      : "bg-muted/30 border-transparent hover:bg-muted/50"
+                  )}
+                >
+                  <RefreshCw className="w-5 h-5" />
+                  <span className="text-sm font-bold">{t("novaArea.recurring")}</span>
+                  <span className="text-[10px] text-slate-400">{t("novaArea.recurringDesc")}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, payment_model: "one_time" })}
+                  className={cn(
+                    "p-3 rounded-xl border-2 flex flex-col items-center gap-2 transition-all text-center",
+                    formData.payment_model === "one_time"
+                      ? "bg-indigo-50 border-indigo-600 text-indigo-600"
+                      : "bg-muted/30 border-transparent hover:bg-muted/50"
+                  )}
+                >
+                  <CreditCard className="w-5 h-5" />
+                  <span className="text-sm font-bold">{t("novaArea.oneTime")}</span>
+                  <span className="text-[10px] text-slate-400">{t("novaArea.oneTimeDesc")}</span>
+                </button>
+              </div>
+            </Field>
+          )}
+
           {/* SIMULAÇÃO DE GANHOS */}
           {formData.monthly_price > 0 && (
             <motion.div 
@@ -178,7 +217,7 @@ export default function NovaAreaPage() {
 
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-500 font-medium">{t("novaArea.monthlyValue")}</span>
+                  <span className="text-slate-500 font-medium">{formData.payment_model === 'one_time' ? t("novaArea.oneTimeValue") : t("novaArea.monthlyValue")}</span>
                   <span className="font-black text-slate-800">R$ {formData.monthly_price.toFixed(2)}</span>
                 </div>
                 <div className="h-px bg-slate-200" />

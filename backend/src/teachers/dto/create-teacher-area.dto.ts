@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsNumber, Min } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNumber, Min, IsIn } from 'class-validator';
 
 export class CreateTeacherAreaDto {
   @IsString()
@@ -20,4 +20,9 @@ export class CreateTeacherAreaDto {
   @IsBoolean()
   @IsOptional()
   is_private?: boolean;
+
+  @IsString()
+  @IsIn(['recurring', 'one_time'])
+  @IsOptional()
+  payment_model?: 'recurring' | 'one_time';
 }

@@ -49,6 +49,18 @@ export class StripeService {
     });
   }
 
+  async createOneTimePrice(
+    productId: string,
+    amountInCents: number,
+    currency = 'brl',
+  ): Promise<Stripe.Price> {
+    return this.stripe.prices.create({
+      product: productId,
+      unit_amount: amountInCents,
+      currency,
+    });
+  }
+
   async archivePrice(priceId: string): Promise<Stripe.Price> {
     return this.stripe.prices.update(priceId, { active: false });
   }
@@ -58,8 +70,12 @@ export class StripeService {
     productId: string,
     newAmountInCents: number,
     currency = 'brl',
+    paymentModel: 'recurring' | 'one_time' = 'recurring',
   ): Promise<Stripe.Price> {
     await this.archivePrice(oldPriceId);
+    if (paymentModel === 'one_time') {
+      return this.createOneTimePrice(productId, newAmountInCents, currency);
+    }
     return this.createRecurringPrice(productId, newAmountInCents, currency);
   }
 
@@ -95,19 +111,29 @@ export class StripeService {
     priceId: string;
     successUrl: string;
     cancelUrl: string;
+    mode: 'subscription' | 'payment';
     metadata?: Record<string, string>;
   }): Promise<Stripe.Checkout.Session> {
-    return this.stripe.checkout.sessions.create({
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       customer: params.customerId,
-      mode: 'subscription',
+      mode: params.mode,
       line_items: [{ price: params.priceId, quantity: 1 }],
       success_url: params.successUrl,
       cancel_url: params.cancelUrl,
       metadata: params.metadata,
-      subscription_data: {
+    };
+
+    if (params.mode === 'subscription') {
+      sessionParams.subscription_data = {
         metadata: params.metadata,
-      },
-    });
+      };
+    } else {
+      sessionParams.payment_intent_data = {
+        metadata: params.metadata,
+      };
+    }
+
+    return this.stripe.checkout.sessions.create(sessionParams);
   }
 
   // ─── Subscriptions ─────────────────────────────────────────────────────────

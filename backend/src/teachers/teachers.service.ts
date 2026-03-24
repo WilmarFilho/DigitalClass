@@ -225,7 +225,7 @@ export class TeachersService {
       .select('student_id')
       .eq('student_id', userId)
       .eq('teacher_area_id', areaId)
-      .in('subscription_status', ['active', 'past_due'])
+      .in('subscription_status', ['active', 'past_due', 'lifetime'])
       .maybeSingle();
 
     if (!sub) {
@@ -269,7 +269,7 @@ export class TeachersService {
     let query = this.supabase()
       .from('teacher_areas')
       .select(`
-        id, title, description, color_code, monthly_price, banner_url, is_private, created_at,
+        id, title, description, color_code, monthly_price, payment_model, banner_url, is_private, created_at,
         profiles!teacher_id ( id, full_name, avatar_url )
       `, { count: 'exact' })
       .eq('is_private', false);
@@ -298,7 +298,7 @@ export class TeachersService {
     const { data, error } = await this.supabase()
       .from('teacher_areas')
       .select(`
-        id, title, description, color_code, ai_tutor_enabled, ai_last_sync_at, monthly_price, banner_url, is_private, created_at,
+        id, title, description, color_code, ai_tutor_enabled, ai_last_sync_at, monthly_price, payment_model, banner_url, is_private, created_at,
         profiles!teacher_id ( id, full_name, avatar_url )
       `)
       .eq('id', areaId)
@@ -324,12 +324,12 @@ export class TeachersService {
       .select(`
         subscribed_at, subscription_status,
         teacher_areas (
-          id, title, description, color_code, monthly_price, banner_url, created_at,
+          id, title, description, color_code, monthly_price, payment_model, banner_url, created_at,
           profiles!teacher_id ( id, full_name, avatar_url )
         )
       `, { count: 'exact' })
       .eq('student_id', studentId)
-      .in('subscription_status', ['active', 'past_due'])
+      .in('subscription_status', ['active', 'past_due', 'lifetime'])
       .range(from, to);
 
     if (error) this.logger.error(`listFollowing: ${error.message}`);
@@ -354,7 +354,7 @@ export class TeachersService {
       .from('teacher_subscriptions')
       .select('*', { count: 'exact', head: true })
       .eq('teacher_area_id', areaId)
-      .in('subscription_status', ['active', 'past_due']);
+      .in('subscription_status', ['active', 'past_due', 'lifetime']);
     return count ?? 0;
   }
 
@@ -445,7 +445,7 @@ export class TeachersService {
         .select('student_id')
         .eq('student_id', userId)
         .eq('teacher_area_id', areaId)
-        .in('subscription_status', ['active', 'past_due'])
+        .in('subscription_status', ['active', 'past_due', 'lifetime'])
         .maybeSingle();
       if (!sub) throw new ForbiddenException('Assine esta área para acessar as aulas');
     }
@@ -522,7 +522,7 @@ export class TeachersService {
     // 1. Get the area and its Stripe price
     const { data: area } = await this.supabase()
       .from('teacher_areas')
-      .select('id, title, stripe_price_id, monthly_price')
+      .select('id, title, stripe_price_id, monthly_price, payment_model')
       .eq('id', areaId)
       .maybeSingle();
 
@@ -576,14 +576,17 @@ export class TeachersService {
     const cancelUrl = `${frontendUrl}/protected/professores/checkout/cancelado?area_id=${areaId}`;
 
     // 5. Create Checkout Session
+    const isOneTime = area.payment_model === 'one_time';
     const session = await this.stripeService.createCheckoutSession({
       customerId: stripeCustomerId,
       priceId: area.stripe_price_id,
       successUrl,
       cancelUrl,
+      mode: isOneTime ? 'payment' : 'subscription',
       metadata: {
         student_id: studentId,
         area_id: areaId,
+        payment_model: area.payment_model || 'recurring',
       },
     });
 
@@ -600,7 +603,7 @@ export class TeachersService {
 
     const { data, count, error } = await this.supabase()
       .from('teacher_areas')
-      .select('id, title, description, color_code, monthly_price, banner_url, is_private, created_at, stripe_product_id, stripe_price_id', { count: 'exact' })
+      .select('id, title, description, color_code, monthly_price, payment_model, banner_url, is_private, created_at, stripe_product_id, stripe_price_id', { count: 'exact' })
       .eq('teacher_id', teacherId)
       .order('created_at', { ascending: false })
       .range(from, to);
@@ -668,7 +671,7 @@ export class TeachersService {
 
     const { data } = await this.supabase()
       .from('teacher_areas')
-      .select('id, title, description, color_code, ai_tutor_enabled, ai_last_sync_at, monthly_price, banner_url, is_private, created_at, stripe_product_id, stripe_price_id')
+      .select('id, title, description, color_code, ai_tutor_enabled, ai_last_sync_at, monthly_price, payment_model, banner_url, is_private, created_at, stripe_product_id, stripe_price_id')
       .eq('teacher_id', teacherId)
       .eq('id', areaId)
       .maybeSingle();
@@ -683,12 +686,14 @@ export class TeachersService {
     if (areaId) {
       const { data } = await this.supabase()
         .from('teacher_areas')
-        .select('id, stripe_product_id, stripe_price_id, monthly_price')
+        .select('id, stripe_product_id, stripe_price_id, monthly_price, payment_model')
         .eq('teacher_id', teacherId)
         .eq('id', areaId)
         .maybeSingle();
       existing = data;
     }
+
+    const paymentModel = dto.payment_model ?? existing?.payment_model ?? 'recurring';
 
     const payload: any = {
       teacher_id: teacherId,
@@ -697,6 +702,7 @@ export class TeachersService {
       color_code: dto.color_code ?? '#4F46E5',
       monthly_price: dto.monthly_price ?? 0,
       is_private: dto.is_private ?? false,
+      payment_model: paymentModel,
     };
 
     const monthlyPrice = Number(dto.monthly_price ?? 0);
@@ -704,7 +710,9 @@ export class TeachersService {
     if (existing) {
       // ── Update existing area ──
       const oldPrice = Number(existing.monthly_price ?? 0);
+      const oldModel = existing.payment_model ?? 'recurring';
       const priceChanged = monthlyPrice !== oldPrice;
+      const modelChanged = paymentModel !== oldModel;
 
       // Update Stripe product name if it exists
       if (existing.stripe_product_id) {
@@ -719,7 +727,7 @@ export class TeachersService {
       }
 
       // Handle price changes
-      if (priceChanged && monthlyPrice > 0) {
+      if ((priceChanged || modelChanged) && monthlyPrice > 0) {
         if (existing.stripe_product_id && existing.stripe_price_id) {
           // Archive old price and create new one
           try {
@@ -727,6 +735,8 @@ export class TeachersService {
               existing.stripe_price_id,
               existing.stripe_product_id,
               Math.round(monthlyPrice * 100), // convert to centavos
+              'brl',
+              paymentModel,
             );
             payload.stripe_price_id = newPrice.id;
           } catch (err: any) {
@@ -739,10 +749,9 @@ export class TeachersService {
               dto.title,
               dto.description || undefined,
             );
-            const price = await this.stripeService.createRecurringPrice(
-              product.id,
-              Math.round(monthlyPrice * 100),
-            );
+            const price = paymentModel === 'one_time'
+              ? await this.stripeService.createOneTimePrice(product.id, Math.round(monthlyPrice * 100))
+              : await this.stripeService.createRecurringPrice(product.id, Math.round(monthlyPrice * 100));
             payload.stripe_product_id = product.id;
             payload.stripe_price_id = price.id;
           } catch (err: any) {
@@ -776,10 +785,9 @@ export class TeachersService {
           dto.title,
           dto.description || undefined,
         );
-        const price = await this.stripeService.createRecurringPrice(
-          product.id,
-          Math.round(monthlyPrice * 100),
-        );
+        const price = paymentModel === 'one_time'
+          ? await this.stripeService.createOneTimePrice(product.id, Math.round(monthlyPrice * 100))
+          : await this.stripeService.createRecurringPrice(product.id, Math.round(monthlyPrice * 100));
         payload.stripe_product_id = product.id;
         payload.stripe_price_id = price.id;
       } catch (err: any) {
@@ -1114,7 +1122,7 @@ export class TeachersService {
         profiles!student_id ( id, full_name, avatar_url, created_at )
       `)
       .eq('teacher_area_id', area.id)
-      .in('subscription_status', ['active', 'past_due'])
+      .in('subscription_status', ['active', 'past_due', 'lifetime'])
       .order('subscribed_at', { ascending: false });
 
     if (error) this.logger.error(`getMyStudents: ${error.message}`);
@@ -1149,6 +1157,7 @@ export class TeachersService {
       description: area.description,
       color_code: area.color_code ?? '#4F46E5',
       monthly_price: Number(area.monthly_price ?? 0),
+      payment_model: area.payment_model ?? 'recurring',
       banner_url: area.banner_url,
       created_at: area.created_at,
       teacher: {

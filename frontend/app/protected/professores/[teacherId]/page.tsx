@@ -32,6 +32,7 @@ interface Area {
   description: string | null;
   color_code: string;
   monthly_price: number;
+  payment_model: 'recurring' | 'one_time';
   banner_url: string | null;
 }
 
@@ -300,7 +301,7 @@ function AreaCard({ area }: { area: Area }) {
           >
             {area.monthly_price === 0
               ? t("teacherPage.free")
-              : `R$ ${area.monthly_price.toFixed(2).replace(".", ",")}${t("teacherPage.perMonth")}`}
+              : `R$ ${area.monthly_price.toFixed(2).replace(".", ",")}${area.payment_model === 'one_time' ? t("teacherPage.oneTime") : t("teacherPage.perMonth")}`}
           </span>
           <span className="text-xs font-semibold text-white bg-[#6D44CC] px-3 py-1 rounded-full">
             {t("teacherPage.subscribe")}
