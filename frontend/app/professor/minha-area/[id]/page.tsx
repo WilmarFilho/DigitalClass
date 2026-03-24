@@ -123,10 +123,12 @@ export default function EditAreaPage() {
   const [sectionModal, setSectionModal] = useState(false);
   const [sectionForm, setSectionForm] = useState({ title: "" });
   const [savingSection, setSavingSection] = useState(false);
+  const [editingSectionId, setEditingSectionId] = useState<string | null>(null);
 
   const [moduleModal, setModuleModal] = useState<{ sectionId: string } | null>(null);
   const [moduleForm, setModuleForm] = useState({ title: "", description: "" });
   const [savingModule, setSavingModule] = useState(false);
+  const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
 
   const [lessonModal, setLessonModal] = useState<{ moduleId: string } | null>(null);
   const [lessonForm, setLessonForm] = useState({
@@ -260,6 +262,22 @@ export default function EditAreaPage() {
     } catch { }
   }
 
+  async function handleUpdateSection() {
+    if (!sectionForm.title.trim() || !editingSectionId) return;
+    setSavingSection(true);
+    try {
+      const updated = await apiPatch<Section>(`/teachers/sections/${editingSectionId}`, { title: sectionForm.title });
+      setSections(prev => prev.map(s => s.id === editingSectionId ? { ...s, title: updated.title } : s));
+      setSectionModal(false);
+      setSectionForm({ title: "" });
+      setEditingSectionId(null);
+    } catch (e: any) {
+      setError(e.message || "Erro ao atualizar seção");
+    } finally {
+      setSavingSection(false);
+    }
+  }
+
   // --- Module actions ---
   async function handleCreateModule() {
     if (!moduleModal || !moduleForm.title.trim()) return;
@@ -295,6 +313,28 @@ export default function EditAreaPage() {
         return s;
       }));
     } catch { }
+  }
+
+  async function handleUpdateModule() {
+    if (!moduleForm.title.trim() || !editingModuleId) return;
+    setSavingModule(true);
+    try {
+      const updated = await apiPatch<Module>(`/teachers/modules/${editingModuleId}`, {
+        title: moduleForm.title,
+        description: moduleForm.description || null,
+      });
+      setSections(prev => prev.map(s => ({
+        ...s,
+        modules: s.modules.map(m => m.id === editingModuleId ? { ...m, title: updated.title, description: updated.description } : m)
+      })));
+      setModuleModal(null);
+      setModuleForm({ title: "", description: "" });
+      setEditingModuleId(null);
+    } catch (e: any) {
+      setError(e.message || "Erro ao atualizar módulo");
+    } finally {
+      setSavingModule(false);
+    }
   }
 
   // --- Lesson actions ---
@@ -872,6 +912,13 @@ export default function EditAreaPage() {
                             <span className="truncate">{section.title}</span>
                           </h3>
                           <div className="flex items-center gap-2 shrink-0">
+                            <Button size="sm" variant="ghost" className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 h-8 text-xs" onClick={() => {
+                              setSectionForm({ title: section.title });
+                              setEditingSectionId(section.id);
+                              setSectionModal(true);
+                            }}>
+                              <Settings2 className="h-3 w-3 mr-1" /> <span className="hidden sm:inline">{t("minhaAreaEdit.edit")}</span>
+                            </Button>
                             <Button size="sm" variant="ghost" className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 h-8 text-xs" onClick={() => setModuleModal({ sectionId: section.id })}>
                               <Plus className="h-3 w-3 mr-1" /> <span className="hidden sm:inline">{t("minhaAreaEdit.newModule")}</span>
                             </Button>
@@ -890,6 +937,13 @@ export default function EditAreaPage() {
                                 <div className="flex items-center justify-between p-2 sm:p-3 border-b border-slate-50 gap-2">
                                   <h4 className="font-bold text-xs sm:text-sm text-slate-800 truncate min-w-0">Módulo {mIndex + 1}: {module.title}</h4>
                                   <div className="flex items-center gap-1 shrink-0">
+                                    <Button size="sm" variant="ghost" className="text-slate-500 hover:text-slate-600 hover:bg-slate-50 h-7 text-xs px-1.5 sm:px-2" onClick={() => {
+                                      setModuleForm({ title: module.title, description: module.description || "" });
+                                      setEditingModuleId(module.id);
+                                      setModuleModal({ sectionId: section.id });
+                                    }}>
+                                      <Settings2 className="h-3 w-3 sm:mr-1" /> <span className="hidden sm:inline">{t("minhaAreaEdit.edit")}</span>
+                                    </Button>
                                     <Button size="sm" variant="ghost" className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-7 text-xs px-1.5 sm:px-2" onClick={() => setLessonModal({ moduleId: module.id })}>
                                       <Plus className="h-3 w-3 sm:mr-1" /> <span className="hidden sm:inline">{t("minhaAreaEdit.newLesson")}</span>
                                     </Button>
@@ -997,21 +1051,27 @@ export default function EditAreaPage() {
           <div className=" md:ml-72 fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-md rounded-[2.5rem] bg-white shadow-2xl p-8">
               <div className="flex items-center justify-between mb-8">
-                <div className="h-12 w-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center"><Plus className="h-6 w-6" /></div>
-                <button onClick={() => setSectionModal(false)} className="h-10 w-10 rounded-full hover:bg-slate-100 flex items-center justify-center transition-colors">
+                <div className="h-12 w-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  {editingSectionId ? <Settings2 className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
+                </div>
+                <button onClick={() => {
+                  setSectionModal(false);
+                  setSectionForm({ title: "" });
+                  setEditingSectionId(null);
+                }} className="h-10 w-10 rounded-full hover:bg-slate-100 flex items-center justify-center transition-colors">
                   <X className="h-5 w-5 text-slate-400" />
                 </button>
               </div>
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-xl font-black text-slate-900">{t("minhaAreaEdit.newSection")}</h3>
-                  <p className="text-sm text-slate-500">{t("minhaAreaEdit.modalSectionDesc")}</p>
+                  <h3 className="text-xl font-black text-slate-900">{editingSectionId ? t("minhaAreaEdit.editSection") || "Editar Seção" : t("minhaAreaEdit.newSection")}</h3>
+                  <p className="text-sm text-slate-500">{editingSectionId ? t("minhaAreaEdit.modalSectionEditDesc") || "Altere o nome da seção." : t("minhaAreaEdit.modalSectionDesc")}</p>
                 </div>
                 <Field label={t("minhaAreaEdit.modalSectionTitle")} required>
                   <input value={sectionForm.title} onChange={e => setSectionForm({ title: e.target.value })} className="w-full h-12 rounded-xl border border-slate-200 px-4 font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
                 </Field>
-                <Button className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100" disabled={!sectionForm.title.trim() || savingSection} onClick={handleCreateSection}>
-                  {savingSection ? <Loader2 className="h-4 w-4 animate-spin" /> : t("minhaAreaEdit.create")}
+                <Button className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100" disabled={!sectionForm.title.trim() || savingSection} onClick={editingSectionId ? handleUpdateSection : handleCreateSection}>
+                  {savingSection ? <Loader2 className="h-4 w-4 animate-spin" /> : editingSectionId ? t("minhaAreaEdit.save") || "Salvar" : t("minhaAreaEdit.create")}
                 </Button>
               </div>
             </motion.div>
@@ -1025,15 +1085,21 @@ export default function EditAreaPage() {
           <div className=" md:ml-72 fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-md rounded-[2.5rem] bg-white shadow-2xl p-8">
               <div className="flex items-center justify-between mb-8">
-                <div className="h-12 w-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center"><Plus className="h-6 w-6" /></div>
-                <button onClick={() => setModuleModal(null)} className="h-10 w-10 rounded-full hover:bg-slate-100 flex items-center justify-center transition-colors">
+                <div className="h-12 w-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  {editingModuleId ? <Settings2 className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
+                </div>
+                <button onClick={() => {
+                  setModuleModal(null);
+                  setModuleForm({ title: "", description: "" });
+                  setEditingModuleId(null);
+                }} className="h-10 w-10 rounded-full hover:bg-slate-100 flex items-center justify-center transition-colors">
                   <X className="h-5 w-5 text-slate-400" />
                 </button>
               </div>
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-xl font-black text-slate-900">{t("minhaAreaEdit.newModule")}</h3>
-                  <p className="text-sm text-slate-500">{t("minhaAreaEdit.modalModuleInstruction")}</p>
+                  <h3 className="text-xl font-black text-slate-900">{editingModuleId ? t("minhaAreaEdit.editModule") || "Editar Módulo" : t("minhaAreaEdit.newModule")}</h3>
+                  <p className="text-sm text-slate-500">{editingModuleId ? t("minhaAreaEdit.modalModuleEditDesc") || "Altere as informações do módulo." : t("minhaAreaEdit.modalModuleInstruction")}</p>
                 </div>
                 <Field label={t("minhaAreaEdit.modalModuleTitle")} required>
                   <input value={moduleForm.title} onChange={e => setModuleForm(p => ({ ...p, title: e.target.value }))} className="w-full h-12 rounded-xl border border-slate-200 px-4 font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
@@ -1041,8 +1107,8 @@ export default function EditAreaPage() {
                 <Field label={t("minhaAreaEdit.modalModuleDesc")} required={false}>
                   <textarea value={moduleForm.description} onChange={e => setModuleForm(p => ({ ...p, description: e.target.value }))} className="w-full h-24 rounded-xl border border-slate-200 px-4 py-2 font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-none" />
                 </Field>
-                <Button className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100" disabled={!moduleForm.title.trim() || savingModule} onClick={handleCreateModule}>
-                  {savingModule ? <Loader2 className="h-4 w-4 animate-spin" /> : t("minhaAreaEdit.create")}
+                <Button className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100" disabled={!moduleForm.title.trim() || savingModule} onClick={editingModuleId ? handleUpdateModule : handleCreateModule}>
+                  {savingModule ? <Loader2 className="h-4 w-4 animate-spin" /> : editingModuleId ? t("minhaAreaEdit.save") || "Salvar" : t("minhaAreaEdit.create")}
                 </Button>
               </div>
             </motion.div>

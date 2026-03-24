@@ -1253,6 +1253,76 @@ export class TeachersService {
     return data;
   }
 
+  async updateSection(teacherId: string, sectionId: string, dto: any) {
+    await this.assertTeacher(teacherId);
+
+    const { data: section } = await this.supabase()
+      .from('teacher_area_sections')
+      .select('area_id')
+      .eq('id', sectionId)
+      .maybeSingle();
+
+    if (!section) throw new NotFoundException('Seção não encontrada');
+
+    const { data: area } = await this.supabase()
+      .from('teacher_areas')
+      .select('teacher_id')
+      .eq('id', section.area_id)
+      .maybeSingle();
+
+    if (area?.teacher_id !== teacherId) throw new ForbiddenException();
+
+    const { data, error } = await this.supabase()
+      .from('teacher_area_sections')
+      .update({ title: dto.title })
+      .eq('id', sectionId)
+      .select()
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
+  async updateModule(teacherId: string, moduleId: string, dto: any) {
+    await this.assertTeacher(teacherId);
+
+    const { data: module } = await this.supabase()
+      .from('teacher_area_modules')
+      .select('section_id')
+      .eq('id', moduleId)
+      .maybeSingle();
+
+    if (!module) throw new NotFoundException('Módulo não encontrado');
+
+    const { data: section } = await this.supabase()
+      .from('teacher_area_sections')
+      .select('area_id')
+      .eq('id', module.section_id)
+      .maybeSingle();
+
+    const { data: area } = await this.supabase()
+      .from('teacher_areas')
+      .select('teacher_id')
+      .eq('id', section?.area_id)
+      .maybeSingle();
+
+    if (area?.teacher_id !== teacherId) throw new ForbiddenException();
+
+    const payload: any = {};
+    if (dto.title !== undefined) payload.title = dto.title;
+    if (dto.description !== undefined) payload.description = dto.description;
+
+    const { data, error } = await this.supabase()
+      .from('teacher_area_modules')
+      .update(payload)
+      .eq('id', moduleId)
+      .select()
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+    return data;
+  }
+
   async deleteModule(teacherId: string, moduleId: string) {
     await this.assertTeacher(teacherId);
     const { error } = await this.supabase()

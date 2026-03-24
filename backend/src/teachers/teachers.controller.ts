@@ -275,6 +275,16 @@ export class TeachersController {
     return this.teachersService.deleteModule(req.user.id, moduleId);
   }
 
+  @Patch('sections/:sectionId')
+  updateSection(@Req() req: any, @Param('sectionId') sectionId: string, @Body() dto: any) {
+    return this.teachersService.updateSection(req.user.id, sectionId, dto);
+  }
+
+  @Patch('modules/:moduleId')
+  updateModule(@Req() req: any, @Param('moduleId') moduleId: string, @Body() dto: any) {
+    return this.teachersService.updateModule(req.user.id, moduleId, dto);
+  }
+
   @Get('my-areas/:areaId/notices')
   getAreaNotices(@Req() req: any, @Param('areaId') areaId: string) {
     return this.teachersService.getAreaNotices(req.user.id, areaId);
