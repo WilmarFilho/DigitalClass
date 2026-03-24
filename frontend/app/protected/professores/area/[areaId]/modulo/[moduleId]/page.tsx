@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import Hls from "hls.js";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -168,6 +169,36 @@ export default function ModulePlayerPage() {
     apiGet<Comment[]>(`/teachers/lessons/${selectedLessonId}/comments`).then(setComments).catch(() => setComments([]));
   }, [selectedLessonId]);
 
+  const currentLesson = module?.lessons.find(l => l.id === selectedLessonId);
+
+  useEffect(() => {
+    let hls: Hls | null = null;
+    const video = videoRef.current;
+
+    if (!video || !currentLesson?.content_url) return;
+
+    if (currentLesson.type === "video") {
+      const url = currentLesson.content_url;
+      
+      if (url.includes('.m3u8')) {
+        if (Hls.isSupported()) {
+          hls = new Hls();
+          hls.loadSource(url);
+          hls.attachMedia(video);
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = url;
+        }
+      } else {
+        video.src = url;
+      }
+    }
+
+    return () => {
+      if (hls) hls.destroy();
+    };
+  }, [currentLesson?.content_url, currentLesson?.type]);
+
+
   async function handleMarkProgress(lessonId: string, completed: boolean) {
     setMarkingProgress(lessonId);
     try {
@@ -203,8 +234,6 @@ export default function ModulePlayerPage() {
     setIsSidebarOpen(false);
     progressSentRef.current.delete(id);
   };
-
-  const currentLesson = module?.lessons.find(l => l.id === selectedLessonId);
 
   if (loading) return (
     <div className="flex h-screen items-center justify-center bg-white">
@@ -283,7 +312,6 @@ export default function ModulePlayerPage() {
                   ref={videoRef}
                   controls
                   controlsList="nodownload"
-                  src={currentLesson.content_url}
                   className="w-full h-full object-contain"
                   onEnded={() => selectedLessonId && handleVideoProgress(selectedLessonId, 100)}
                   onTimeUpdate={() => {

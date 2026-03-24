@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AiService } from './ai.service';
 import { StripeService } from '../stripe/stripe.service';
+import { AwsService } from '../aws/aws.service';
 import { CreateTeacherAreaDto } from './dto/create-teacher-area.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import * as ffmpeg from 'fluent-ffmpeg';
@@ -25,7 +26,7 @@ import * as os from 'os';
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-export const LESSONS_BUCKET = 'lessons';
+
 
 // ── Fee constants ────────────────────────────────────────────────────────────
 const STRIPE_PERCENT_FEE = 0.0399; // 3.99% for Brazilian cards
@@ -41,6 +42,7 @@ export class TeachersService {
     private readonly aiService: AiService,
     private readonly stripeService: StripeService,
     private readonly configService: ConfigService,
+    private readonly awsService: AwsService,
   ) { }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -913,26 +915,33 @@ export class TeachersService {
   ) {
     await this.assertTeacher(teacherId);
 
-    const ext = originalName.split('.').pop() ?? 'bin';
-    const path = `${teacherId}/${lessonId}.${ext}`;
+    const isVideo = mimeType.startsWith('video');
+    const ext = originalName.split('.').pop() ?? (isVideo ? 'mp4' : 'bin');
+    
+    // Base prefix
+    const timeBasedPrefix = `lessons/${teacherId}/${lessonId}-${Date.now()}`;
+    const s3Key = isVideo ? `${timeBasedPrefix}.${ext}` : `${timeBasedPrefix}-${originalName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
 
-    // 1. Upload para o Storage
-    const { data: uploadData, error: uploadError } = await this.supabase()
-      .storage
-      .from(LESSONS_BUCKET)
-      .upload(path, fileBuffer, { contentType: mimeType, upsert: true });
+    let publicUrl: string;
 
-    if (uploadError) throw new BadRequestException(`Upload falhou: ${this.translateStorageError(uploadError.message)}`);
+    try {
+      if (isVideo) {
+        await this.awsService.uploadToS3('input', s3Key, fileBuffer, mimeType);
+        
+        const outputPrefix = `${timeBasedPrefix}`;
+        await this.awsService.startMediaConvertJob(s3Key, outputPrefix);
+        
+        publicUrl = this.awsService.getCloudFrontUrl(`${outputPrefix}_720p.m3u8`);
+      } else {
+        publicUrl = await this.awsService.uploadToS3('output', s3Key, fileBuffer, mimeType);
+      }
+    } catch (e: any) {
+      throw new BadRequestException(`Upload AWS falhou: ${e.message}`);
+    }
 
-    const { data: urlData } = this.supabase()
-      .storage
-      .from(LESSONS_BUCKET)
-      .getPublicUrl(uploadData.path);
+    const fileType = isVideo ? 'video' : 'pdf';
 
-    const publicUrl = urlData.publicUrl;
-    const fileType = mimeType.startsWith('video') ? 'video' : 'pdf';
-
-    // 2. Atualiza a URL no banco imediatamente
+    // Atualiza a URL no banco imediatamente
     const { data, error } = await this.supabase()
       .from('lessons')
       .update({ content_url: publicUrl, type: fileType })
@@ -1512,22 +1521,46 @@ export class TeachersService {
       .eq('id', lesson.area_id)
       .maybeSingle();
     if (area?.teacher_id !== teacherId) throw new ForbiddenException();
-    const ext = originalName.split('.').pop() ?? 'bin';
-    const path = `materials/${lessonId}/${Date.now()}-${originalName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-    const { error: uploadError } = await this.supabase()
-      .storage
-      .from(LESSONS_BUCKET)
-      .upload(path, fileBuffer, { contentType: mimeType, upsert: true });
-    if (uploadError) throw new BadRequestException(`Upload falhou: ${this.translateStorageError(uploadError.message)}`);
-    const { data: urlData } = this.supabase()
-      .storage
-      .from(LESSONS_BUCKET)
-      .getPublicUrl(path);
-    return this.createLessonMaterial(teacherId, lessonId, {
-      type: materialType,
-      title: originalName,
-      url: urlData.publicUrl,
-    });
+    
+    const isVideo = mimeType.startsWith('video/');
+    const ext = originalName.split('.').pop() ?? (isVideo ? 'mp4' : 'bin');
+    const sanitizedName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    
+    // Base prefix for both S3 keys
+    const timeBasedPrefix = `materials/${lessonId}/${Date.now()}`;
+    const s3Key = isVideo ? `${timeBasedPrefix}.${ext}` : `${timeBasedPrefix}-${sanitizedName}`;
+
+    this.logger.log(`Subindo arquivo ${originalName} (MIME: ${mimeType}) pro AWS S3...`);
+    try {
+      if (isVideo) {
+        // Send to Input Bucket
+        await this.awsService.uploadToS3('input', s3Key, fileBuffer, mimeType);
+        
+        // Start MediaConvert
+        const outputPrefix = `${timeBasedPrefix}`;
+        await this.awsService.startMediaConvertJob(s3Key, outputPrefix);
+        
+        const expectedHlsUrl = this.awsService.getCloudFrontUrl(`${outputPrefix}_720p.m3u8`);
+        
+        return this.createLessonMaterial(teacherId, lessonId, {
+          type: materialType,
+          title: originalName,
+          url: expectedHlsUrl,
+        });
+
+      } else {
+        // Send directly to Output Bucket so it can be served via CloudFront
+        const directUrl = await this.awsService.uploadToS3('output', s3Key, fileBuffer, mimeType);
+        
+        return this.createLessonMaterial(teacherId, lessonId, {
+          type: materialType,
+          title: originalName,
+          url: directUrl,
+        });
+      }
+    } catch (e: any) {
+      throw new BadRequestException(`Upload AWS falhou: ${e.message}`);
+    }
   }
 
   // ─── Lesson Comments ────────────────────────────────────────────────────────

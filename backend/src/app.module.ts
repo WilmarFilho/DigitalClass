@@ -11,6 +11,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { TeachersModule } from './teachers/teachers.module';
 import { StripeModule } from './stripe/stripe.module';
 import { CommunityModule } from './community/community.module';
+import { AwsModule } from './aws/aws.module';
 import { SupabaseStrategy } from './auth/strategies/supabase.strategy';
 
 @Module({
@@ -25,6 +26,7 @@ import { SupabaseStrategy } from './auth/strategies/supabase.strategy';
     TeachersModule,
     StripeModule,
     CommunityModule,
+    AwsModule,
   ],
   controllers: [AppController],
   providers: [AppService, SupabaseStrategy],
