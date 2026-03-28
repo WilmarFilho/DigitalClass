@@ -41,7 +41,7 @@ export const translations = {
     "sidebar.professores": "Professores",
     "sidebar.calendario": "Calendário",
     "sidebar.configuracoes": "Configurações",
-    "sidebar.sair": "Sair da Conta",
+    "sidebar.sair": "Sair",
     "sidebar.minhaArea": "Minhas Áreas",
     "sidebar.perfil": "Perfil",
     "sidebar.professor": "Professor",
