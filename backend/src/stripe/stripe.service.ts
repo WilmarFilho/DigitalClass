@@ -123,8 +123,6 @@ export class StripeService {
       metadata: params.metadata,
     };
 
-    console.log('sessionParams', sessionParams);
-
     if (params.mode === 'subscription') {
       sessionParams.subscription_data = {
         metadata: params.metadata,

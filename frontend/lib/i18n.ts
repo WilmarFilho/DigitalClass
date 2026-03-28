@@ -484,7 +484,7 @@ export const translations = {
     // Study Session Page
     "studySession.notFound": "Sessão não encontrada",
     "studySession.connectionError": "Erro de Conexão",
-    "studySession.backToStudies": "Voltar para Estudos",
+    "studySession.backToStudies": "Sair da Sessão",
     "studySession.loadError": "Não foi possível carregar a sessão",
     "studySession.loadingEnv": "Carregando Ambiente",
     "studySession.activeSession": "Sessão Ativa",
@@ -1171,7 +1171,7 @@ export const translations = {
     // Study Session Page
     "studySession.notFound": "Session not found",
     "studySession.connectionError": "Connection Error",
-    "studySession.backToStudies": "Back to Studies",
+    "studySession.backToStudies": "Sair da Sessão",
     "studySession.loadError": "Could not load the session",
     "studySession.loadingEnv": "Loading Environment",
     "studySession.activeSession": "Active Session",
@@ -1850,7 +1850,7 @@ export const translations = {
     // Study Session Page
     "studySession.notFound": "Sesión no encontrada",
     "studySession.connectionError": "Error de Conexión",
-    "studySession.backToStudies": "Volver a Estudios",
+    "studySession.backToStudies": "Sair da Sessão",
     "studySession.loadError": "No se pudo cargar la sesión",
     "studySession.loadingEnv": "Cargando Ambiente",
     "studySession.activeSession": "Sesión Activa",

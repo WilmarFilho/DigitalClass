@@ -529,8 +529,6 @@ export class TeachersService {
       .eq('id', areaId)
       .maybeSingle();
 
-    console.log('area', area);
-
     if (!area) throw new NotFoundException('Área não encontrada');
     if (!area.stripe_price_id) {
       throw new BadRequestException('Esta área ainda não possui um preço configurado na Stripe');
