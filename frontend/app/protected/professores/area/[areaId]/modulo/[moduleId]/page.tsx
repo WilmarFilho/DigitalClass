@@ -36,11 +36,21 @@ interface Lesson {
   id: string;
   title: string;
   description: string | null;
-  type: "video" | "pdf";
+  type: "video" | "pdf" | "live";
   content_url: string | null;
   duration_minutes: number | null;
   progress?: LessonProgress | null;
   materials?: LessonMaterial[];
+  live_session?: {
+    id: string;
+    status: "draft" | "scheduled" | "ready" | "live" | "ended" | "canceled";
+    scheduled_at: string | null;
+    started_at: string | null;
+    ended_at: string | null;
+    playback_url: string | null;
+    replay_url: string | null;
+    resolved_content_url: string | null;
+  } | null;
 }
 
 interface Module {
@@ -168,6 +178,24 @@ export default function ModulePlayerPage() {
     apiGet<Comment[]>(`/teachers/lessons/${selectedLessonId}/comments`).then(setComments).catch(() => setComments([]));
   }, [selectedLessonId]);
 
+  useEffect(() => {
+    const lesson = module?.lessons.find((item) => item.id === selectedLessonId);
+    if (!lesson || lesson.type !== "live") return;
+
+    apiGet<{ lesson_id: string; live_session: Lesson["live_session"] }>(`/teachers/lessons/${lesson.id}/live`)
+      .then((payload) => {
+        setModule((prev) => prev ? ({
+          ...prev,
+          lessons: prev.lessons.map((item) => item.id === lesson.id ? {
+            ...item,
+            live_session: payload.live_session ?? null,
+            content_url: payload.live_session?.resolved_content_url ?? null,
+          } : item),
+        }) : null);
+      })
+      .catch(() => undefined);
+  }, [module?.id, selectedLessonId]);
+
   const currentLesson = module?.lessons.find(l => l.id === selectedLessonId);
 
   useEffect(() => {
@@ -176,7 +204,7 @@ export default function ModulePlayerPage() {
 
     if (!video || !currentLesson?.content_url) return;
 
-    if (currentLesson.type === "video") {
+    if (currentLesson.type === "video" || currentLesson.type === "live") {
       const url = currentLesson.content_url;
 
       if (url.includes('.m3u8')) {
@@ -308,7 +336,7 @@ export default function ModulePlayerPage() {
         <div className="flex-1 flex flex-col min-w-0 bg-white overflow-y-auto custom-scrollbar">
           <div className="aspect-video w-full bg-black relative shadow-2xl shrink-0">
             {currentLesson?.content_url ? (
-              currentLesson.type === "video" ? (
+              currentLesson.type === "video" || currentLesson.type === "live" ? (
                 <video
                   ref={videoRef}
                   controls
@@ -331,7 +359,18 @@ export default function ModulePlayerPage() {
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 gap-4">
                 <MonitorPlay className="h-12 w-12 opacity-20" />
-                <p className="text-sm font-medium">Conteúdo não disponível.</p>
+                {currentLesson?.type === "live" ? (
+                  <>
+                    <p className="text-sm font-medium">A live ainda não começou.</p>
+                    <p className="text-xs text-slate-400">
+                      {currentLesson.live_session?.scheduled_at
+                        ? `Agendada para ${new Date(currentLesson.live_session.scheduled_at).toLocaleString("pt-BR")}`
+                        : "Aguarde o professor preparar a transmissão."}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm font-medium">Conteúdo não disponível.</p>
+                )}
               </div>
             )}
           </div>
@@ -344,7 +383,7 @@ export default function ModulePlayerPage() {
                     {currentLesson?.title}
                   </h2>
                   <div className="flex items-center gap-3 text-slate-400 text-xs font-bold uppercase tracking-widest">
-                    <span className="flex items-center gap-1"><PlayCircle className="h-3 w-3" /> {currentLesson?.type}</span>
+                    <span className="flex items-center gap-1"><PlayCircle className="h-3 w-3" /> {currentLesson?.type === "live" ? "live" : currentLesson?.type}</span>
                     {currentLesson?.duration_minutes && <span>• {currentLesson.duration_minutes} min</span>}
                   </div>
                 </div>
@@ -583,8 +622,8 @@ export default function ModulePlayerPage() {
                     </p>
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-1 opacity-50 text-[9px] font-black uppercase">
-                        {lesson.type === "video" ? <PlayCircle className="h-3 w-3" /> : <FileText className="h-3 w-3" />}
-                        {lesson.type}
+                        {lesson.type === "video" ? <PlayCircle className="h-3 w-3" /> : lesson.type === "pdf" ? <FileText className="h-3 w-3" /> : <MonitorPlay className="h-3 w-3" />}
+                        {lesson.type === "live" ? "ao vivo" : lesson.type}
                       </div>
                       {lesson.progress?.completed && (
                         <div className="flex items-center gap-1 text-emerald-500 text-[9px] font-black uppercase">

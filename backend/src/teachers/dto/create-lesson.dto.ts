@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsIn, IsNumber, Min } from 'class-validator';
+import { IsString, IsOptional, IsIn, IsNumber, Min, IsDateString } from 'class-validator';
 
 export class CreateLessonDto {
   @IsString()
@@ -12,9 +12,9 @@ export class CreateLessonDto {
   @IsOptional()
   description?: string;
 
-  @IsIn(['video', 'pdf'])
+  @IsIn(['video', 'pdf', 'live'])
   @IsOptional()
-  type?: 'video' | 'pdf';
+  type?: 'video' | 'pdf' | 'live';
 
   @IsNumber()
   @Min(0)
@@ -25,4 +25,8 @@ export class CreateLessonDto {
   @Min(0)
   @IsOptional()
   duration_minutes?: number;
+
+  @IsDateString()
+  @IsOptional()
+  scheduled_at?: string;
 }

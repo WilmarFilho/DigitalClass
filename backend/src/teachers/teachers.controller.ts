@@ -19,6 +19,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { TeachersService } from './teachers.service';
 import { CreateTeacherAreaDto } from './dto/create-teacher-area.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
+import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { SupabaseJwtGuard } from '../auth/guards/supabase-jwt.guard';
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
@@ -167,8 +168,28 @@ export class TeachersController {
   }
 
   @Post('my-areas/:areaId/lessons/:lessonId')
-  updateLesson(@Req() req: any, @Param('lessonId') lessonId: string, @Body() dto: { description?: string; duration_minutes?: number }) {
+  updateLesson(@Req() req: any, @Param('lessonId') lessonId: string, @Body() dto: UpdateLessonDto) {
     return this.teachersService.updateLesson(req.user.id, lessonId, dto);
+  }
+
+  @Get('my-areas/:areaId/lessons/:lessonId/live')
+  getTeacherLessonLiveSession(@Req() req: any, @Param('lessonId') lessonId: string) {
+    return this.teachersService.getTeacherLessonLiveSession(req.user.id, lessonId);
+  }
+
+  @Post('my-areas/:areaId/lessons/:lessonId/live/prepare')
+  prepareLessonLive(@Req() req: any, @Param('lessonId') lessonId: string) {
+    return this.teachersService.prepareLessonLive(req.user.id, lessonId);
+  }
+
+  @Post('my-areas/:areaId/lessons/:lessonId/live/stop')
+  stopLessonLive(@Req() req: any, @Param('lessonId') lessonId: string) {
+    return this.teachersService.stopLessonLive(req.user.id, lessonId);
+  }
+
+  @Post('my-areas/:areaId/lessons/:lessonId/live/refresh')
+  refreshTeacherLessonLive(@Req() req: any, @Param('lessonId') lessonId: string) {
+    return this.teachersService.getTeacherLessonLiveSession(req.user.id, lessonId, true);
   }
 
   @Post('my-areas/:areaId/lessons/:lessonId/upload')
@@ -312,6 +333,11 @@ export class TeachersController {
   @Get('lessons/:lessonId/materials')
   getLessonMaterials(@Req() req: any, @Param('lessonId') lessonId: string) {
     return this.teachersService.getLessonMaterials(req.user.id, lessonId);
+  }
+
+  @Get('lessons/:lessonId/live')
+  getLessonLiveSession(@Req() req: any, @Param('lessonId') lessonId: string) {
+    return this.teachersService.getLessonLiveSession(req.user.id, lessonId);
   }
 
   @Post('lessons/:lessonId/materials')

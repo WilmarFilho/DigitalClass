@@ -2,6 +2,37 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { MediaConvertClient, CreateJobCommand } from '@aws-sdk/client-mediaconvert';
+import { Sha256 } from '@aws-crypto/sha256-js';
+import { HttpRequest } from '@smithy/protocol-http';
+import { SignatureV4 } from '@smithy/signature-v4';
+
+type IvsChannelResponse = {
+  channel?: {
+    arn?: string;
+    ingestEndpoint?: string;
+    playbackUrl?: string;
+  };
+  streamKey?: {
+    arn?: string;
+    value?: string;
+  };
+};
+
+type IvsGetStreamKeyResponse = {
+  streamKey?: {
+    arn?: string;
+    value?: string;
+  };
+};
+
+type IvsGetStreamResponse = {
+  stream?: {
+    state?: string;
+    health?: string;
+    startTime?: string;
+    playbackUrl?: string;
+  };
+};
 
 @Injectable()
 export class AwsService {
@@ -12,6 +43,8 @@ export class AwsService {
   private outputBucket: string;
   private roleArn: string;
   private cloudFrontDomain: string;
+  private ivsRegion: string;
+  private ivsEndpoint: string;
 
   constructor(private configService: ConfigService) {
     const region = this.configService.get<string>('AWS_REGION') || 'us-east-1';
@@ -44,6 +77,10 @@ export class AwsService {
     this.outputBucket = this.configService.get<string>('AWS_S3_OUTPUT_BUCKET') || '';
     this.roleArn = this.configService.get<string>('AWS_MEDIACONVERT_ROLE_ARN') || '';
     this.cloudFrontDomain = this.configService.get<string>('AWS_CLOUDFRONT_DOMAIN') || '';
+    this.ivsRegion = this.configService.get<string>('AWS_IVS_REGION') || region;
+    this.ivsEndpoint =
+      this.configService.get<string>('AWS_IVS_ENDPOINT') ||
+      `https://ivs.${this.ivsRegion}.amazonaws.com`;
   }
 
   async uploadToS3(bucketType: 'input' | 'output', key: string, fileBuffer: Buffer, mimeType: string): Promise<string> {
@@ -155,5 +192,148 @@ export class AwsService {
 
   getCloudFrontUrl(key: string): string {
     return `https://${this.cloudFrontDomain}/${key}`;
+  }
+
+  async createLiveChannel(name: string): Promise<{
+    channelArn: string;
+    ingestEndpoint: string;
+    playbackUrl: string;
+    streamKeyArn: string;
+    streamKeyValue: string;
+  }> {
+    const body: Record<string, unknown> = {
+      name,
+      latencyMode: this.configService.get<string>('AWS_IVS_LATENCY_MODE') || 'LOW',
+      type: this.configService.get<string>('AWS_IVS_CHANNEL_TYPE') || 'STANDARD',
+    };
+
+    const recordingConfigurationArn = this.configService.get<string>('AWS_IVS_RECORDING_CONFIGURATION_ARN');
+    if (recordingConfigurationArn) {
+      body.recordingConfigurationArn = recordingConfigurationArn;
+    } else {
+      this.logger.warn('AWS_IVS_RECORDING_CONFIGURATION_ARN não configurado. A live será criada sem replay automático, apesar da gravação estar marcada como padrão no sistema.');
+    }
+
+    const response = await this.ivsRequest<IvsChannelResponse>('CreateChannel', body);
+    const channelArn = response.channel?.arn || '';
+    const ingestEndpoint = response.channel?.ingestEndpoint || '';
+    const playbackUrl = response.channel?.playbackUrl || '';
+    const streamKeyArn = response.streamKey?.arn || '';
+    const streamKeyValue = response.streamKey?.value || '';
+
+    if (!channelArn || !ingestEndpoint || !playbackUrl || !streamKeyArn || !streamKeyValue) {
+      throw new Error('AWS IVS retornou uma resposta incompleta ao criar o canal.');
+    }
+
+    return {
+      channelArn,
+      ingestEndpoint,
+      playbackUrl,
+      streamKeyArn,
+      streamKeyValue,
+    };
+  }
+
+  async getLiveStreamKey(streamKeyArn: string): Promise<{ arn: string; value: string }> {
+    const response = await this.ivsRequest<IvsGetStreamKeyResponse>('GetStreamKey', {
+      arn: streamKeyArn,
+    });
+
+    const arn = response.streamKey?.arn || streamKeyArn;
+    const value = response.streamKey?.value || '';
+
+    if (!value) {
+      throw new Error('Nao foi possivel recuperar a stream key da live.');
+    }
+
+    return { arn, value };
+  }
+
+  async getLiveStream(channelArn: string): Promise<{
+    isLive: boolean;
+    health: string | null;
+    playbackUrl: string | null;
+    startedAt: string | null;
+  }> {
+    try {
+      const response = await this.ivsRequest<IvsGetStreamResponse>('GetStream', {
+        channelArn,
+      });
+
+      return {
+        isLive: response.stream?.state === 'LIVE',
+        health: response.stream?.health || null,
+        playbackUrl: response.stream?.playbackUrl || null,
+        startedAt: response.stream?.startTime || null,
+      };
+    } catch (error: any) {
+      if (
+        error?.message?.includes('ChannelNotBroadcasting') ||
+        error?.message?.includes('ResourceNotFound')
+      ) {
+        return {
+          isLive: false,
+          health: null,
+          playbackUrl: null,
+          startedAt: null,
+        };
+      }
+
+      throw error;
+    }
+  }
+
+  async stopLiveStream(channelArn: string): Promise<void> {
+    await this.ivsRequest('StopStream', { channelArn });
+  }
+
+  private async ivsRequest<T = any>(action: string, body: Record<string, unknown>): Promise<T> {
+    const endpoint = new URL(this.ivsEndpoint);
+    const hostname = endpoint.hostname;
+    const bodyString = JSON.stringify(body);
+
+    const request = new HttpRequest({
+      protocol: endpoint.protocol,
+      hostname,
+      method: 'POST',
+      path: `/${action}`,
+      headers: {
+        host: hostname,
+        'content-type': 'application/json',
+      },
+      body: bodyString,
+    });
+
+    const signer = new SignatureV4({
+      service: 'ivs',
+      region: this.ivsRegion,
+      sha256: Sha256,
+      credentials: {
+        accessKeyId: this.configService.get<string>('AWS_ACCESS_KEY_ID') || '',
+        secretAccessKey: this.configService.get<string>('AWS_SECRET_ACCESS_KEY') || '',
+      },
+    });
+
+    const signedRequest = await signer.sign(request);
+    const response = await fetch(`${this.ivsEndpoint}/${action}`, {
+      method: 'POST',
+      headers: signedRequest.headers as Record<string, string>,
+      body: bodyString,
+    });
+
+    const responseText = await response.text();
+    const parsed = responseText ? JSON.parse(responseText) : {};
+
+    if (!response.ok) {
+      const message =
+        parsed?.message ||
+        parsed?.Message ||
+        parsed?.exceptionMessage ||
+        parsed?.Error ||
+        `AWS IVS ${action} falhou com status ${response.status}.`;
+      throw new Error(message);
+    }
+
+    return parsed as T;
   }
 }

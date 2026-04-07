@@ -13,6 +13,7 @@ import { StripeService } from '../stripe/stripe.service';
 import { AwsService } from '../aws/aws.service';
 import { CreateTeacherAreaDto } from './dto/create-teacher-area.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
+import { UpdateLessonDto } from './dto/update-lesson.dto';
 import * as ffmpeg from 'fluent-ffmpeg';
 import * as streamifier from 'streamifier';
 import { Readable, PassThrough } from 'stream';
@@ -32,6 +33,25 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 const STRIPE_PERCENT_FEE = 0.0399; // 3.99% for Brazilian cards
 const STRIPE_FIXED_FEE = 0.39;     // R$0.39
 const PLATFORM_FEE_PERCENT = 0.20; // 20%
+
+type LiveLessonStatus = 'draft' | 'scheduled' | 'ready' | 'live' | 'ended' | 'canceled';
+
+type LessonLiveSession = {
+  id: string;
+  lesson_id: string;
+  status: LiveLessonStatus;
+  scheduled_at: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  aws_channel_arn: string | null;
+  aws_stream_key_arn: string | null;
+  aws_ingest_endpoint: string | null;
+  playback_url: string | null;
+  replay_url: string | null;
+  recording_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+};
 
 @Injectable()
 export class TeachersService {
@@ -237,6 +257,153 @@ export class TeachersService {
     return true;
   }
 
+  private async assertOwnsLesson(teacherId: string, lessonId: string) {
+    const { data: lesson } = await this.supabase()
+      .from('lessons')
+      .select('id, title, area_id, type')
+      .eq('id', lessonId)
+      .maybeSingle();
+
+    if (!lesson) throw new NotFoundException('Aula não encontrada');
+
+    const { data: area } = await this.supabase()
+      .from('teacher_areas')
+      .select('teacher_id')
+      .eq('id', lesson.area_id)
+      .maybeSingle();
+
+    if (area?.teacher_id !== teacherId) throw new ForbiddenException();
+
+    return lesson;
+  }
+
+  private resolveLiveContentUrl(session?: Partial<LessonLiveSession> | null) {
+    if (!session) return null;
+    if (session.replay_url) return session.replay_url;
+    if (session.status === 'live') return session.playback_url ?? null;
+    return null;
+  }
+
+  private mapLiveSession(session?: LessonLiveSession | null) {
+    if (!session) return null;
+
+    return {
+      id: session.id,
+      status: session.status,
+      scheduled_at: session.scheduled_at,
+      started_at: session.started_at,
+      ended_at: session.ended_at,
+      aws_ingest_endpoint: session.aws_ingest_endpoint,
+      playback_url: session.playback_url,
+      replay_url: session.replay_url,
+      recording_enabled: session.recording_enabled,
+      resolved_content_url: this.resolveLiveContentUrl(session),
+    };
+  }
+
+  private async getLiveSessionByLessonId(lessonId: string) {
+    const { data, error } = await this.supabase()
+      .from('lesson_live_sessions')
+      .select('*')
+      .eq('lesson_id', lessonId)
+      .maybeSingle();
+
+    if (error) {
+      this.logger.error(`getLiveSessionByLessonId(${lessonId}): ${error.message}`);
+      throw new BadRequestException(error.message);
+    }
+
+    return (data as LessonLiveSession | null) ?? null;
+  }
+
+  private async syncLiveSessionState(session: LessonLiveSession) {
+    if (!session.aws_channel_arn) return session;
+
+    const stream = await this.awsService.getLiveStream(session.aws_channel_arn);
+    const nowIso = new Date().toISOString();
+    const nextStatus: LiveLessonStatus =
+      stream.isLive
+        ? 'live'
+        : session.status === 'live'
+          ? 'ended'
+          : session.status === 'draft' && session.aws_ingest_endpoint
+            ? 'ready'
+            : session.status;
+
+    const payload: Partial<LessonLiveSession> = {};
+
+    if (stream.isLive) {
+      payload.status = 'live';
+      payload.started_at = session.started_at ?? stream.startedAt ?? nowIso;
+      payload.ended_at = null;
+      payload.playback_url = stream.playbackUrl ?? session.playback_url;
+    } else if (session.status === 'live') {
+      payload.status = 'ended';
+      payload.ended_at = session.ended_at ?? nowIso;
+    } else if (nextStatus !== session.status) {
+      payload.status = nextStatus;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      return session;
+    }
+
+    const { data, error } = await this.supabase()
+      .from('lesson_live_sessions')
+      .update({
+        ...payload,
+        updated_at: nowIso,
+      })
+      .eq('id', session.id)
+      .select('*')
+      .single();
+
+    if (error) {
+      this.logger.error(`syncLiveSessionState(${session.lesson_id}): ${error.message}`);
+      return session;
+    }
+
+    return data as LessonLiveSession;
+  }
+
+  private async enrichLessonsWithLiveData<T extends { id: string; type?: string | null; content_url?: string | null }>(lessons: T[]) {
+    if (!lessons.length) return lessons;
+
+    const liveLessons = lessons.filter((lesson) => lesson.type === 'live');
+    if (!liveLessons.length) {
+      return lessons.map((lesson) => ({ ...lesson, live_session: null }));
+    }
+
+    const lessonIds = liveLessons.map((lesson) => lesson.id);
+    const { data, error } = await this.supabase()
+      .from('lesson_live_sessions')
+      .select('*')
+      .in('lesson_id', lessonIds);
+
+    if (error) {
+      this.logger.error(`enrichLessonsWithLiveData: ${error.message}`);
+      return lessons.map((lesson) => ({ ...lesson, live_session: null }));
+    }
+
+    const sessionMap = new Map<string, LessonLiveSession>();
+    for (const row of (data ?? []) as LessonLiveSession[]) {
+      sessionMap.set(row.lesson_id, row);
+    }
+
+    return lessons.map((lesson) => {
+      const session = sessionMap.get(lesson.id) ?? null;
+      const liveSession = this.mapLiveSession(session);
+
+      return {
+        ...lesson,
+        content_url: lesson.type === 'live'
+          ? this.resolveLiveContentUrl(session) ?? lesson.content_url ?? null
+          : lesson.content_url ?? null,
+        live_session: liveSession,
+      };
+    });
+  }
+
   // ─── Fee Breakdown ─────────────────────────────────────────────────────────
 
   calculateFees(monthlyPrice: number) {
@@ -388,7 +555,9 @@ export class TeachersService {
       .eq('module_id', moduleId)
       .order('order_index', { ascending: true });
 
-    const lessonIds = (lessons ?? []).map((l) => l.id);
+    const enrichedLessons = await this.enrichLessonsWithLiveData(lessons ?? []);
+
+    const lessonIds = enrichedLessons.map((l) => l.id);
     const [progressRes, materialsRes] = await Promise.all([
       lessonIds.length ? this.supabase()
         .from('lesson_progress')
@@ -414,7 +583,7 @@ export class TeachersService {
       id: module.id,
       title: module.title,
       description: module.description ?? null,
-      lessons: (lessons ?? []).map((l) => {
+      lessons: enrichedLessons.map((l) => {
         const prog = progressMap.get(l.id);
         return {
           id: l.id,
@@ -423,6 +592,7 @@ export class TeachersService {
           type: l.type ?? 'video',
           content_url: l.content_url ?? null,
           duration_minutes: l.duration_minutes ?? null,
+          live_session: (l as any).live_session ?? null,
           progress: prog ? { completed: prog.completed, watched_until_percent: Number(prog.watched_until_percent ?? 0) } : null,
           materials: materialsByLesson.get(l.id) ?? [],
         };
@@ -458,7 +628,7 @@ export class TeachersService {
       .eq('area_id', areaId)
       .order('order_index', { ascending: true });
 
-    return data ?? [];
+    return this.enrichLessonsWithLiveData(data ?? []);
   }
 
   // ─── Subscrições ───────────────────────────────────────────────────────────
@@ -822,7 +992,7 @@ export class TeachersService {
       .eq('area_id', areaId)
       .order('order_index', { ascending: true });
 
-    return data ?? [];
+    return this.enrichLessonsWithLiveData(data ?? []);
   }
 
   async createLesson(teacherId: string, areaId: string, dto: CreateLessonDto) {
@@ -837,6 +1007,7 @@ export class TeachersService {
 
     if (!area) throw new NotFoundException('Área não encontrada ou você não tem permissão');
 
+    const lessonType = dto.type ?? 'video';
     const { data, error } = await this.supabase()
       .from('lessons')
       .insert({
@@ -844,7 +1015,7 @@ export class TeachersService {
         module_id: dto.module_id ?? null,
         title: dto.title,
         description: dto.description ?? null,
-        type: dto.type ?? 'video',
+        type: lessonType,
         order_index: dto.order_index ?? 0,
         duration_minutes: dto.duration_minutes ?? null,
       })
@@ -852,14 +1023,33 @@ export class TeachersService {
       .single();
 
     if (error) throw new BadRequestException(error.message);
-    return data;
+
+    if (lessonType === 'live') {
+      const now = new Date().toISOString();
+      const { error: liveError } = await this.supabase()
+        .from('lesson_live_sessions')
+        .insert({
+          lesson_id: data.id,
+          status: dto.scheduled_at ? 'scheduled' : 'draft',
+          scheduled_at: dto.scheduled_at ?? null,
+          recording_enabled: true,
+          updated_at: now,
+        });
+
+      if (liveError) {
+        throw new BadRequestException(liveError.message);
+      }
+    }
+
+    const [enriched] = await this.enrichLessonsWithLiveData([data]);
+    return enriched;
   }
 
-  async updateLesson(teacherId: string, lessonId: string, dto: { description?: string; duration_minutes?: number }) {
+  async updateLesson(teacherId: string, lessonId: string, dto: UpdateLessonDto) {
     await this.assertTeacher(teacherId);
     const { data: lesson } = await this.supabase()
       .from('lessons')
-      .select('area_id')
+      .select('id, area_id, type')
       .eq('id', lessonId)
       .maybeSingle();
     if (!lesson) throw new NotFoundException('Aula não encontrada');
@@ -872,15 +1062,40 @@ export class TeachersService {
     const payload: any = {};
     if (dto.description !== undefined) payload.description = dto.description;
     if (dto.duration_minutes !== undefined) payload.duration_minutes = dto.duration_minutes;
-    if (Object.keys(payload).length === 0) return this.supabase().from('lessons').select('*').eq('id', lessonId).single().then((r) => r.data);
-    const { data, error } = await this.supabase()
-      .from('lessons')
-      .update(payload)
-      .eq('id', lessonId)
-      .select()
-      .single();
-    if (error) throw new BadRequestException(error.message);
-    return data;
+
+    let updatedLesson: any = null;
+    if (Object.keys(payload).length === 0) {
+      updatedLesson = await this.supabase().from('lessons').select('*').eq('id', lessonId).single().then((r) => r.data);
+    } else {
+      const { data, error } = await this.supabase()
+        .from('lessons')
+        .update(payload)
+        .eq('id', lessonId)
+        .select()
+        .single();
+      if (error) throw new BadRequestException(error.message);
+      updatedLesson = data;
+    }
+
+    if (lesson.type === 'live' && dto.scheduled_at !== undefined) {
+      const nextStatus: LiveLessonStatus = dto.scheduled_at
+        ? 'scheduled'
+        : 'draft';
+      const { error: liveError } = await this.supabase()
+        .from('lesson_live_sessions')
+        .upsert({
+          lesson_id: lessonId,
+          scheduled_at: dto.scheduled_at,
+          status: nextStatus,
+          updated_at: new Date().toISOString(),
+          recording_enabled: true,
+        }, { onConflict: 'lesson_id', ignoreDuplicates: false });
+
+      if (liveError) throw new BadRequestException(liveError.message);
+    }
+
+    const [enriched] = await this.enrichLessonsWithLiveData([updatedLesson]);
+    return enriched;
   }
 
   async deleteLesson(teacherId: string, lessonId: string) {
@@ -919,6 +1134,11 @@ export class TeachersService {
     originalName: string,
   ) {
     await this.assertTeacher(teacherId);
+    const lesson = await this.assertOwnsLesson(teacherId, lessonId);
+
+    if (lesson.type === 'live') {
+      throw new BadRequestException('Aulas ao vivo não aceitam upload direto. Use a configuração da live para transmitir via OBS.');
+    }
 
     const isVideo = mimeType.startsWith('video');
     const ext = originalName.split('.').pop() ?? (isVideo ? 'mp4' : 'bin');
@@ -966,6 +1186,133 @@ export class TeachersService {
     );
 
     return data;
+  }
+
+  async getTeacherLessonLiveSession(teacherId: string, lessonId: string, forceSync = false) {
+    const lesson = await this.assertOwnsLesson(teacherId, lessonId);
+    if (lesson.type !== 'live') {
+      throw new BadRequestException('Esta aula não é do tipo ao vivo.');
+    }
+
+    let session = await this.getLiveSessionByLessonId(lessonId);
+    if (!session) {
+      throw new NotFoundException('Sessão ao vivo não encontrada para esta aula.');
+    }
+
+    if (forceSync || session.aws_channel_arn) {
+      session = await this.syncLiveSessionState(session);
+    }
+
+    let streamKeyValue: string | null = null;
+    if (session.aws_stream_key_arn) {
+      try {
+        const streamKey = await this.awsService.getLiveStreamKey(session.aws_stream_key_arn);
+        streamKeyValue = streamKey.value;
+      } catch (error: any) {
+        this.logger.warn(`Não foi possível recuperar stream key da aula ${lessonId}: ${error.message}`);
+      }
+    }
+
+    return {
+      lesson_id: lessonId,
+      lesson_title: (lesson as any).title ?? null,
+      live_session: this.mapLiveSession(session),
+      obs: session.aws_ingest_endpoint && streamKeyValue
+        ? {
+            server_url: `rtmps://${session.aws_ingest_endpoint}:443/app/`,
+            stream_key: streamKeyValue,
+          }
+        : null,
+    };
+  }
+
+  async getLessonLiveSession(userId: string, lessonId: string) {
+    await this.assertCanAccessLesson(userId, lessonId);
+
+    const { data: lesson } = await this.supabase()
+      .from('lessons')
+      .select('id, type')
+      .eq('id', lessonId)
+      .maybeSingle();
+
+    if (!lesson) throw new NotFoundException('Aula não encontrada');
+    if (lesson.type !== 'live') {
+      throw new BadRequestException('Esta aula não é do tipo ao vivo.');
+    }
+
+    let session = await this.getLiveSessionByLessonId(lessonId);
+    if (!session) return { lesson_id: lessonId, live_session: null };
+
+    session = await this.syncLiveSessionState(session);
+
+    return {
+      lesson_id: lessonId,
+      live_session: this.mapLiveSession(session),
+    };
+  }
+
+  async prepareLessonLive(teacherId: string, lessonId: string) {
+    const lesson = await this.assertOwnsLesson(teacherId, lessonId);
+    if (lesson.type !== 'live') {
+      throw new BadRequestException('Esta aula não é do tipo ao vivo.');
+    }
+
+    let session = await this.getLiveSessionByLessonId(lessonId);
+    if (!session) {
+      throw new NotFoundException('Sessão ao vivo não encontrada para esta aula.');
+    }
+
+    if (!session.aws_channel_arn || !session.aws_stream_key_arn || !session.aws_ingest_endpoint || !session.playback_url) {
+      const channel = await this.awsService.createLiveChannel(
+        `lesson-${lessonId}-${Date.now()}`,
+      );
+      const nextStatus: LiveLessonStatus = session.scheduled_at ? 'scheduled' : 'ready';
+      const { data, error } = await this.supabase()
+        .from('lesson_live_sessions')
+        .update({
+          aws_channel_arn: channel.channelArn,
+          aws_stream_key_arn: channel.streamKeyArn,
+          aws_ingest_endpoint: channel.ingestEndpoint,
+          playback_url: channel.playbackUrl,
+          status: nextStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', session.id)
+        .select('*')
+        .single();
+
+      if (error) throw new BadRequestException(error.message);
+      session = data as LessonLiveSession;
+    } else {
+      session = await this.syncLiveSessionState(session);
+    }
+
+    return this.getTeacherLessonLiveSession(teacherId, lessonId, true);
+  }
+
+  async stopLessonLive(teacherId: string, lessonId: string) {
+    const lesson = await this.assertOwnsLesson(teacherId, lessonId);
+    if (lesson.type !== 'live') {
+      throw new BadRequestException('Esta aula não é do tipo ao vivo.');
+    }
+
+    const session = await this.getLiveSessionByLessonId(lessonId);
+    if (!session) throw new NotFoundException('Sessão ao vivo não encontrada para esta aula.');
+    if (!session.aws_channel_arn) {
+      throw new BadRequestException('A live ainda não foi preparada no AWS IVS.');
+    }
+
+    await this.awsService.stopLiveStream(session.aws_channel_arn);
+    await this.supabase()
+      .from('lesson_live_sessions')
+      .update({
+        status: 'ended',
+        ended_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', session.id);
+
+    return this.getTeacherLessonLiveSession(teacherId, lessonId, true);
   }
 
   private async processFileContent(lessonId: string, buffer: Buffer, type: 'video' | 'pdf') {
@@ -1217,7 +1564,19 @@ export class TeachersService {
         }))
     }));
 
-    return sections;
+    const allLessons = sections.flatMap((section: any) =>
+      (section.modules || []).flatMap((module: any) => module.lessons || []),
+    );
+    const enrichedLessons = await this.enrichLessonsWithLiveData(allLessons);
+    const lessonMap = new Map(enrichedLessons.map((lesson: any) => [lesson.id, lesson]));
+
+    return sections.map((section: any) => ({
+      ...section,
+      modules: (section.modules || []).map((module: any) => ({
+        ...module,
+        lessons: (module.lessons || []).map((lesson: any) => lessonMap.get(lesson.id) ?? lesson),
+      })),
+    }));
   }
 
   async createSection(teacherId: string, areaId: string, dto: any) {

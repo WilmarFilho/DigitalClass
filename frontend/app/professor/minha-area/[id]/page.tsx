@@ -33,6 +33,9 @@ import {
   RefreshCw,
   Sparkles,
   CreditCard,
+  Copy,
+  CalendarClock,
+  Radio,
 } from "lucide-react";
 import { apiGet, apiPost, apiDelete, apiUpload, apiPatch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -71,11 +74,35 @@ interface Lesson {
   id: string;
   title: string;
   description: string | null;
-  type: "video" | "pdf";
+  type: "video" | "pdf" | "live";
   content_url: string | null;
   duration_minutes: number | null;
   order_index: number;
   created_at: string;
+  live_session?: LessonLiveSession | null;
+}
+
+interface LessonLiveSession {
+  id: string;
+  status: "draft" | "scheduled" | "ready" | "live" | "ended" | "canceled";
+  scheduled_at: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  aws_ingest_endpoint: string | null;
+  playback_url: string | null;
+  replay_url: string | null;
+  recording_enabled: boolean;
+  resolved_content_url: string | null;
+}
+
+interface TeacherLessonLiveDetails {
+  lesson_id: string;
+  lesson_title: string | null;
+  live_session: LessonLiveSession | null;
+  obs: {
+    server_url: string;
+    stream_key: string;
+  } | null;
 }
 
 interface Notice {
@@ -134,8 +161,9 @@ export default function EditAreaPage() {
   const [lessonForm, setLessonForm] = useState({
     title: "",
     description: "",
-    type: "video" as "video" | "pdf",
+    type: "video" as "video" | "pdf" | "live",
     duration_minutes: "",
+    scheduled_at: "",
   });
   const [savingLesson, setSavingLesson] = useState(false);
   const [uploadingLesson, setUploadingLesson] = useState<string | null>(null);
@@ -144,8 +172,11 @@ export default function EditAreaPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewLesson, setPreviewLesson] = useState<Lesson | null>(null);
   const [editLessonModal, setEditLessonModal] = useState<{ lesson: Lesson; moduleId: string } | null>(null);
-  const [editLessonForm, setEditLessonForm] = useState({ description: "" });
+  const [editLessonForm, setEditLessonForm] = useState({ description: "", scheduled_at: "" });
   const [savingEditLesson, setSavingEditLesson] = useState(false);
+  const [liveDetails, setLiveDetails] = useState<Record<string, TeacherLessonLiveDetails | null>>({});
+  const [loadingLiveDetails, setLoadingLiveDetails] = useState<Record<string, boolean>>({});
+  const [liveActionLessonId, setLiveActionLessonId] = useState<string | null>(null);
   const [materialsModal, setMaterialsModal] = useState<{ lesson: Lesson; moduleId: string } | null>(null);
   const [materials, setMaterials] = useState<{ id: string; type: string; title: string; url: string }[]>([]);
   const [loadingMaterials, setLoadingMaterials] = useState(false);
@@ -172,6 +203,68 @@ export default function EditAreaPage() {
     if (!lessonId) return;
     fetchMaterials(lessonId);
   }, [materialsModal?.lesson?.id, fetchMaterials]);
+
+  const updateLessonInSections = useCallback((updatedLesson: Lesson) => {
+    setSections((prev) => prev.map((section) => ({
+      ...section,
+      modules: section.modules.map((module) => ({
+        ...module,
+        lessons: module.lessons.map((lesson) => lesson.id === updatedLesson.id ? updatedLesson : lesson),
+      })),
+    })));
+  }, []);
+
+  const loadTeacherLiveDetails = useCallback(async (lessonId: string, forceRefresh = false) => {
+    setLoadingLiveDetails((prev) => ({ ...prev, [lessonId]: true }));
+    const endpoint = forceRefresh
+      ? `/teachers/my-areas/${areaId}/lessons/${lessonId}/live/refresh`
+      : `/teachers/my-areas/${areaId}/lessons/${lessonId}/live`;
+
+    try {
+      const details = forceRefresh
+        ? await apiPost<TeacherLessonLiveDetails>(endpoint, {})
+        : await apiGet<TeacherLessonLiveDetails>(endpoint);
+
+      setLiveDetails((prev) => ({ ...prev, [lessonId]: details }));
+
+      setSections((prev) => prev.map((section) => ({
+        ...section,
+        modules: section.modules.map((module) => ({
+          ...module,
+          lessons: module.lessons.map((lesson) => lesson.id === lessonId
+            ? {
+                ...lesson,
+                content_url: details.live_session?.resolved_content_url ?? null,
+                live_session: details.live_session,
+              }
+            : lesson),
+        })),
+      })));
+
+      return details;
+    } finally {
+      setLoadingLiveDetails((prev) => ({ ...prev, [lessonId]: false }));
+    }
+  }, [areaId]);
+
+  async function copyToClipboard(value: string, successMessage: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setError({ title: "Copiado", message: successMessage });
+      setTimeout(() => setError(null), 1800);
+    } catch {
+      setError("Não foi possível copiar automaticamente.");
+    }
+  }
+
+  const editLessonId = editLessonModal?.lesson?.id;
+  const editLessonType = editLessonModal?.lesson?.type;
+
+  useEffect(() => {
+    if (!editLessonId || editLessonType !== "live") return;
+    if (liveDetails[editLessonId] || loadingLiveDetails[editLessonId]) return;
+    loadTeacherLiveDetails(editLessonId).catch(() => undefined);
+  }, [editLessonId, editLessonType, liveDetails, loadingLiveDetails, loadTeacherLiveDetails]);
 
   async function load() {
     setLoading(true);
@@ -350,6 +443,7 @@ export default function EditAreaPage() {
         ...lessonForm,
         module_id: lessonModal.moduleId,
         duration_minutes: lessonForm.duration_minutes ? Number(lessonForm.duration_minutes) : null,
+        scheduled_at: lessonForm.type === "live" && lessonForm.scheduled_at ? new Date(lessonForm.scheduled_at).toISOString() : null,
         order_index: module?.lessons.length || 0,
       });
 
@@ -364,7 +458,7 @@ export default function EditAreaPage() {
       }));
 
       setLessonModal(null);
-      setLessonForm({ title: "", description: "", type: "video", duration_minutes: "" });
+      setLessonForm({ title: "", description: "", type: "video", duration_minutes: "", scheduled_at: "" });
     } catch (e: any) {
       setError(e.message || t("minhaAreaEdit.errorCreateLesson"));
     } finally {
@@ -372,17 +466,16 @@ export default function EditAreaPage() {
     }
   }
 
-  async function handleUpdateLesson(lessonId: string, description: string) {
+  async function handleUpdateLesson(lesson: Lesson) {
     setSavingEditLesson(true);
     try {
-      const updated = await apiPost<Lesson>(`/teachers/my-areas/${areaId}/lessons/${lessonId}`, { description: description || null });
-      setSections(prev => prev.map(s => ({
-        ...s,
-        modules: s.modules.map(m => ({
-          ...m,
-          lessons: m.lessons.map(l => l.id === lessonId ? { ...l, ...updated } : l)
-        }))
-      })));
+      const updated = await apiPost<Lesson>(`/teachers/my-areas/${areaId}/lessons/${lesson.id}`, {
+        description: editLessonForm.description || null,
+        scheduled_at: lesson.type === "live"
+          ? (editLessonForm.scheduled_at ? new Date(editLessonForm.scheduled_at).toISOString() : null)
+          : undefined,
+      });
+      updateLessonInSections(updated);
       setEditLessonModal(null);
     } catch (e: any) {
       setError(e.message || t("minhaAreaEdit.errorUpdate"));
@@ -474,6 +567,56 @@ export default function EditAreaPage() {
       setUploadingLesson(null);
       setUploadProgress(0);
       setPendingUploadId(null);
+    }
+  }
+
+  async function handlePrepareLive(lesson: Lesson) {
+    setLiveActionLessonId(lesson.id);
+    try {
+      const details = await apiPost<TeacherLessonLiveDetails>(`/teachers/my-areas/${areaId}/lessons/${lesson.id}/live/prepare`, {});
+      setLiveDetails((prev) => ({ ...prev, [lesson.id]: details }));
+      updateLessonInSections({
+        ...lesson,
+        content_url: details.live_session?.resolved_content_url ?? null,
+        live_session: details.live_session,
+      });
+    } catch (e: any) {
+      setError(e.message || "Não foi possível preparar a live.");
+    } finally {
+      setLiveActionLessonId(null);
+    }
+  }
+
+  async function handleRefreshLive(lesson: Lesson) {
+    setLiveActionLessonId(lesson.id);
+    try {
+      const details = await loadTeacherLiveDetails(lesson.id, true);
+      updateLessonInSections({
+        ...lesson,
+        content_url: details.live_session?.resolved_content_url ?? null,
+        live_session: details.live_session,
+      });
+    } catch (e: any) {
+      setError(e.message || "Não foi possível atualizar o status da live.");
+    } finally {
+      setLiveActionLessonId(null);
+    }
+  }
+
+  async function handleStopLive(lesson: Lesson) {
+    setLiveActionLessonId(lesson.id);
+    try {
+      const details = await apiPost<TeacherLessonLiveDetails>(`/teachers/my-areas/${areaId}/lessons/${lesson.id}/live/stop`, {});
+      setLiveDetails((prev) => ({ ...prev, [lesson.id]: details }));
+      updateLessonInSections({
+        ...lesson,
+        content_url: details.live_session?.resolved_content_url ?? null,
+        live_session: details.live_session,
+      });
+    } catch (e: any) {
+      setError(e.message || "Não foi possível encerrar a live.");
+    } finally {
+      setLiveActionLessonId(null);
     }
   }
 
@@ -975,13 +1118,28 @@ export default function EditAreaPage() {
                                           uploadProgress={uploadingLesson === lesson.id ? uploadProgress : 0}
                                           onDelete={() => handleDeleteLesson(module.id, lesson.id)}
                                           onUpload={() => {
+                                            if (lesson.type === "live") {
+                                              setEditLessonModal({ lesson, moduleId: module.id });
+                                              setEditLessonForm({
+                                                description: lesson.description ?? "",
+                                                scheduled_at: lesson.live_session?.scheduled_at
+                                                  ? new Date(lesson.live_session.scheduled_at).toISOString().slice(0, 16)
+                                                  : "",
+                                              });
+                                              return;
+                                            }
                                             setPendingUploadId(lesson.id);
                                             fileInputRef.current?.click();
                                           }}
                                           onPreview={() => setPreviewLesson(lesson)}
                                           onEdit={() => {
                                             setEditLessonModal({ lesson, moduleId: module.id });
-                                            setEditLessonForm({ description: lesson.description ?? "" });
+                                            setEditLessonForm({
+                                              description: lesson.description ?? "",
+                                              scheduled_at: lesson.live_session?.scheduled_at
+                                                ? new Date(lesson.live_session.scheduled_at).toISOString().slice(0, 16)
+                                                : "",
+                                            });
                                           }}
                                         />
                                       ))}
@@ -1155,8 +1313,8 @@ export default function EditAreaPage() {
                   </Field>
 
                   <Field label="Tipo de Conteúdo">
-                    <div className="grid grid-cols-2 gap-3">
-                      {(["video", "pdf"] as const).map((t) => (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {(["video", "pdf", "live"] as const).map((t) => (
                         <button
                           key={t}
                           onClick={() => setLessonForm(p => ({ ...p, type: t }))}
@@ -1165,12 +1323,23 @@ export default function EditAreaPage() {
                             lessonForm.type === t ? "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
                           )}
                         >
-                          {t === "video" ? <Video className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
-                          {t === "video" ? "Vídeo Aula" : "Material PDF"}
+                          {t === "video" ? <Video className="h-4 w-4" /> : t === "pdf" ? <FileText className="h-4 w-4" /> : <Radio className="h-4 w-4" />}
+                          {t === "video" ? "Vídeo" : t === "pdf" ? "PDF" : "Ao vivo"}
                         </button>
                       ))}
                     </div>
                   </Field>
+
+                  {lessonForm.type === "live" && (
+                    <Field label="Data e horário da live">
+                      <input
+                        type="datetime-local"
+                        value={lessonForm.scheduled_at}
+                        onChange={(e) => setLessonForm((p) => ({ ...p, scheduled_at: e.target.value }))}
+                        className="w-full h-12 rounded-xl border border-slate-200 px-4 font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                      />
+                    </Field>
+                  )}
                 </div>
 
                 <div className="pt-4 flex gap-3">
@@ -1204,7 +1373,7 @@ export default function EditAreaPage() {
               </div>
               <div className="aspect-video bg-black">
                 {previewLesson.content_url ? (
-                  previewLesson.type === "video" ? (
+                  previewLesson.type === "video" || previewLesson.type === "live" ? (
                     <video controls src={previewLesson.content_url} className="w-full h-full object-contain" />
                   ) : (
                     <iframe src={previewLesson.content_url} className="w-full h-full border-none" title={previewLesson.title} />
@@ -1212,7 +1381,18 @@ export default function EditAreaPage() {
                 ) : (
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 gap-4">
                     <MonitorPlay className="h-12 w-12 opacity-20" />
-                    <p className="text-sm">Faça o upload do conteúdo para pré-visualizar.</p>
+                    {previewLesson.type === "live" ? (
+                      <>
+                        <p className="text-sm font-semibold text-white/90">Live ainda não disponível no player.</p>
+                        <p className="text-xs text-slate-400">
+                          {previewLesson.live_session?.scheduled_at
+                            ? `Agendada para ${new Date(previewLesson.live_session.scheduled_at).toLocaleString("pt-BR")}`
+                            : "Prepare a transmissão para gerar os dados do OBS."}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm">Faça o upload do conteúdo para pré-visualizar.</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1241,16 +1421,104 @@ export default function EditAreaPage() {
                 <Field label={t("minhaAreaEdit.modalLessonDesc")}>
                   <textarea
                     value={editLessonForm.description}
-                    onChange={(e) => setEditLessonForm({ description: e.target.value })}
+                    onChange={(e) => setEditLessonForm((prev) => ({ ...prev, description: e.target.value }))}
                     placeholder={t("minhaAreaEdit.lessonDescPlaceholder")}
                     className="w-full h-32 rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
                   />
                 </Field>
+                {editLessonModal.lesson.type === "live" && (
+                  <>
+                    <Field label="Data e horário da live">
+                      <input
+                        type="datetime-local"
+                        value={editLessonForm.scheduled_at}
+                        onChange={(e) => setEditLessonForm((prev) => ({ ...prev, scheduled_at: e.target.value }))}
+                        className="w-full h-12 rounded-xl border border-slate-200 px-4 font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                      />
+                    </Field>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Status da live</p>
+                          <p className="text-sm font-bold text-slate-900 mt-1">
+                            {liveDetails[editLessonModal.lesson.id]?.live_session?.status === "live" ? "Transmitindo agora" :
+                              liveDetails[editLessonModal.lesson.id]?.live_session?.status === "scheduled" ? "Agendada" :
+                              liveDetails[editLessonModal.lesson.id]?.live_session?.status === "ready" ? "Pronta para transmitir" :
+                              liveDetails[editLessonModal.lesson.id]?.live_session?.status === "ended" ? "Encerrada" :
+                              "Rascunho"}
+                          </p>
+                        </div>
+                        <div className="h-11 w-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-indigo-600">
+                          <CalendarClock className="h-5 w-5" />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <Button
+                          variant="outline"
+                          className="rounded-xl"
+                          disabled={liveActionLessonId === editLessonModal.lesson.id}
+                          onClick={() => handlePrepareLive(editLessonModal.lesson)}
+                        >
+                          {liveActionLessonId === editLessonModal.lesson.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radio className="h-4 w-4 mr-2" />}
+                          Preparar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="rounded-xl"
+                          disabled={liveActionLessonId === editLessonModal.lesson.id}
+                          onClick={() => handleRefreshLive(editLessonModal.lesson)}
+                        >
+                          <RefreshCw className={cn("h-4 w-4 mr-2", liveActionLessonId === editLessonModal.lesson.id && "animate-spin")} />
+                          Atualizar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="rounded-xl border-red-200 text-red-600 hover:bg-red-50"
+                          disabled={liveActionLessonId === editLessonModal.lesson.id}
+                          onClick={() => handleStopLive(editLessonModal.lesson)}
+                        >
+                          Encerrar
+                        </Button>
+                      </div>
+
+                      {liveDetails[editLessonModal.lesson.id]?.obs && (
+                        <div className="space-y-3 rounded-2xl bg-white border border-slate-200 p-4">
+                          <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Dados do OBS</p>
+                          <div className="space-y-2">
+                            <div className="rounded-xl border border-slate-200 p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Servidor</p>
+                                  <p className="text-xs text-slate-700 break-all">{liveDetails[editLessonModal.lesson.id]?.obs?.server_url}</p>
+                                </div>
+                                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(liveDetails[editLessonModal.lesson.id]!.obs!.server_url, "Servidor do OBS copiado.")}>
+                                  <Copy className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Stream key</p>
+                                  <p className="text-xs text-slate-700 break-all">{liveDetails[editLessonModal.lesson.id]?.obs?.stream_key}</p>
+                                </div>
+                                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(liveDetails[editLessonModal.lesson.id]!.obs!.stream_key, "Stream key copiada.")}>
+                                  <Copy className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
                 <div className="pt-4">
                   <Button
                     className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-700"
                     disabled={savingEditLesson}
-                    onClick={() => handleUpdateLesson(editLessonModal.lesson.id, editLessonForm.description)}
+                    onClick={() => handleUpdateLesson(editLessonModal.lesson)}
                   >
                     {savingEditLesson ? <Loader2 className="h-4 w-4 animate-spin" /> : t("minhaAreaEdit.saveChanges")}
                   </Button>
@@ -1427,6 +1695,13 @@ export default function EditAreaPage() {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function LessonRow({ lesson, index, t, uploading, uploadProgress, onDelete, onUpload, onPreview, onEdit }: any) {
+  const liveStatusLabel =
+    lesson.live_session?.status === "live" ? "Ao vivo agora" :
+      lesson.live_session?.status === "scheduled" ? "Agendada" :
+        lesson.live_session?.status === "ready" ? "Pronta para OBS" :
+          lesson.live_session?.status === "ended" ? "Encerrada" :
+            "Configurar live";
+
   return (
     <motion.li
       initial={{ opacity: 0, x: -10 }}
@@ -1443,7 +1718,7 @@ function LessonRow({ lesson, index, t, uploading, uploadProgress, onDelete, onUp
           "h-10 w-10 shrink-0 rounded-xl flex items-center justify-center transition-colors",
           lesson.content_url ? "bg-emerald-50 text-emerald-600" : "bg-slate-200 text-slate-400"
         )}>
-          {lesson.type === "video" ? <Video className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+          {lesson.type === "video" ? <Video className="h-4 w-4" /> : lesson.type === "pdf" ? <FileText className="h-4 w-4" /> : <Radio className="h-4 w-4" />}
         </div>
 
         <div className="flex-1 min-w-0">
@@ -1468,6 +1743,10 @@ function LessonRow({ lesson, index, t, uploading, uploadProgress, onDelete, onUp
               {lesson.content_url ? (
                 <span className="text-[9px] font-black text-emerald-600 uppercase flex items-center gap-1">
                   <CheckCircle2 className="h-3 w-3" /> {t("minhaAreaEdit.contentReady")}
+                </span>
+              ) : lesson.type === "live" ? (
+                <span className="text-[9px] font-black text-indigo-500 uppercase flex items-center gap-1">
+                  <Radio className="h-3 w-3" /> {liveStatusLabel}
                 </span>
               ) : (
                 <span className="text-[9px] font-black text-amber-500 uppercase flex items-center gap-1">
@@ -1507,10 +1786,10 @@ function LessonRow({ lesson, index, t, uploading, uploadProgress, onDelete, onUp
 
           <Button
             size="sm"
-            variant={lesson.content_url ? "outline" : "default"}
+            variant={lesson.type === "live" || lesson.content_url ? "outline" : "default"}
             className={cn(
               "h-9 w-9 min-[500px]:w-auto min-[500px]:px-3 rounded-xl text-[11px] font-bold transition-all",
-              !lesson.content_url && "bg-indigo-600 hover:bg-indigo-700"
+              !lesson.content_url && lesson.type !== "live" && "bg-indigo-600 hover:bg-indigo-700"
             )}
             disabled={uploading}
             onClick={onUpload}
@@ -1519,9 +1798,13 @@ function LessonRow({ lesson, index, t, uploading, uploadProgress, onDelete, onUp
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <>
-                <Upload className={cn("h-3.5 w-3.5", lesson.content_url || "min-[500px]:mr-1")} />
+                {lesson.type === "live" ? (
+                  <Radio className="h-3.5 w-3.5 min-[500px]:mr-1" />
+                ) : (
+                  <Upload className={cn("h-3.5 w-3.5", lesson.content_url || "min-[500px]:mr-1")} />
+                )}
                 <span className="hidden min-[500px]:inline">
-                  {lesson.content_url ? t("minhaAreaEdit.change") : t("minhaAreaEdit.upload")}
+                  {lesson.type === "live" ? "Ao vivo" : lesson.content_url ? t("minhaAreaEdit.change") : t("minhaAreaEdit.upload")}
                 </span>
               </>
             )}

@@ -44,7 +44,7 @@ interface Lesson {
   id: string;
   title: string;
   description: string | null;
-  type: "video" | "pdf";
+  type: "video" | "pdf" | "live";
   content_url: string | null;
   duration_minutes: number | null;
   order_index: number;
