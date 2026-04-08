@@ -438,7 +438,7 @@ export class TeachersService {
     let query = this.supabase()
       .from('teacher_areas')
       .select(`
-        id, title, description, color_code, monthly_price, payment_model, banner_url, is_private, created_at,
+        id, title, description, color_code, monthly_price, payment_model, banner_url, banner_fit, banner_position, is_private, created_at,
         profiles!teacher_id ( id, full_name, avatar_url )
       `, { count: 'exact' })
       .eq('is_private', false);
@@ -467,7 +467,7 @@ export class TeachersService {
     const { data, error } = await this.supabase()
       .from('teacher_areas')
       .select(`
-        id, title, description, color_code, ai_tutor_enabled, ai_last_sync_at, monthly_price, payment_model, banner_url, is_private, created_at,
+        id, title, description, color_code, ai_tutor_enabled, ai_last_sync_at, monthly_price, payment_model, banner_url, banner_fit, banner_position, is_private, created_at,
         profiles!teacher_id ( id, full_name, avatar_url )
       `)
       .eq('id', areaId)
@@ -493,7 +493,7 @@ export class TeachersService {
       .select(`
         subscribed_at, subscription_status,
         teacher_areas (
-          id, title, description, color_code, monthly_price, payment_model, banner_url, created_at,
+          id, title, description, color_code, monthly_price, payment_model, banner_url, banner_fit, banner_position, created_at,
           profiles!teacher_id ( id, full_name, avatar_url )
         )
       `, { count: 'exact' })
@@ -780,7 +780,7 @@ export class TeachersService {
 
     const { data, count, error } = await this.supabase()
       .from('teacher_areas')
-      .select('id, title, description, color_code, monthly_price, payment_model, banner_url, is_private, created_at, stripe_product_id, stripe_price_id', { count: 'exact' })
+      .select('id, title, description, color_code, monthly_price, payment_model, banner_url, banner_fit, banner_position, is_private, created_at, stripe_product_id, stripe_price_id', { count: 'exact' })
       .eq('teacher_id', teacherId)
       .order('created_at', { ascending: false })
       .range(from, to);
@@ -848,7 +848,7 @@ export class TeachersService {
 
     const { data } = await this.supabase()
       .from('teacher_areas')
-      .select('id, title, description, color_code, ai_tutor_enabled, ai_last_sync_at, monthly_price, payment_model, banner_url, is_private, created_at, stripe_product_id, stripe_price_id')
+      .select('id, title, description, color_code, ai_tutor_enabled, ai_last_sync_at, monthly_price, payment_model, banner_url, banner_fit, banner_position, is_private, created_at, stripe_product_id, stripe_price_id')
       .eq('teacher_id', teacherId)
       .eq('id', areaId)
       .maybeSingle();
@@ -880,6 +880,8 @@ export class TeachersService {
       monthly_price: dto.monthly_price ?? 0,
       is_private: dto.is_private ?? false,
       payment_model: paymentModel,
+      banner_fit: dto.banner_fit ?? 'cover',
+      banner_position: dto.banner_position ?? 'center',
     };
 
     const monthlyPrice = Number(dto.monthly_price ?? 0);
@@ -1251,6 +1253,40 @@ export class TeachersService {
     };
   }
 
+  async getLessonPdf(userId: string, lessonId: string) {
+    await this.assertCanAccessLesson(userId, lessonId);
+
+    const { data: lesson } = await this.supabase()
+      .from('lessons')
+      .select('id, title, type, content_url')
+      .eq('id', lessonId)
+      .maybeSingle();
+
+    if (!lesson) throw new NotFoundException('Aula não encontrada');
+    if (lesson.type !== 'pdf') {
+      throw new BadRequestException('Esta aula não é do tipo PDF.');
+    }
+    if (!lesson.content_url) {
+      throw new NotFoundException('Este PDF ainda não possui conteúdo disponível.');
+    }
+
+    const response = await fetch(lesson.content_url);
+    if (!response.ok) {
+      throw new BadRequestException('Não foi possível baixar o PDF da aula.');
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const sanitizedTitle = (lesson.title || 'aula')
+      .replace(/[^a-zA-Z0-9.-]/g, '_')
+      .replace(/_+/g, '_');
+
+    return {
+      buffer: Buffer.from(arrayBuffer),
+      contentType: response.headers.get('content-type') || 'application/pdf',
+      fileName: sanitizedTitle.toLowerCase().endsWith('.pdf') ? sanitizedTitle : `${sanitizedTitle}.pdf`,
+    };
+  }
+
   async prepareLessonLive(teacherId: string, lessonId: string) {
     const lesson = await this.assertOwnsLesson(teacherId, lessonId);
     if (lesson.type !== 'live') {
@@ -1442,12 +1478,24 @@ export class TeachersService {
     await this.assertTeacher(teacherId);
 
     const ext = originalName.split('.').pop() ?? 'jpg';
-    const path = `area-banners/${areaId}.${ext}`;
+    const { data: existingArea } = await this.supabase()
+      .from('teacher_areas')
+      .select('banner_url')
+      .eq('id', areaId)
+      .eq('teacher_id', teacherId)
+      .maybeSingle();
+
+    const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const path = `area-banners/${areaId}/${uniqueSuffix}.${ext}`;
+
+    this.logger.log(
+      `[uploadAreaBanner] Upload iniciado | areaId=${areaId} | originalName=${originalName} | mimeType=${mimeType} | path=${path}`,
+    );
 
     const { data: uploadData, error: uploadError } = await this.supabase()
       .storage
       .from('avatars')
-      .upload(path, fileBuffer, { contentType: mimeType, upsert: true });
+      .upload(path, fileBuffer, { contentType: mimeType, upsert: false });
 
     if (uploadError) throw new BadRequestException(`Upload falhou: ${this.translateStorageError(uploadError.message)}`);
 
@@ -1456,15 +1504,117 @@ export class TeachersService {
       .from('avatars')
       .getPublicUrl(uploadData.path);
 
+    const cacheBustedPublicUrl = `${urlData.publicUrl}?v=${Date.now()}`;
+
+    this.logger.log(
+      `[uploadAreaBanner] Upload concluído | areaId=${areaId} | storagePath=${uploadData.path} | publicUrl=${cacheBustedPublicUrl}`,
+    );
+
     const { data, error } = await this.supabase()
       .from('teacher_areas')
-      .update({ banner_url: urlData.publicUrl })
+      .update({ banner_url: cacheBustedPublicUrl })
       .eq('id', areaId)
       .eq('teacher_id', teacherId)
       .select()
       .single();
 
     if (error) throw new BadRequestException(error.message);
+
+    const previousBannerUrl = existingArea?.banner_url;
+    if (previousBannerUrl) {
+      try {
+        const parsedUrl = new URL(previousBannerUrl);
+        const marker = '/storage/v1/object/public/avatars/';
+        const pathIndex = parsedUrl.pathname.indexOf(marker);
+
+        if (pathIndex >= 0) {
+          const previousPath = decodeURIComponent(parsedUrl.pathname.slice(pathIndex + marker.length));
+
+          if (previousPath && previousPath !== uploadData.path) {
+            const { error: removeError } = await this.supabase()
+              .storage
+              .from('avatars')
+              .remove([previousPath]);
+
+            if (removeError) {
+              this.logger.warn(
+                `[uploadAreaBanner] Não foi possível remover o banner anterior | areaId=${areaId} | previousPath=${previousPath} | error=${removeError.message}`,
+              );
+            } else {
+              this.logger.log(
+                `[uploadAreaBanner] Banner anterior removido | areaId=${areaId} | previousPath=${previousPath}`,
+              );
+            }
+          }
+        }
+      } catch (cleanupError: any) {
+        this.logger.warn(
+          `[uploadAreaBanner] Falha ao interpretar/remover banner antigo | areaId=${areaId} | error=${cleanupError?.message ?? 'desconhecido'}`,
+        );
+      }
+    }
+
+    return data;
+  }
+
+  async deleteAreaBanner(teacherId: string, areaId: string) {
+    await this.assertTeacher(teacherId);
+
+    const { data: existingArea, error: areaError } = await this.supabase()
+      .from('teacher_areas')
+      .select('banner_url')
+      .eq('id', areaId)
+      .eq('teacher_id', teacherId)
+      .maybeSingle();
+
+    if (areaError) throw new BadRequestException(areaError.message);
+    if (!existingArea) throw new NotFoundException('Área não encontrada.');
+
+    const previousBannerUrl = existingArea.banner_url;
+
+    const { data, error } = await this.supabase()
+      .from('teacher_areas')
+      .update({ banner_url: null })
+      .eq('id', areaId)
+      .eq('teacher_id', teacherId)
+      .select()
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+
+    if (previousBannerUrl) {
+      try {
+        const parsedUrl = new URL(previousBannerUrl);
+        const marker = '/storage/v1/object/public/avatars/';
+        const pathIndex = parsedUrl.pathname.indexOf(marker);
+
+        if (pathIndex >= 0) {
+          const previousPath = decodeURIComponent(parsedUrl.pathname.slice(pathIndex + marker.length));
+
+          if (previousPath) {
+            const { error: removeError } = await this.supabase()
+              .storage
+              .from('avatars')
+              .remove([previousPath]);
+
+            if (removeError) {
+              this.logger.warn(
+                `[deleteAreaBanner] Não foi possível remover o banner | areaId=${areaId} | previousPath=${previousPath} | error=${removeError.message}`,
+              );
+            } else {
+              this.logger.log(
+                `[deleteAreaBanner] Banner removido do storage | areaId=${areaId} | previousPath=${previousPath}`,
+              );
+            }
+          }
+        }
+      } catch (cleanupError: any) {
+        this.logger.warn(
+          `[deleteAreaBanner] Falha ao interpretar/remover banner antigo | areaId=${areaId} | error=${cleanupError?.message ?? 'desconhecido'}`,
+        );
+      }
+    }
+
     return data;
   }
 
@@ -1525,6 +1675,8 @@ export class TeachersService {
       monthly_price: Number(area.monthly_price ?? 0),
       payment_model: area.payment_model ?? 'recurring',
       banner_url: area.banner_url,
+      banner_fit: area.banner_fit ?? 'cover',
+      banner_position: area.banner_position ?? 'center',
       created_at: area.created_at,
       teacher: {
         id: area.profiles?.id,
@@ -1982,6 +2134,90 @@ export class TeachersService {
       student: {
         id: profile?.id ?? userId,
         full_name: profile?.full_name ?? 'Aluno',
+        avatar_url: profile?.avatar_url ?? null,
+      },
+    };
+  }
+
+  async getLessonLiveMessages(userId: string, lessonId: string) {
+    await this.assertCanAccessLesson(userId, lessonId);
+
+    const { data: lesson } = await this.supabase()
+      .from('lessons')
+      .select('type')
+      .eq('id', lessonId)
+      .maybeSingle();
+
+    if (!lesson) throw new NotFoundException('Aula não encontrada');
+    if (lesson.type !== 'live') {
+      throw new BadRequestException('O chat nativo está disponível apenas para aulas ao vivo.');
+    }
+
+    const { data, error } = await this.supabase()
+      .from('lesson_live_messages')
+      .select(`
+        id, content, created_at,
+        profiles!user_id ( id, full_name, avatar_url )
+      `)
+      .eq('lesson_id', lessonId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw new BadRequestException(error.message);
+
+    return (data ?? []).map((message: any) => ({
+      id: message.id,
+      content: message.content,
+      created_at: message.created_at,
+      user: {
+        id: message.profiles?.id,
+        full_name: message.profiles?.full_name ?? 'Usuário',
+        avatar_url: message.profiles?.avatar_url ?? null,
+      },
+    }));
+  }
+
+  async createLessonLiveMessage(userId: string, lessonId: string, content: string) {
+    await this.assertCanAccessLesson(userId, lessonId);
+
+    const message = content?.trim();
+    if (!message) throw new BadRequestException('Digite uma mensagem para enviar no chat.');
+
+    const { data: lesson } = await this.supabase()
+      .from('lessons')
+      .select('type')
+      .eq('id', lessonId)
+      .maybeSingle();
+
+    if (!lesson) throw new NotFoundException('Aula não encontrada');
+    if (lesson.type !== 'live') {
+      throw new BadRequestException('O chat nativo está disponível apenas para aulas ao vivo.');
+    }
+
+    const { data: inserted, error } = await this.supabase()
+      .from('lesson_live_messages')
+      .insert({
+        lesson_id: lessonId,
+        user_id: userId,
+        content: message,
+      })
+      .select('id, content, created_at')
+      .single();
+
+    if (error) throw new BadRequestException(error.message);
+
+    const { data: profile } = await this.supabase()
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .eq('id', userId)
+      .maybeSingle();
+
+    return {
+      id: inserted.id,
+      content: inserted.content,
+      created_at: inserted.created_at,
+      user: {
+        id: profile?.id ?? userId,
+        full_name: profile?.full_name ?? 'Usuário',
         avatar_url: profile?.avatar_url ?? null,
       },
     };

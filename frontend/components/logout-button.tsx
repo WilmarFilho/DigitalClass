@@ -1,11 +1,23 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonProps } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useTranslation } from "@/hooks/useTranslation";
+import { LogOut } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export function LogoutButton() {
+interface LogoutButtonProps extends Omit<ButtonProps, "onClick"> {
+  showIcon?: boolean;
+}
+
+export function LogoutButton({
+  className,
+  variant = "default",
+  size = "default",
+  showIcon = false,
+  ...props
+}: LogoutButtonProps) {
   const router = useRouter();
   const { t } = useTranslation();
 
@@ -15,5 +27,16 @@ export function LogoutButton() {
     router.push("/auth");
   };
 
-  return <Button onClick={logout}>{t("sidebar.sair")}</Button>;
+  return (
+    <Button
+      onClick={logout}
+      variant={variant}
+      size={size}
+      className={cn(className)}
+      {...props}
+    >
+      {showIcon && <LogOut className="h-4 w-4" />}
+      {t("sidebar.sair")}
+    </Button>
+  );
 }

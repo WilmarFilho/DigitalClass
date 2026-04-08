@@ -25,6 +25,17 @@ export async function apiGet<T>(path: string): Promise<T> {
   return res.json();
 }
 
+export async function apiGetBlob(path: string): Promise<Blob> {
+  const res = await fetch(`${BASE_URL}${API_PREFIX}${path}`, {
+    headers: await getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(Array.isArray(err.message) ? err.message[0] : err.message || "Erro na requisição");
+  }
+  return res.blob();
+}
+
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const url = `${BASE_URL}${API_PREFIX}${path}`;
   const headers = await getAuthHeaders();
@@ -75,6 +86,18 @@ export async function apiDelete(path: string): Promise<void> {
     const err = await res.json().catch(() => ({ message: res.statusText }));
     throw new Error(Array.isArray(err.message) ? err.message[0] : err.message || "Erro na requisição");
   }
+}
+
+export async function apiDeleteWithResponse<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE_URL}${API_PREFIX}${path}`, {
+    method: "DELETE",
+    headers: await getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(Array.isArray(err.message) ? err.message[0] : err.message || "Erro na requisição");
+  }
+  return res.json();
 }
 
 export async function apiUpload<T>(path: string, file: File): Promise<T> {

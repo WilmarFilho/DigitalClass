@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { useRole } from "@/contexts/RoleContext";
 import { useTranslation } from "@/hooks/useTranslation";
 import { motion, AnimatePresence } from "framer-motion";
+import { LogoutButton } from "@/components/logout-button";
 
 const studentNav = [
   { href: "/protected", icon: LayoutDashboard, labelKey: "sidebar.dashboard", fallback: "Dashboard", newTab: false },
@@ -41,10 +42,8 @@ const teacherNav = [
   { href: "/professor/meus-alunos", icon: UsersRound, labelKey: "sidebar.meusAlunos", fallback: "Meus Alunos", newTab: false },
 ];
 
-const bottomNav = [
-  { href: "/protected/perfil", icon: User, labelKey: "sidebar.perfil", fallback: "Perfil" },
-  { href: "/protected/configuracoes", icon: Settings, labelKey: "sidebar.configuracoes", fallback: "Configurações" },
-];
+const profileNav = { href: "/protected/perfil", icon: User, labelKey: "sidebar.perfil", fallback: "Perfil" };
+const settingsNav = { href: "/protected/configuracoes", icon: Settings, labelKey: "sidebar.configuracoes", fallback: "Configurações" };
 
 interface SidebarProps {
   userName?: string;
@@ -225,12 +224,19 @@ export function Sidebar({
 
         {/* Navegação Inferior */}
         <div className="px-4 py-4 space-y-1.5 border-t border-[#E6E0F8] dark:border-slate-800">
-          {bottomNav.map(({ href, icon: Icon, labelKey, fallback }) => {
+          {[profileNav, settingsNav].map(({ href, icon: Icon, labelKey, fallback }, index) => {
             const active = isActive(href);
             const translatedLabel = t(labelKey) !== labelKey ? t(labelKey) : fallback;
             return (
+              <div key={href} className="contents">
+                {index === 1 && (
+                  <LogoutButton
+                    variant="ghost"
+                    showIcon
+                    className="md:hidden flex w-full items-center justify-start gap-4 rounded-xl px-4 py-2.5 text-sm font-semibold text-[#4A4A4A]/70 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800 hover:text-[#6D44CC]"
+                  />
+                )}
               <Link
-                key={href}
                 href={href}
                 className={cn(
                   "flex items-center gap-4 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all",
@@ -255,6 +261,7 @@ export function Sidebar({
                   )}
                 </AnimatePresence>
               </Link>
+              </div>
             );
           })}
 

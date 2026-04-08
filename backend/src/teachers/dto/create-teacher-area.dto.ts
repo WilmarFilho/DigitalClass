@@ -25,4 +25,14 @@ export class CreateTeacherAreaDto {
   @IsIn(['recurring', 'one_time'])
   @IsOptional()
   payment_model?: 'recurring' | 'one_time';
+
+  @IsString()
+  @IsIn(['cover', 'contain', 'fill'])
+  @IsOptional()
+  banner_fit?: 'cover' | 'contain' | 'fill';
+
+  @IsString()
+  @IsIn(['center', 'top', 'bottom', 'left', 'right'])
+  @IsOptional()
+  banner_position?: 'center' | 'top' | 'bottom' | 'left' | 'right';
 }

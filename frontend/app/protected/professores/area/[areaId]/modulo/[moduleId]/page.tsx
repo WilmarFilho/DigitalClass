@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Loader2,
   PlayCircle,
+  PauseCircle,
   FileText,
   CheckCircle2,
   ChevronRight,
@@ -14,11 +15,17 @@ import {
   X,
   Menu,
   MessageSquare,
-  Send
+  Send,
+  Radio,
+  Volume2,
+  VolumeX,
+  Sparkles
 } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import { PdfLessonViewer } from "@/components/lesson/PdfLessonViewer";
 
 interface LessonProgress {
   completed: boolean;
@@ -66,6 +73,23 @@ interface Comment {
   student?: { id: string; full_name: string; avatar_url: string | null };
 }
 
+interface LiveMessage {
+  id: string;
+  content: string;
+  created_at: string;
+  user?: { id: string; full_name: string; avatar_url: string | null };
+}
+
+function resolveLiveStatus(session?: Lesson["live_session"]) {
+  if (!session) return "draft";
+  if (session.status === "ended" || session.ended_at || session.replay_url) return "ended";
+  if (session.status === "canceled") return "canceled";
+  if (session.status === "live" || session.started_at) return "live";
+  if (session.status === "ready" || session.playback_url) return "ready";
+  if (session.status === "scheduled" || session.scheduled_at) return "scheduled";
+  return "draft";
+}
+
 export default function ModulePlayerPage() {
   const params = useParams<{ areaId: string; moduleId: string }>();
   const router = useRouter();
@@ -79,7 +103,14 @@ export default function ModulePlayerPage() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [postingComment, setPostingComment] = useState(false);
+  const [liveMessages, setLiveMessages] = useState<LiveMessage[]>([]);
+  const [liveMessageText, setLiveMessageText] = useState("");
+  const [postingLiveMessage, setPostingLiveMessage] = useState(false);
+  const [isLiveMuted, setIsLiveMuted] = useState(true);
+  const [isLivePlaying, setIsLivePlaying] = useState(false);
+  const [liveNeedsManualPlay, setLiveNeedsManualPlay] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const liveChatEndRef = useRef<HTMLDivElement>(null);
   const progressSentRef = useRef<Set<string>>(new Set());
 
   const [quiz, setQuiz] = useState<any[] | null>(null);
@@ -152,6 +183,31 @@ export default function ModulePlayerPage() {
 
   const completedCount = module?.lessons.filter(l => l.progress?.completed).length ?? 0;
   const progressPercent = module?.lessons?.length ? Math.round((completedCount / module.lessons.length) * 100) : 0;
+  const currentLesson = module?.lessons.find(l => l.id === selectedLessonId);
+  const isLiveLesson = currentLesson?.type === "live";
+  const liveStatus = resolveLiveStatus(currentLesson?.live_session);
+  const showLiveChat = isLiveLesson && (liveStatus === "live" || liveStatus === "ended");
+
+  const refreshLiveLesson = useCallback(async (lessonId: string) => {
+    const payload = await apiGet<{ lesson_id: string; live_session: Lesson["live_session"] }>(`/teachers/lessons/${lessonId}/live`);
+
+    setModule((prev) => prev ? ({
+      ...prev,
+      lessons: prev.lessons.map((item) => item.id === lessonId ? {
+        ...item,
+        live_session: payload.live_session ?? null,
+        content_url: payload.live_session?.resolved_content_url ?? null,
+      } : item),
+    }) : null);
+
+    return payload;
+  }, []);
+
+  const loadLiveMessages = useCallback(async (lessonId: string) => {
+    const data = await apiGet<LiveMessage[]>(`/teachers/lessons/${lessonId}/live/messages`);
+    setLiveMessages(data);
+    return data;
+  }, []);
 
   useEffect(() => {
     if (!params?.moduleId) return;
@@ -175,28 +231,86 @@ export default function ModulePlayerPage() {
 
   useEffect(() => {
     if (!selectedLessonId) return;
+    const lesson = module?.lessons.find((item) => item.id === selectedLessonId);
+    if (lesson?.type === "live") return;
     apiGet<Comment[]>(`/teachers/lessons/${selectedLessonId}/comments`).then(setComments).catch(() => setComments([]));
-  }, [selectedLessonId]);
+  }, [module?.lessons, selectedLessonId]);
 
   useEffect(() => {
-    const lesson = module?.lessons.find((item) => item.id === selectedLessonId);
-    if (!lesson || lesson.type !== "live") return;
+    if (!currentLesson || currentLesson.type !== "live") {
+      setLiveMessages([]);
+      setLiveMessageText("");
+      return;
+    }
 
-    apiGet<{ lesson_id: string; live_session: Lesson["live_session"] }>(`/teachers/lessons/${lesson.id}/live`)
-      .then((payload) => {
-        setModule((prev) => prev ? ({
-          ...prev,
-          lessons: prev.lessons.map((item) => item.id === lesson.id ? {
-            ...item,
-            live_session: payload.live_session ?? null,
-            content_url: payload.live_session?.resolved_content_url ?? null,
-          } : item),
-        }) : null);
-      })
-      .catch(() => undefined);
-  }, [module?.id, selectedLessonId]);
+    let active = true;
+    loadLiveMessages(currentLesson.id).catch(() => {
+      if (active) setLiveMessages([]);
+    });
 
-  const currentLesson = module?.lessons.find(l => l.id === selectedLessonId);
+    return () => {
+      active = false;
+    };
+  }, [currentLesson, loadLiveMessages]);
+
+  useEffect(() => {
+    if (!currentLesson || currentLesson.type !== "live") return;
+    refreshLiveLesson(currentLesson.id).catch(() => undefined);
+  }, [currentLesson, refreshLiveLesson]);
+
+  useEffect(() => {
+    if (!currentLesson || currentLesson.type !== "live") return;
+
+    const status = resolveLiveStatus(currentLesson.live_session);
+    if (status === "ended" || status === "canceled") return;
+
+    const interval = window.setInterval(() => {
+      refreshLiveLesson(currentLesson.id).catch(() => undefined);
+    }, 4000);
+
+    return () => window.clearInterval(interval);
+  }, [currentLesson, refreshLiveLesson]);
+
+  useEffect(() => {
+    liveChatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [liveMessages]);
+
+  useEffect(() => {
+    if (!currentLesson || currentLesson.type !== "live") return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`live-room-${currentLesson.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "lesson_live_sessions",
+          filter: `lesson_id=eq.${currentLesson.id}`,
+        },
+        () => {
+          refreshLiveLesson(currentLesson.id).catch(() => undefined);
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "lesson_live_messages",
+          filter: `lesson_id=eq.${currentLesson.id}`,
+        },
+        () => {
+          loadLiveMessages(currentLesson.id).catch(() => undefined);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [currentLesson, refreshLiveLesson, loadLiveMessages]);
 
   useEffect(() => {
     let hls: any = null;
@@ -206,6 +320,9 @@ export default function ModulePlayerPage() {
 
     if (currentLesson.type === "video" || currentLesson.type === "live") {
       const url = currentLesson.content_url;
+      video.muted = currentLesson.type === "live" ? isLiveMuted : false;
+      video.autoplay = currentLesson.type === "live";
+      video.playsInline = true;
 
       if (url.includes('.m3u8')) {
         import('hls.js').then(({ default: Hls }) => {
@@ -213,19 +330,50 @@ export default function ModulePlayerPage() {
             hls = new Hls();
             hls.loadSource(url);
             hls.attachMedia(video);
+            if (currentLesson.type === "live") {
+              void video.play()
+                .then(() => setLiveNeedsManualPlay(false))
+                .catch(() => setLiveNeedsManualPlay(true));
+            }
           } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
             video.src = url;
+            if (currentLesson.type === "live") {
+              void video.play()
+                .then(() => setLiveNeedsManualPlay(false))
+                .catch(() => setLiveNeedsManualPlay(true));
+            }
           }
         });
       } else {
         video.src = url;
+        if (currentLesson.type === "live") {
+          void video.play()
+            .then(() => setLiveNeedsManualPlay(false))
+            .catch(() => setLiveNeedsManualPlay(true));
+        }
       }
     }
 
     return () => {
       if (hls) hls.destroy();
     };
-  }, [currentLesson?.content_url, currentLesson?.type]);
+  }, [currentLesson?.content_url, currentLesson?.type, isLiveMuted]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handlePlay = () => setIsLivePlaying(true);
+    const handlePause = () => setIsLivePlaying(false);
+
+    video.addEventListener("play", handlePlay);
+    video.addEventListener("pause", handlePause);
+
+    return () => {
+      video.removeEventListener("play", handlePlay);
+      video.removeEventListener("pause", handlePause);
+    };
+  }, [currentLesson?.id]);
 
 
   async function handleMarkProgress(lessonId: string, completed: boolean) {
@@ -256,6 +404,35 @@ export default function ModulePlayerPage() {
     } finally {
       setPostingComment(false);
     }
+  }
+
+  async function handlePostLiveMessage() {
+    if (!selectedLessonId || !liveMessageText.trim()) return;
+    setPostingLiveMessage(true);
+    try {
+      const created = await apiPost<LiveMessage>(`/teachers/lessons/${selectedLessonId}/live/messages`, { content: liveMessageText.trim() });
+      setLiveMessages((prev) => [...prev, created]);
+      setLiveMessageText("");
+    } finally {
+      setPostingLiveMessage(false);
+    }
+  }
+
+  async function handleToggleLivePlayback() {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (video.paused) {
+      try {
+        await video.play();
+        setLiveNeedsManualPlay(false);
+      } catch {
+        setLiveNeedsManualPlay(true);
+      }
+      return;
+    }
+
+    video.pause();
   }
 
   const handleSelectLesson = (id: string) => {
@@ -337,24 +514,100 @@ export default function ModulePlayerPage() {
           <div className="aspect-video w-full bg-black relative shadow-2xl shrink-0">
             {currentLesson?.content_url ? (
               currentLesson.type === "video" || currentLesson.type === "live" ? (
-                <video
-                  ref={videoRef}
-                  controls
-                  controlsList="nodownload"
-                  className="w-full h-full object-contain"
-                  onEnded={() => selectedLessonId && handleVideoProgress(selectedLessonId, 100)}
-                  onTimeUpdate={() => {
-                    const v = videoRef.current;
-                    if (!v || !selectedLessonId || v.duration <= 0) return;
-                    const pct = (v.currentTime / v.duration) * 100;
-                    if (pct >= 95 && !progressSentRef.current.has(selectedLessonId)) {
-                      progressSentRef.current.add(selectedLessonId);
-                      handleVideoProgress(selectedLessonId, pct);
-                    }
-                  }}
-                />
+                <>
+                  <video
+                    ref={videoRef}
+                    controls={currentLesson.type !== "live"}
+                    controlsList="nodownload"
+                    className="w-full h-full object-contain"
+                    onEnded={() => selectedLessonId && handleVideoProgress(selectedLessonId, 100)}
+                    onTimeUpdate={() => {
+                      const v = videoRef.current;
+                      if (!v || !selectedLessonId || v.duration <= 0) return;
+                      const pct = (v.currentTime / v.duration) * 100;
+                      if (pct >= 95 && !progressSentRef.current.has(selectedLessonId)) {
+                        progressSentRef.current.add(selectedLessonId);
+                        handleVideoProgress(selectedLessonId, pct);
+                      }
+                    }}
+                  />
+                  {currentLesson.type === "live" && (
+                    <>
+                      <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-4">
+                        <div className={cn(
+                          "pointer-events-auto inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-lg",
+                          currentLesson.live_session?.status === "ended"
+                            ? "bg-slate-800/85 shadow-slate-950/30"
+                            : "bg-red-600 shadow-red-900/30"
+                        )}>
+                          <Radio className="h-3.5 w-3.5" />
+                          {currentLesson.live_session?.status === "ended" ? "Replay" : "Ao vivo"}
+                        </div>
+
+                        <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-slate-900/70 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-md">
+                          <div className={cn(
+                            "h-2.5 w-2.5 rounded-full",
+                            currentLesson.live_session?.status === "live" ? "bg-red-400 animate-pulse" : "bg-slate-400"
+                          )} />
+                          {currentLesson.live_session?.status === "live" ? "Transmissão em andamento" : "Replay gravado"}
+                        </div>
+                      </div>
+
+                      {liveNeedsManualPlay && (
+                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
+                          <button
+                            type="button"
+                            onClick={handleToggleLivePlayback}
+                            className="pointer-events-auto inline-flex items-center gap-3 rounded-full bg-white px-5 py-3 text-sm font-black text-slate-900 shadow-2xl"
+                          >
+                            <PlayCircle className="h-5 w-5 text-red-600" />
+                            Entrar na live
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent p-4">
+                        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-white backdrop-blur-md">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleToggleLivePlayback}
+                              className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-900 shadow-lg"
+                            >
+                              {isLivePlaying ? <PauseCircle className="h-5 w-5" /> : <PlayCircle className="h-5 w-5" />}
+                            </button>
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-[0.2em] text-white/70">
+                                {currentLesson.live_session?.status === "ended" ? "Replay disponível" : "Ao vivo detectado"}
+                              </p>
+                              <p className="text-sm font-bold">
+                                {currentLesson.live_session?.status === "ended"
+                                  ? "O replay começa sozinho quando o navegador permitir."
+                                  : "Se o navegador bloquear o autoplay, toque em entrar na live."}
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setIsLiveMuted((prev) => !prev)}
+                            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-white"
+                          >
+                            {isLiveMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                            {isLiveMuted ? "Ativar som" : "Som ligado"}
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </>
               ) : (
-                <iframe src={currentLesson.content_url} className="w-full h-full border-none" title={currentLesson.title} />
+                <PdfLessonViewer
+                  lessonId={currentLesson.id}
+                  title={currentLesson.title}
+                  sourceUrl={currentLesson.content_url}
+                  className="w-full h-full border-none"
+                />
               )
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 gap-4">
@@ -367,6 +620,9 @@ export default function ModulePlayerPage() {
                         ? `Agendada para ${new Date(currentLesson.live_session.scheduled_at).toLocaleString("pt-BR")}`
                         : "Aguarde o professor preparar a transmissão."}
                     </p>
+                    <div className="rounded-full bg-white/5 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-300">
+                      Entraremos automaticamente quando a transmissão começar
+                    </div>
                   </>
                 ) : (
                   <p className="text-sm font-medium">Conteúdo não disponível.</p>
@@ -388,7 +644,7 @@ export default function ModulePlayerPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {!currentLesson?.progress?.completed && currentLesson && (
+                  {!isLiveLesson && !currentLesson?.progress?.completed && currentLesson && (
                     <Button
                       variant="outline"
                       className="rounded-xl font-bold text-xs gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
@@ -399,14 +655,105 @@ export default function ModulePlayerPage() {
                       {currentLesson.type === "video" ? "Marcar como assistido" : "Marcar como lido"}
                     </Button>
                   )}
-                  {currentLesson?.progress?.completed && (
+                  {!isLiveLesson && currentLesson?.progress?.completed && (
                     <span className="flex items-center gap-2 text-emerald-600 text-xs font-bold">
                       <CheckCircle2 className="h-4 w-4" /> Concluído
+                    </span>
+                  )}
+                  {isLiveLesson && (
+                    <span className={cn(
+                      "inline-flex items-center gap-2 rounded-full px-3 py-2 text-[11px] font-black uppercase tracking-[0.2em]",
+                      liveStatus === "live"
+                        ? "bg-red-50 text-red-600"
+                        : liveStatus === "ended"
+                          ? "bg-slate-100 text-slate-600"
+                          : "bg-indigo-50 text-indigo-600"
+                    )}>
+                      <Radio className="h-3.5 w-3.5" />
+                      {liveStatus === "live" ? "Transmitindo agora" : liveStatus === "ended" ? "Replay disponível" : "Live agendada"}
                     </span>
                   )}
                 </div>
               </div>
               <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">{currentLesson?.description || "Sem descrição."}</p>
+
+              {isLiveLesson && (
+                <div className="border-t border-slate-100 pt-8 mt-8">
+                  <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-indigo-600" /> Chat da live
+                      </h4>
+                      <p className="text-xs text-slate-500 font-medium">
+                        {liveStatus === "live"
+                          ? "Converse em tempo real com o professor e os outros alunos."
+                          : liveStatus === "ended"
+                            ? "A live terminou, mas o histórico do chat continua disponível."
+                            : "O chat será liberado quando a live começar."}
+                      </p>
+                    </div>
+                    <div className={cn(
+                      "inline-flex items-center gap-2 rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em]",
+                      liveStatus === "live" ? "bg-red-50 text-red-600" : "bg-slate-100 text-slate-500"
+                    )}>
+                      <Radio className="h-3.5 w-3.5" />
+                      {liveStatus === "live" ? "Chat aberto" : liveStatus === "ended" ? "Histórico da live" : "Aguardando início"}
+                    </div>
+                  </div>
+
+                  <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50">
+                    <div className="max-h-[420px] overflow-y-auto p-4 md:p-5 space-y-3">
+                      {showLiveChat && liveMessages.length === 0 && (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                          Nenhuma mensagem ainda. Seja o primeiro a participar.
+                        </div>
+                      )}
+
+                      {!showLiveChat && (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                          O chat será ativado automaticamente assim que a live entrar no ar.
+                        </div>
+                      )}
+
+                      {liveMessages.map((message) => (
+                        <div key={message.id} className="flex gap-3 rounded-2xl bg-white p-4 border border-slate-100">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-black text-indigo-600">
+                            {message.user?.full_name?.charAt(0) ?? "?"}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-black text-slate-700">{message.user?.full_name ?? "Usuário"}</p>
+                              <span className="text-[10px] text-slate-400">{new Date(message.created_at).toLocaleString("pt-BR")}</span>
+                            </div>
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{message.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                      <div ref={liveChatEndRef} />
+                    </div>
+
+                    <div className="border-t border-slate-200 bg-white p-4">
+                      <div className="flex gap-2">
+                        <input
+                          value={liveMessageText}
+                          onChange={(e) => setLiveMessageText(e.target.value)}
+                          placeholder={liveStatus === "live" ? "Escreva no chat da live..." : "O chat está disponível apenas durante a transmissão."}
+                          disabled={liveStatus !== "live"}
+                          className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:cursor-not-allowed disabled:bg-slate-50"
+                          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handlePostLiveMessage()}
+                        />
+                        <Button
+                          className="rounded-2xl shrink-0"
+                          disabled={!liveMessageText.trim() || postingLiveMessage || liveStatus !== "live"}
+                          onClick={handlePostLiveMessage}
+                        >
+                          {postingLiveMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {currentLesson && (currentLesson.materials?.length ?? 0) > 0 && (
                 <div className="border-t border-slate-100 pt-6">
@@ -429,8 +776,8 @@ export default function ModulePlayerPage() {
                 </div>
               )}
 
-              {/* SEÇÃO DE QUIZ IA */}
-              <div className="border-t border-slate-100 pt-10 mt-10">
+              {!isLiveLesson && (
+                <div className="border-t border-slate-100 pt-10 mt-10">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div className="space-y-1">
                     <h4 className="text-sm font-black text-slate-800 flex items-center gap-2">
@@ -536,9 +883,11 @@ export default function ModulePlayerPage() {
                     </Button>
                   </div>
                 )}
-              </div>
+                </div>
+              )}
 
-              <div className="border-t border-slate-100 pt-6 mt-6">
+              {!isLiveLesson && (
+                <div className="border-t border-slate-100 pt-6 mt-6">
                 <h4 className="text-sm font-black text-slate-800 mb-4 flex items-center gap-2">
                   <MessageSquare className="h-4 w-4" /> Comentários ({comments.length})
                 </h4>
@@ -572,7 +921,9 @@ export default function ModulePlayerPage() {
                     {postingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   </Button>
                 </div>
-              </div>
+                </div>
+              )}
+
             </div>
           </div>
         </div>

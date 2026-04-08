@@ -29,11 +29,28 @@ interface TeacherArea {
   color_code: string;
   monthly_price: number;
   banner_url: string | null;
+  banner_fit?: "cover" | "contain" | "fill";
+  banner_position?: "center" | "top" | "bottom" | "left" | "right";
   teacher: {
     id: string;
     full_name: string;
     avatar_url: string | null;
   };
+}
+
+function getBannerPosition(position?: TeacherArea["banner_position"]) {
+  switch (position) {
+    case "top":
+      return "center top";
+    case "bottom":
+      return "center bottom";
+    case "left":
+      return "left center";
+    case "right":
+      return "right center";
+    default:
+      return "center center";
+  }
 }
 
 interface Section {
@@ -243,8 +260,13 @@ export default function TeacherAreaPage() {
           <div
             className="absolute inset-0"
             style={{
+              backgroundImage: area.banner_url ? `url(${area.banner_url})` : undefined,
+              backgroundPosition: getBannerPosition(area.banner_position),
+              backgroundSize: area.banner_fit ?? "cover",
+              backgroundRepeat: "no-repeat",
+              backgroundColor: area.color_code,
               background: area.banner_url
-                ? `url(${area.banner_url}) center/cover`
+                ? undefined
                 : `linear-gradient(135deg, ${area.color_code}, ${area.color_code}99)`,
             }}
           />

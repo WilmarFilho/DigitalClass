@@ -269,7 +269,8 @@ export class AwsService {
     } catch (error: any) {
       if (
         error?.message?.includes('ChannelNotBroadcasting') ||
-        error?.message?.includes('ResourceNotFound')
+        error?.message?.includes('ResourceNotFound') ||
+        error?.message?.includes('not currently online')
       ) {
         return {
           isLive: false,

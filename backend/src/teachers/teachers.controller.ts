@@ -14,6 +14,7 @@ import {
   MaxFileSizeValidator,
   BadRequestException,
   Patch,
+  Res,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { TeachersService } from './teachers.service';
@@ -21,6 +22,7 @@ import { CreateTeacherAreaDto } from './dto/create-teacher-area.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
 import { SupabaseJwtGuard } from '../auth/guards/supabase-jwt.guard';
+import type { Response } from 'express';
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 
@@ -257,6 +259,11 @@ export class TeachersController {
     );
   }
 
+  @Delete('my-areas/:areaId/banner')
+  deleteAreaBanner(@Req() req: any, @Param('areaId') areaId: string) {
+    return this.teachersService.deleteAreaBanner(req.user.id, areaId);
+  }
+
   // ── Professor: alunos ─────────────────────────────────────────────────────
 
   @Get('my-students')
@@ -338,6 +345,25 @@ export class TeachersController {
   @Get('lessons/:lessonId/live')
   getLessonLiveSession(@Req() req: any, @Param('lessonId') lessonId: string) {
     return this.teachersService.getLessonLiveSession(req.user.id, lessonId);
+  }
+
+  @Get('lessons/:lessonId/pdf')
+  async getLessonPdf(@Req() req: any, @Param('lessonId') lessonId: string, @Res() res: Response) {
+    const pdf = await this.teachersService.getLessonPdf(req.user.id, lessonId);
+    res.setHeader('Content-Type', pdf.contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${pdf.fileName}"`);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(pdf.buffer);
+  }
+
+  @Get('lessons/:lessonId/live/messages')
+  getLessonLiveMessages(@Req() req: any, @Param('lessonId') lessonId: string) {
+    return this.teachersService.getLessonLiveMessages(req.user.id, lessonId);
+  }
+
+  @Post('lessons/:lessonId/live/messages')
+  createLessonLiveMessage(@Req() req: any, @Param('lessonId') lessonId: string, @Body() dto: { content: string }) {
+    return this.teachersService.createLessonLiveMessage(req.user.id, lessonId, dto.content);
   }
 
   @Post('lessons/:lessonId/materials')

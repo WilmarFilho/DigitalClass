@@ -29,6 +29,23 @@ interface TeacherArea {
   payment_model: 'recurring' | 'one_time';
   is_private: boolean;
   banner_url: string | null;
+  banner_fit?: "cover" | "contain" | "fill";
+  banner_position?: "center" | "top" | "bottom" | "left" | "right";
+}
+
+function getBannerPosition(position?: TeacherArea["banner_position"]) {
+  switch (position) {
+    case "top":
+      return "center top";
+    case "bottom":
+      return "center bottom";
+    case "left":
+      return "left center";
+    case "right":
+      return "right center";
+    default:
+      return "center center";
+  }
 }
 
 export default function MinhaAreaPage() {
@@ -147,8 +164,13 @@ function AreaCard({ area, onClick }: { area: TeacherArea, onClick: () => void })
       <div
         className="h-32 rounded-[22px] relative overflow-hidden transition-transform duration-700 group-hover:scale-[1.02]"
         style={{
+          backgroundImage: area.banner_url ? `url(${area.banner_url})` : undefined,
+          backgroundPosition: getBannerPosition(area.banner_position),
+          backgroundSize: area.banner_fit ?? "cover",
+          backgroundRepeat: "no-repeat",
+          backgroundColor: area.color_code,
           background: area.banner_url
-            ? `url(${area.banner_url}) center/cover`
+            ? undefined
             : `linear-gradient(135deg, ${area.color_code}, ${area.color_code}88)`,
         }}
       >

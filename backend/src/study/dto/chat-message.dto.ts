@@ -1,4 +1,4 @@
-import { IsString, MinLength, MaxLength, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import { IsString, MinLength, MaxLength, IsOptional, IsArray, ValidateNested, IsBoolean, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class ChatHistoryItemDto {
@@ -20,4 +20,37 @@ export class ChatMessageDto {
   @ValidateNested({ each: true })
   @Type(() => ChatHistoryItemDto)
   history?: ChatHistoryItemDto[];
+
+  @IsOptional()
+  @IsBoolean()
+  include_audio?: boolean;
+}
+
+export class ChatSuggestedTopicDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  topic: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ChatHistoryItemDto)
+  history?: ChatHistoryItemDto[];
+
+  @IsOptional()
+  @IsBoolean()
+  include_audio?: boolean;
+}
+
+export class ChatAudioDto {
+  @IsOptional()
+  @IsUUID()
+  message_id?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(4000)
+  content?: string;
 }

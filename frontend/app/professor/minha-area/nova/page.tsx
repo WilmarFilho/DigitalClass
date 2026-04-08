@@ -21,6 +21,12 @@ interface TeacherArea {
   banner_url: string | null;
 }
 
+function parseMonthlyPrice(value: string) {
+  if (!value.trim()) return 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 const COLORS = [
   { id: "indigo", value: "#4F46E5" },
   { id: "blue", value: "#3B82F6" },
@@ -44,12 +50,13 @@ export default function NovaAreaPage() {
     title: "",
     description: "",
     color: "indigo",
-    monthly_price: 0,
+    monthly_price: "0",
     is_private: false,
     payment_model: "recurring" as "recurring" | "one_time",
   });
   
   const selectedColor = COLORS.find(c => c.id === formData.color)?.value || COLORS[0].value;
+  const monthlyPrice = parseMonthlyPrice(formData.monthly_price);
 
   async function handleCreate() {
     if (!formData.title.trim()) {
@@ -63,9 +70,9 @@ export default function NovaAreaPage() {
         title: formData.title,
         description: formData.description,
         color_code: selectedColor,
-        monthly_price: Number(formData.monthly_price),
+        monthly_price: monthlyPrice,
         is_private: formData.is_private,
-        payment_model: formData.monthly_price > 0 ? formData.payment_model : 'recurring',
+        payment_model: monthlyPrice > 0 ? formData.payment_model : 'recurring',
       });
       // In a real app we might use toast.success(t("minhaAreaEdit.saved")) here if toast was available
       router.push(`/professor/minha-area/${area.id}`);
@@ -160,7 +167,7 @@ export default function NovaAreaPage() {
               <input
                 type="number"
                 value={formData.monthly_price}
-                onChange={(e) => setFormData(p => ({ ...p, monthly_price: Number(e.target.value) }))}
+                onChange={(e) => setFormData(p => ({ ...p, monthly_price: e.target.value }))}
                 className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 pl-11 pr-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
               />
             </div>
@@ -168,7 +175,7 @@ export default function NovaAreaPage() {
           </Field>
 
           {/* SELETOR DE MODELO DE PAGAMENTO */}
-          {formData.monthly_price > 0 && (
+          {monthlyPrice > 0 && (
             <Field label={t("novaArea.paymentModelLabel")}>
               <div className="grid grid-cols-2 gap-3">
                 <button
@@ -204,7 +211,7 @@ export default function NovaAreaPage() {
           )}
 
           {/* SIMULAÇÃO DE GANHOS */}
-          {formData.monthly_price > 0 && (
+          {monthlyPrice > 0 && (
             <motion.div 
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
@@ -218,26 +225,26 @@ export default function NovaAreaPage() {
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 font-medium">{formData.payment_model === 'one_time' ? t("novaArea.oneTimeValue") : t("novaArea.monthlyValue")}</span>
-                  <span className="font-black text-slate-800">R$ {formData.monthly_price.toFixed(2)}</span>
+                  <span className="font-black text-slate-800">R$ {monthlyPrice.toFixed(2)}</span>
                 </div>
                 <div className="h-px bg-slate-200" />
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 font-medium">{t("novaArea.stripeFee")}</span>
                   <span className="font-bold text-red-500">
-                    - R$ {(formData.monthly_price * 0.0399 + 0.39).toFixed(2)}
+                    - R$ {(monthlyPrice * 0.0399 + 0.39).toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-slate-500 font-medium">{t("novaArea.platformFee")}</span>
                   <span className="font-bold text-red-500">
-                    - R$ {(formData.monthly_price * 0.20).toFixed(2)}
+                    - R$ {(monthlyPrice * 0.20).toFixed(2)}
                   </span>
                 </div>
                 <div className="h-px bg-emerald-200" />
                 <div className="flex justify-between items-center pt-1">
                   <span className="font-black text-emerald-700 text-[11px] uppercase tracking-wider">{t("novaArea.netEarnings")}</span>
                   <span className="font-black text-emerald-700 text-base">
-                    R$ {Math.max(0, formData.monthly_price - (formData.monthly_price * 0.0399 + 0.39) - (formData.monthly_price * 0.20)).toFixed(2)}
+                    R$ {Math.max(0, monthlyPrice - (monthlyPrice * 0.0399 + 0.39) - (monthlyPrice * 0.20)).toFixed(2)}
                   </span>
                 </div>
               </div>

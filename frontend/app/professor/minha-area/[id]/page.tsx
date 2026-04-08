@@ -36,11 +36,13 @@ import {
   Copy,
   CalendarClock,
   Radio,
+  Eraser,
 } from "lucide-react";
-import { apiGet, apiPost, apiDelete, apiUpload, apiPatch } from "@/lib/api";
+import { apiGet, apiPost, apiDelete, apiUpload, apiPatch, apiDeleteWithResponse } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import { PdfLessonViewer } from "@/components/lesson/PdfLessonViewer";
 
 interface TeacherArea {
   id: string;
@@ -51,8 +53,58 @@ interface TeacherArea {
   payment_model: 'recurring' | 'one_time';
   is_private: boolean;
   banner_url: string | null;
+  banner_fit?: "cover" | "contain" | "fill";
+  banner_position?: "center" | "top" | "bottom" | "left" | "right";
   ai_tutor_enabled: boolean;
   ai_last_sync_at: string;
+}
+
+function parseMonthlyPrice(value: string) {
+  if (!value.trim()) return 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+type BannerFitOption = "cover" | "contain" | "fill";
+
+function getBannerObjectPosition(position: TeacherArea["banner_position"] | undefined) {
+  switch (position) {
+    case "top":
+      return "center top";
+    case "bottom":
+      return "center bottom";
+    case "left":
+      return "left center";
+    case "right":
+      return "right center";
+    default:
+      return "center center";
+  }
+}
+
+function renderBannerFitIcon(option: BannerFitOption) {
+  if (option === "cover") {
+    return (
+      <div className="relative h-9 w-9 overflow-hidden rounded-lg border border-current/20 bg-current/5">
+        <div className="absolute inset-1 rounded-md bg-current/15" />
+        <div className="absolute -bottom-1 left-1/2 h-8 w-12 -translate-x-1/2 rounded-md border-2 border-current bg-current/20" />
+      </div>
+    );
+  }
+
+  if (option === "contain") {
+    return (
+      <div className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-current/20 bg-current/5">
+        <div className="h-5 w-7 rounded-md border-2 border-current bg-current/15" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-current/20 bg-current/5">
+      <div className="h-7 w-7 rounded-md border-2 border-current bg-current/15" />
+    </div>
+  );
 }
 
 interface Section {
@@ -93,6 +145,16 @@ interface LessonLiveSession {
   replay_url: string | null;
   recording_enabled: boolean;
   resolved_content_url: string | null;
+}
+
+function resolveLiveStatus(session?: LessonLiveSession | null) {
+  if (!session) return "draft";
+  if (session.status === "ended" || session.ended_at || session.replay_url) return "ended";
+  if (session.status === "canceled") return "canceled";
+  if (session.status === "live" || session.started_at) return "live";
+  if (session.status === "ready" || session.aws_ingest_endpoint) return "ready";
+  if (session.status === "scheduled" || session.scheduled_at) return "scheduled";
+  return "draft";
 }
 
 interface TeacherLessonLiveDetails {
@@ -136,15 +198,22 @@ export default function EditAreaPage() {
     title: "",
     description: "",
     color_code: "#4F46E5",
-    monthly_price: 0,
+    monthly_price: "0",
     is_private: false,
     payment_model: "recurring" as "recurring" | "one_time",
+    banner_fit: "cover" as "cover" | "contain" | "fill",
+    banner_position: "center" as "center" | "top" | "bottom" | "left" | "right",
   });
+  const monthlyPrice = parseMonthlyPrice(areaForm.monthly_price);
 
   const [savingArea, setSavingArea] = useState(false);
   const [savedArea, setSavedArea] = useState(false);
   const [editingArea, setEditingArea] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [removingBanner, setRemovingBanner] = useState(false);
+  const [bannerUploadProgress, setBannerUploadProgress] = useState(0);
+  const [bannerPreviewUrl, setBannerPreviewUrl] = useState<string | null>(null);
+  const [bannerImageError, setBannerImageError] = useState(false);
   const bannerFileRef = useRef<HTMLInputElement>(null);
 
   const [sectionModal, setSectionModal] = useState(false);
@@ -177,6 +246,7 @@ export default function EditAreaPage() {
   const [liveDetails, setLiveDetails] = useState<Record<string, TeacherLessonLiveDetails | null>>({});
   const [loadingLiveDetails, setLoadingLiveDetails] = useState<Record<string, boolean>>({});
   const [liveActionLessonId, setLiveActionLessonId] = useState<string | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
   const [materialsModal, setMaterialsModal] = useState<{ lesson: Lesson; moduleId: string } | null>(null);
   const [materials, setMaterials] = useState<{ id: string; type: string; title: string; url: string }[]>([]);
   const [loadingMaterials, setLoadingMaterials] = useState(false);
@@ -185,6 +255,14 @@ export default function EditAreaPage() {
   const [needsSync, setNeedsSync] = useState(false);
 
   useEffect(() => { load(); }, [areaId]);
+
+  useEffect(() => {
+    return () => {
+      if (bannerPreviewUrl) {
+        URL.revokeObjectURL(bannerPreviewUrl);
+      }
+    };
+  }, [bannerPreviewUrl]);
 
   const fetchMaterials = useCallback(async (lessonId: string) => {
     setLoadingMaterials(true);
@@ -233,10 +311,10 @@ export default function EditAreaPage() {
           ...module,
           lessons: module.lessons.map((lesson) => lesson.id === lessonId
             ? {
-                ...lesson,
-                content_url: details.live_session?.resolved_content_url ?? null,
-                live_session: details.live_session,
-              }
+              ...lesson,
+              content_url: details.live_session?.resolved_content_url ?? null,
+              live_session: details.live_session,
+            }
             : lesson),
         })),
       })));
@@ -250,8 +328,8 @@ export default function EditAreaPage() {
   async function copyToClipboard(value: string, successMessage: string) {
     try {
       await navigator.clipboard.writeText(value);
-      setError({ title: "Copiado", message: successMessage });
-      setTimeout(() => setError(null), 1800);
+      setCopyFeedback(successMessage);
+      window.setTimeout(() => setCopyFeedback(null), 1800);
     } catch {
       setError("Não foi possível copiar automaticamente.");
     }
@@ -259,6 +337,11 @@ export default function EditAreaPage() {
 
   const editLessonId = editLessonModal?.lesson?.id;
   const editLessonType = editLessonModal?.lesson?.type;
+  const editLessonLiveDetails = editLessonId ? liveDetails[editLessonId] : null;
+  const editLessonLiveSession = editLessonLiveDetails?.live_session ?? editLessonModal?.lesson?.live_session ?? null;
+  const editLessonLiveStatus = resolveLiveStatus(editLessonLiveSession);
+  const isEditLessonLiveFinished = editLessonLiveStatus === "ended" || editLessonLiveStatus === "canceled";
+  const shouldShowObsCredentials = Boolean(editLessonLiveDetails?.obs) && !isEditLessonLiveFinished && editLessonLiveStatus !== "live";
 
   useEffect(() => {
     if (!editLessonId || editLessonType !== "live") return;
@@ -266,18 +349,63 @@ export default function EditAreaPage() {
     loadTeacherLiveDetails(editLessonId).catch(() => undefined);
   }, [editLessonId, editLessonType, liveDetails, loadingLiveDetails, loadTeacherLiveDetails]);
 
+  useEffect(() => {
+    if (!editLessonId || editLessonType !== "live") return;
+    const status = liveDetails[editLessonId]?.live_session?.status;
+    if (!status || status === "ended" || status === "canceled") return;
+
+    const interval = window.setInterval(() => {
+      loadTeacherLiveDetails(editLessonId, true).catch(() => undefined);
+    }, 8000);
+
+    return () => window.clearInterval(interval);
+  }, [editLessonId, editLessonType, liveDetails, loadTeacherLiveDetails]);
+
+  useEffect(() => {
+    if (!editLessonId || editLessonType !== "live") return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`teacher-live-${editLessonId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "lesson_live_sessions",
+          filter: `lesson_id=eq.${editLessonId}`,
+        },
+        () => {
+          loadTeacherLiveDetails(editLessonId, true).catch(() => undefined);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [editLessonId, editLessonType, loadTeacherLiveDetails]);
+
   async function load() {
     setLoading(true);
     try {
       const a = await apiGet<TeacherArea>(`/teachers/my-areas/${areaId}`);
+      console.debug("[teacher-area] area carregada", {
+        areaId,
+        banner_url: a.banner_url,
+        banner_fit: a.banner_fit,
+        banner_position: a.banner_position,
+      });
       setArea(a);
       setAreaForm({
         title: a.title,
         description: a.description ?? "",
         color_code: a.color_code,
-        monthly_price: a.monthly_price,
+        monthly_price: String(a.monthly_price ?? 0),
         is_private: a.is_private,
         payment_model: a.payment_model ?? 'recurring',
+        banner_fit: a.banner_fit ?? "cover",
+        banner_position: a.banner_position ?? "center",
       });
 
       const s = await apiGet<Section[]>(`/teachers/my-areas/${areaId}/sections`).catch(() => []);
@@ -315,8 +443,8 @@ export default function EditAreaPage() {
     try {
       const updated = await apiPost<TeacherArea>(`/teachers/my-areas/${areaId}`, {
         ...areaForm,
-        monthly_price: Number(areaForm.monthly_price),
-        payment_model: Number(areaForm.monthly_price) > 0 ? areaForm.payment_model : 'recurring',
+        monthly_price: monthlyPrice,
+        payment_model: monthlyPrice > 0 ? areaForm.payment_model : 'recurring',
       });
       setArea(updated);
       setEditingArea(false);
@@ -328,6 +456,113 @@ export default function EditAreaPage() {
       setSavingArea(false);
     }
   }
+
+  async function handleBannerFileChange(file: File) {
+    if (!areaId) return;
+
+    const previewUrl = URL.createObjectURL(file);
+    if (bannerPreviewUrl) URL.revokeObjectURL(bannerPreviewUrl);
+
+    setBannerPreviewUrl(previewUrl);
+    setBannerImageError(false);
+    setUploadingBanner(true);
+    setBannerUploadProgress(0);
+
+    try {
+      console.debug("[teacher-area] iniciando upload do banner", {
+        areaId,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+      });
+
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const updated = await new Promise<TeacherArea>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `${BASE_URL}/teachers/my-areas/${areaId}/banner`);
+        xhr.setRequestHeader("Authorization", `Bearer ${session?.access_token}`);
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            setBannerUploadProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch {
+              reject(new Error("Resposta inválida ao enviar o banner."));
+            }
+            return;
+          }
+
+          reject(new Error("Não foi possível enviar o banner."));
+        };
+
+        xhr.onerror = () => reject(new Error("Erro de rede ao enviar o banner."));
+        xhr.send(formData);
+      });
+
+      console.debug("[teacher-area] upload do banner concluido", {
+        areaId,
+        banner_url: updated.banner_url,
+        banner_fit: updated.banner_fit,
+        banner_position: updated.banner_position,
+      });
+
+      setArea(updated);
+      setAreaForm((prev) => ({
+        ...prev,
+        banner_fit: updated.banner_fit ?? prev.banner_fit,
+        banner_position: updated.banner_position ?? prev.banner_position,
+      }));
+      setCopyFeedback("Banner atualizado com sucesso.");
+      window.setTimeout(() => setCopyFeedback(null), 1800);
+      setBannerPreviewUrl(null);
+      setBannerUploadProgress(100);
+    } catch (err: any) {
+      setBannerImageError(true);
+      setError(err?.message || "Não foi possível atualizar o banner.");
+    } finally {
+      setUploadingBanner(false);
+      window.setTimeout(() => setBannerUploadProgress(0), 500);
+    }
+  }
+
+  async function handleRemoveBanner() {
+    if (!areaId || !area?.banner_url) return;
+
+    setRemovingBanner(true);
+    setBannerImageError(false);
+
+    try {
+      const updated = await apiDeleteWithResponse<TeacherArea>(`/teachers/my-areas/${areaId}/banner`);
+      setArea(updated);
+      setBannerPreviewUrl(null);
+      setAreaForm((prev) => ({
+        ...prev,
+        banner_fit: updated.banner_fit ?? prev.banner_fit,
+        banner_position: updated.banner_position ?? prev.banner_position,
+      }));
+      setCopyFeedback("Banner removido com sucesso.");
+      window.setTimeout(() => setCopyFeedback(null), 1800);
+    } catch (err: any) {
+      setError(err?.message || "Não foi possível remover o banner.");
+    } finally {
+      setRemovingBanner(false);
+    }
+  }
+
+  const resolvedBannerUrl = bannerPreviewUrl ?? area?.banner_url ?? null;
+  const bannerObjectFit = areaForm.banner_fit;
+  const bannerObjectPosition = getBannerObjectPosition(areaForm.banner_position);
 
   // --- Section actions ---
   async function handleCreateSection() {
@@ -392,7 +627,7 @@ export default function EditAreaPage() {
       setModuleModal(null);
       setModuleForm({ title: "", description: "" });
     } catch (e: any) {
-      setError(e.message || t("https://replit.com/agent4.errorCreateModule"));
+      setError(e.message || t("minhaAreaEdit.errorCreateModule"));
     } finally {
       setSavingModule(false);
     }
@@ -580,6 +815,8 @@ export default function EditAreaPage() {
         content_url: details.live_session?.resolved_content_url ?? null,
         live_session: details.live_session,
       });
+      setCopyFeedback("Dados do OBS prontos. Inicie no OBS e detectaremos a transmissão automaticamente.");
+      window.setTimeout(() => setCopyFeedback(null), 2600);
     } catch (e: any) {
       setError(e.message || "Não foi possível preparar a live.");
     } finally {
@@ -613,6 +850,8 @@ export default function EditAreaPage() {
         content_url: details.live_session?.resolved_content_url ?? null,
         live_session: details.live_session,
       });
+      setCopyFeedback("Live encerrada. Replay e histórico do chat continuam visíveis para os alunos.");
+      window.setTimeout(() => setCopyFeedback(null), 2600);
     } catch (e: any) {
       setError(e.message || "Não foi possível encerrar a live.");
     } finally {
@@ -800,9 +1039,9 @@ export default function EditAreaPage() {
 
 
 
-      <div className="grid gap-6 xl:grid-cols-12">
+      <div className="grid gap-6 min-[1450px]:grid-cols-12">
         {/* Coluna Esquerda: Configurações */}
-        <aside className="xl:col-span-4 space-y-6">
+        <aside className="min-[1450px]:col-span-4 space-y-6">
           <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
             <div className="p-4 sm:p-6 border-b border-slate-50">
               <h2 className="font-bold text-slate-800 flex items-center gap-2 text-sm sm:text-base">
@@ -812,48 +1051,74 @@ export default function EditAreaPage() {
 
             <div className="px-4 sm:px-6 pt-4 sm:pt-6">
               <div
-                className="h-28 rounded-2xl relative flex items-center justify-center overflow-hidden transition-all duration-500 group cursor-pointer"
-                style={area?.banner_url ? { backgroundImage: `url(${area.banner_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : { backgroundColor: areaForm.color_code }}
+                className={cn(
+                  "h-36 rounded-2xl relative flex items-center justify-center overflow-hidden transition-all duration-500 group",
+                  editingArea && "cursor-pointer"
+                )}
+                style={{ backgroundColor: areaForm.color_code }}
                 onClick={() => editingArea && bannerFileRef.current?.click()}
               >
-                {!area?.banner_url && <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />}
-                <span className="relative z-10 text-white font-black text-xl drop-shadow-md text-center px-4 leading-tight">
-                  {areaForm.title || (t("minhaAreaEdit.areaName") || "Nome da sua Área")}
-                </span>
-                {editingArea && (
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 text-white text-xs font-bold bg-black/50 px-4 py-2 rounded-full backdrop-blur-sm">
-                      {uploadingBanner ? <Loader2 className="h-4 w-4 animate-spin" /> : <><ImagePlus className="h-4 w-4" /> {t("minhaAreaEdit.changeBanner")}</>}
-                    </div>
+                {resolvedBannerUrl && !bannerImageError ? (
+                  <img
+                    key={resolvedBannerUrl}
+                    src={resolvedBannerUrl}
+                    alt={areaForm.title || "Banner da área"}
+                    className="absolute inset-0 h-full w-full"
+                    style={{ objectFit: bannerObjectFit, objectPosition: bannerObjectPosition }}
+                    onError={() => setBannerImageError(true)}
+                    onLoad={() => setBannerImageError(false)}
+                  />
+                ) : (
+                  <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent" />
+                )}
+
+
+              </div>
+              <input
+                ref={bannerFileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    await handleBannerFileChange(file);
+                  }
+                  e.target.value = '';
+                }}
+              />
+
+              <div className="mt-4 space-y-3">
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 rounded-xl"
+                    disabled={!editingArea || uploadingBanner || removingBanner}
+                    onClick={() => bannerFileRef.current?.click()}
+                  >
+                    {uploadingBanner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}
+                    Alterar banner
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+                    disabled={!editingArea || !area?.banner_url || uploadingBanner || removingBanner}
+                    onClick={() => void handleRemoveBanner()}
+                  >
+                    {removingBanner ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Eraser className="mr-2 h-4 w-4" />}
+                    Excluir banner
+                  </Button>
+                </div>
+
+                {bannerImageError && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                    Não conseguimos renderizar essa imagem do banner. Você pode tentar outra imagem ou manter apenas a cor de fundo da área.
                   </div>
                 )}
-                <div className="absolute bottom-2 right-2 px-2 py-1 bg-black/20 backdrop-blur-md rounded text-[10px] text-white/80 font-bold uppercase tracking-widest">{t("minhaAreaEdit.preview")}</div>
               </div>
-              <input ref={bannerFileRef} type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file || !areaId) return;
-                setUploadingBanner(true);
-                try {
-                  const supabase = createClient();
-                  const { data: { session } } = await supabase.auth.getSession();
-                  const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-                  const formData = new FormData();
-                  formData.append("file", file);
-                  const res = await fetch(`${BASE_URL}/teachers/my-areas/${areaId}/banner`, {
-                    method: "POST",
-                    headers: { "Authorization": `Bearer ${session?.access_token}` },
-                    body: formData,
-                  });
-                  if (!res.ok) throw new Error("Upload falhou");
-                  const updated = await res.json() as TeacherArea;
-                  setArea(updated);
-                } catch (err) {
-                  console.error(err);
-                } finally {
-                  setUploadingBanner(false);
-                  e.target.value = '';
-                }
-              }} />
             </div>
 
             <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
@@ -877,13 +1142,69 @@ export default function EditAreaPage() {
                 />
               </Field>
 
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Comportamento do banner</p>
+                  <p className="mt-1 text-sm text-slate-500">Escolha como a imagem deve preencher o topo da área. Use “Conter” para preservar tudo e aceitar espaços vazios.</p>
+                </div>
+
+                <div className="flex flex-wrap justify-between gap-3">
+                  {([
+                    { id: "cover", label: "Preencher", hint: "Corta as bordas para ocupar todo o topo." },
+                    { id: "contain", label: "Conter", hint: "Mostra a imagem inteira e aceita margens." },
+                    { id: "fill", label: "Esticar", hint: "Expande a arte para cobrir toda a área." },
+                  ] as const).map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      title={`${option.label}. ${option.hint}`}
+                      aria-label={option.label}
+                      disabled={!editingArea}
+                      onClick={() => setAreaForm((prev) => ({ ...prev, banner_fit: option.id }))}
+                      className={cn(
+                        "group flex min-w-[68px] flex-1 flex-col items-center gap-2 rounded-2xl border px-1 py-1 text-[11px] font-bold transition-all",
+                        areaForm.banner_fit === option.id
+                          ? "border-indigo-600 bg-indigo-600 text-white shadow-lg shadow-indigo-100"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900",
+                        !editingArea && "cursor-not-allowed opacity-50"
+                      )}
+                    >
+                      <span className="sr-only">{option.label}</span>
+                      {renderBannerFitIcon(option.id)}
+
+                    </button>
+                  ))}
+                </div>
+
+                <p className="text-xs text-slate-500">
+                  {areaForm.banner_fit === "cover" && "Preencher corta as bordas para o banner ficar mais impactante."}
+                  {areaForm.banner_fit === "contain" && "Conter preserva a imagem inteira e pode deixar espaços vazios."}
+                  {areaForm.banner_fit === "fill" && "Esticar ocupa tudo, mesmo que a arte fique mais distorcida."}
+                </p>
+
+                <Field label="Posição da imagem">
+                  <select
+                    value={areaForm.banner_position}
+                    disabled={!editingArea}
+                    onChange={(e) => setAreaForm((prev) => ({ ...prev, banner_position: e.target.value as typeof prev.banner_position }))}
+                    className="w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50"
+                  >
+                    <option value="center">Centralizada</option>
+                    <option value="top">Priorizar topo</option>
+                    <option value="bottom">Priorizar base</option>
+                    <option value="left">Priorizar esquerda</option>
+                    <option value="right">Priorizar direita</option>
+                  </select>
+                </Field>
+              </div>
+
               <Field label={t("minhaAreaEdit.monthlyPrice") || "Preço"}>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm font-mono">R$</span>
                   <input
                     type="number"
                     value={areaForm.monthly_price}
-                    onChange={(e) => setAreaForm(p => ({ ...p, monthly_price: Number(e.target.value) }))}
+                    onChange={(e) => setAreaForm(p => ({ ...p, monthly_price: e.target.value }))}
                     disabled={!editingArea}
                     className="w-full h-11 rounded-xl border border-slate-200 bg-slate-50/50 pl-11 pr-4 text-sm font-bold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all disabled:opacity-50"
                   />
@@ -891,7 +1212,7 @@ export default function EditAreaPage() {
               </Field>
 
               {/* SELETOR DE MODELO DE PAGAMENTO */}
-              {areaForm.monthly_price > 0 && (
+              {monthlyPrice > 0 && (
                 <Field label={t("minhaAreaEdit.paymentModelLabel") || "Modelo de Cobrança"}>
                   <div className="grid grid-cols-2 gap-3">
                     <button
@@ -928,7 +1249,7 @@ export default function EditAreaPage() {
                 </Field>
               )}
 
-              {areaForm.monthly_price > 0 && (
+              {monthlyPrice > 0 && (
                 <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-white p-4 space-y-3">
                   <div className="flex items-center gap-2 text-emerald-700">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
@@ -938,26 +1259,26 @@ export default function EditAreaPage() {
                   <div className="space-y-2 text-xs">
                     <div className="flex justify-between items-center">
                       <span className="text-slate-500 font-medium">{areaForm.payment_model === 'one_time' ? t("minhaAreaEdit.oneTimeValue") : t("minhaAreaEdit.monthlyValue")}</span>
-                      <span className="font-black text-slate-800">R$ {areaForm.monthly_price.toFixed(2)}</span>
+                      <span className="font-black text-slate-800">R$ {monthlyPrice.toFixed(2)}</span>
                     </div>
                     <div className="h-px bg-slate-200" />
                     <div className="flex justify-between items-center">
                       <span className="text-slate-500 font-medium">{t("minhaAreaEdit.stripeFee")}</span>
                       <span className="font-bold text-red-500">
-                        - R$ {(areaForm.monthly_price * 0.0399 + 0.39).toFixed(2)}
+                        - R$ {(monthlyPrice * 0.0399 + 0.39).toFixed(2)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-slate-500 font-medium">{t("minhaAreaEdit.platformFee")}</span>
                       <span className="font-bold text-red-500">
-                        - R$ {(areaForm.monthly_price * 0.20).toFixed(2)}
+                        - R$ {(monthlyPrice * 0.20).toFixed(2)}
                       </span>
                     </div>
                     <div className="h-px bg-emerald-200" />
                     <div className="flex justify-between items-center pt-1">
                       <span className="font-black text-emerald-700 text-[11px] uppercase tracking-wider">{t("minhaAreaEdit.netEarnings")}</span>
                       <span className="font-black text-emerald-700 text-base">
-                        R$ {Math.max(0, areaForm.monthly_price - (areaForm.monthly_price * 0.0399 + 0.39) - (areaForm.monthly_price * 0.20)).toFixed(2)}
+                        R$ {Math.max(0, monthlyPrice - (monthlyPrice * 0.0399 + 0.39) - (monthlyPrice * 0.20)).toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -1008,9 +1329,11 @@ export default function EditAreaPage() {
                         title: area.title,
                         description: area.description ?? "",
                         color_code: area.color_code,
-                        monthly_price: area.monthly_price,
+                        monthly_price: String(area.monthly_price ?? 0),
                         is_private: area.is_private,
                         payment_model: area.payment_model ?? 'recurring',
+                        banner_fit: area.banner_fit ?? "cover",
+                        banner_position: area.banner_position ?? "center",
                       });
                     }}>
                       {t("minhaAreaEdit.discard")}
@@ -1023,7 +1346,7 @@ export default function EditAreaPage() {
         </aside>
 
         {/* Coluna Direita: Conteúdo */}
-        <main className="xl:col-span-8 min-w-0">
+        <main className="min-[1450px]:col-span-8 min-w-0">
           <div className="flex bg-slate-100/50 p-1 sm:p-1.5 rounded-2xl w-full sm:w-fit border border-slate-200/60 mb-4 sm:mb-6">
             <button onClick={() => setActiveTab("curriculum")} className={cn("flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all", activeTab === "curriculum" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}>{t("minhaAreaEdit.contentModules") || "Conteúdo e Módulos"}</button>
             <button onClick={() => setActiveTab("notices")} className={cn("flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all", activeTab === "notices" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}>{t("minhaAreaEdit.noticeBoard") || "Mural de Avisos"}</button>
@@ -1286,7 +1609,7 @@ export default function EditAreaPage() {
       <AnimatePresence>
         {lessonModal && (
           <div className=" md:ml-72 fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-lg rounded-[2.5rem] bg-white shadow-2xl p-8">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="scrollbar-hide w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[2.5rem] bg-white shadow-2xl p-8">
               <div className="flex items-center justify-between mb-8">
                 <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
                   <Plus className="h-6 w-6" />
@@ -1331,14 +1654,25 @@ export default function EditAreaPage() {
                   </Field>
 
                   {lessonForm.type === "live" && (
-                    <Field label="Data e horário da live">
-                      <input
-                        type="datetime-local"
-                        value={lessonForm.scheduled_at}
-                        onChange={(e) => setLessonForm((p) => ({ ...p, scheduled_at: e.target.value }))}
-                        className="w-full h-12 rounded-xl border border-slate-200 px-4 font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
-                      />
-                    </Field>
+                    <div className="space-y-4">
+                      <Field label="Data e horário da live">
+                        <input
+                          type="datetime-local"
+                          value={lessonForm.scheduled_at}
+                          onChange={(e) => setLessonForm((p) => ({ ...p, scheduled_at: e.target.value }))}
+                          className="w-full h-12 rounded-xl border border-slate-200 px-4 font-medium outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                        />
+                      </Field>
+
+                      <div className="rounded-2xl border border-indigo-100 bg-indigo-50/80 p-4">
+                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-indigo-600">Fluxo simples da live</p>
+                        <div className="mt-3 space-y-2 text-sm text-slate-600">
+                          <p>1. Crie a aula ao vivo com a data e o horário.</p>
+                          <p>2. Depois, dentro da aula, clique em <span className="font-bold text-slate-900">Gerar dados do OBS</span>.</p>
+                          <p>3. Cole no OBS e clique em <span className="font-bold text-slate-900">Iniciar transmissão</span>. A plataforma detecta a live sozinha.</p>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -1376,7 +1710,12 @@ export default function EditAreaPage() {
                   previewLesson.type === "video" || previewLesson.type === "live" ? (
                     <video controls src={previewLesson.content_url} className="w-full h-full object-contain" />
                   ) : (
-                    <iframe src={previewLesson.content_url} className="w-full h-full border-none" title={previewLesson.title} />
+                    <PdfLessonViewer
+                      lessonId={previewLesson.id}
+                      title={previewLesson.title}
+                      sourceUrl={previewLesson.content_url}
+                      className="w-full h-full border-none"
+                    />
                   )
                 ) : (
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 gap-4">
@@ -1404,12 +1743,13 @@ export default function EditAreaPage() {
       {/* Modal Editar Aula (descrição + materiais) */}
       <AnimatePresence>
         {editLessonModal && (
-          <div className=" md:ml-72 fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="  md:ml-72 fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-lg rounded-[2.5rem] bg-white shadow-2xl p-8 max-h-[90vh] overflow-y-auto"
+              className=" w-full max-w-lg rounded-[2.5rem] bg-white shadow-2xl p-8 max-h-[90vh] overflow-y-auto"
+              style={{ scrollbarWidth: "none" }}
             >
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-black text-slate-900">{t("minhaAreaEdit.editLesson")}: {editLessonModal.lesson.title}</h3>
@@ -1441,11 +1781,11 @@ export default function EditAreaPage() {
                         <div>
                           <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Status da live</p>
                           <p className="text-sm font-bold text-slate-900 mt-1">
-                            {liveDetails[editLessonModal.lesson.id]?.live_session?.status === "live" ? "Transmitindo agora" :
-                              liveDetails[editLessonModal.lesson.id]?.live_session?.status === "scheduled" ? "Agendada" :
-                              liveDetails[editLessonModal.lesson.id]?.live_session?.status === "ready" ? "Pronta para transmitir" :
-                              liveDetails[editLessonModal.lesson.id]?.live_session?.status === "ended" ? "Encerrada" :
-                              "Rascunho"}
+                            {editLessonLiveStatus === "live" ? "Transmitindo agora" :
+                              editLessonLiveStatus === "scheduled" ? "Agendada" :
+                                editLessonLiveStatus === "ready" ? "Pronta para transmitir" :
+                                  editLessonLiveStatus === "ended" ? "Encerrada" :
+                                    "Rascunho"}
                           </p>
                         </div>
                         <div className="h-11 w-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-indigo-600">
@@ -1453,47 +1793,82 @@ export default function EditAreaPage() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <Button
-                          variant="outline"
-                          className="rounded-xl"
-                          disabled={liveActionLessonId === editLessonModal.lesson.id}
-                          onClick={() => handlePrepareLive(editLessonModal.lesson)}
-                        >
-                          {liveActionLessonId === editLessonModal.lesson.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radio className="h-4 w-4 mr-2" />}
-                          Preparar
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className="rounded-xl"
-                          disabled={liveActionLessonId === editLessonModal.lesson.id}
-                          onClick={() => handleRefreshLive(editLessonModal.lesson)}
-                        >
-                          <RefreshCw className={cn("h-4 w-4 mr-2", liveActionLessonId === editLessonModal.lesson.id && "animate-spin")} />
-                          Atualizar
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className="rounded-xl border-red-200 text-red-600 hover:bg-red-50"
-                          disabled={liveActionLessonId === editLessonModal.lesson.id}
-                          onClick={() => handleStopLive(editLessonModal.lesson)}
-                        >
-                          Encerrar
-                        </Button>
+                      <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-3">
+                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-indigo-600">Como funciona</p>
+                        <div className="space-y-2 text-sm text-slate-600">
+                          <p>1. Clique em <span className="font-bold text-slate-900">Gerar dados do OBS</span> uma única vez.</p>
+                          <p>2. Copie os dados no OBS e clique em <span className="font-bold text-slate-900">Iniciar transmissão</span>.</p>
+                          <p>3. Em alguns segundos, detectamos a live automaticamente na área do aluno.</p>
+                        </div>
                       </div>
 
-                      {liveDetails[editLessonModal.lesson.id]?.obs && (
+                      {editLessonLiveStatus === "live" && (
+                        <div className="w-full rounded-2xl bg-red-600 px-4 py-3 text-center text-sm font-black uppercase tracking-[0.28em] text-white shadow-lg shadow-red-900/20">
+                          No ar
+                        </div>
+                      )}
+
+                      {!isEditLessonLiveFinished && (
+                        <div className="flex flex-col gap-2">
+                          <Button
+                            className="rounded-xl bg-indigo-600 hover:bg-indigo-700"
+                            disabled={liveActionLessonId === editLessonModal.lesson.id}
+                            onClick={() => handlePrepareLive(editLessonModal.lesson)}
+                          >
+                            {liveActionLessonId === editLessonModal.lesson.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radio className="h-4 w-4 mr-2" />}
+                            {editLessonLiveDetails?.obs ? "Gerar novamente dados do OBS" : "Gerar dados do OBS"}
+                          </Button>
+
+                          {(editLessonLiveStatus === "live" || editLessonLiveStatus === "ready") && (
+                            <Button
+                              variant="outline"
+                              className="rounded-xl border-red-200 text-red-600 hover:bg-red-50"
+                              disabled={liveActionLessonId === editLessonModal.lesson.id}
+                              onClick={() => handleStopLive(editLessonModal.lesson)}
+                            >
+                              Encerrar transmissão
+                            </Button>
+                          )}
+                        </div>
+                      )}
+
+                      {isEditLessonLiveFinished && (
+                        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-700">
+                          Esta live já foi encerrada. Os alunos podem assistir ao replay e ver o histórico do chat. Para uma nova transmissão, crie outra aula ao vivo.
+                        </div>
+                      )}
+
+                      {shouldShowObsCredentials && (
                         <div className="space-y-3 rounded-2xl bg-white border border-slate-200 p-4">
-                          <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Dados do OBS</p>
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">Dados do OBS</p>
+                              <p className="text-xs text-slate-500 mt-1">
+                                Depois de iniciar no OBS, a plataforma detecta a live sozinha. O botão atualizar não é mais necessário.
+                              </p>
+                            </div>
+                            <div className={cn(
+                              "rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em]",
+                              "bg-indigo-50 text-indigo-600"
+                            )}>
+                              Aguardando OBS
+                            </div>
+                          </div>
+
                           <div className="space-y-2">
                             <div className="rounded-xl border border-slate-200 p-3">
                               <div className="flex items-center justify-between gap-3">
                                 <div className="min-w-0">
                                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Servidor</p>
-                                  <p className="text-xs text-slate-700 break-all">{liveDetails[editLessonModal.lesson.id]?.obs?.server_url}</p>
+                                  <p className="text-xs text-slate-700 break-all">{editLessonLiveDetails?.obs?.server_url}</p>
                                 </div>
-                                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(liveDetails[editLessonModal.lesson.id]!.obs!.server_url, "Servidor do OBS copiado.")}>
-                                  <Copy className="h-4 w-4" />
+                                <Button
+                                  variant="outline"
+                                  className="rounded-xl shrink-0"
+                                  onClick={() => copyToClipboard(editLessonLiveDetails!.obs!.server_url, "Servidor do OBS copiado.")}
+                                >
+                                  <Copy className="h-4 w-4 mr-2" />
+                                  Copiar
                                 </Button>
                               </div>
                             </div>
@@ -1501,10 +1876,15 @@ export default function EditAreaPage() {
                               <div className="flex items-center justify-between gap-3">
                                 <div className="min-w-0">
                                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Stream key</p>
-                                  <p className="text-xs text-slate-700 break-all">{liveDetails[editLessonModal.lesson.id]?.obs?.stream_key}</p>
+                                  <p className="text-xs text-slate-700 break-all">{editLessonLiveDetails?.obs?.stream_key}</p>
                                 </div>
-                                <Button variant="ghost" size="icon" onClick={() => copyToClipboard(liveDetails[editLessonModal.lesson.id]!.obs!.stream_key, "Stream key copiada.")}>
-                                  <Copy className="h-4 w-4" />
+                                <Button
+                                  variant="outline"
+                                  className="rounded-xl shrink-0"
+                                  onClick={() => copyToClipboard(editLessonLiveDetails!.obs!.stream_key, "Chave da transmissão copiada.")}
+                                >
+                                  <Copy className="h-4 w-4 mr-2" />
+                                  Copiar
                                 </Button>
                               </div>
                             </div>
@@ -1644,6 +2024,58 @@ export default function EditAreaPage() {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {copyFeedback && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            className="fixed bottom-6 right-6 z-[120] max-w-sm rounded-2xl border border-emerald-200 bg-white px-4 py-3 shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-slate-900">Tudo certo</p>
+                <p className="text-sm text-slate-500">{copyFeedback}</p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {uploadingBanner && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            className="fixed bottom-6 right-6 z-[121] w-full max-w-md rounded-2xl border border-indigo-200 bg-white px-4 py-3 shadow-2xl"
+          >
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-slate-900">Enviando banner</p>
+                  <p className="text-sm text-slate-500">Seu banner novo ja esta sendo preparado.</p>
+                </div>
+              </div>
+              <span className="text-xs font-black text-indigo-600">{bannerUploadProgress}%</span>
+            </div>
+
+            <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-full rounded-full bg-indigo-600 transition-all"
+                style={{ width: `${bannerUploadProgress}%` }}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Modal Error */}
       <AnimatePresence>
         {error && (
@@ -1687,6 +2119,18 @@ export default function EditAreaPage() {
           </div>
         )}
       </AnimatePresence>
+
+      <style jsx global>{`
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+          width: 0;
+          height: 0;
+        }
+      `}</style>
     </div>
   );
 }
@@ -1695,12 +2139,14 @@ export default function EditAreaPage() {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function LessonRow({ lesson, index, t, uploading, uploadProgress, onDelete, onUpload, onPreview, onEdit }: any) {
+  const normalizedLiveStatus = resolveLiveStatus(lesson.live_session);
   const liveStatusLabel =
-    lesson.live_session?.status === "live" ? "Ao vivo agora" :
-      lesson.live_session?.status === "scheduled" ? "Agendada" :
-        lesson.live_session?.status === "ready" ? "Pronta para OBS" :
-          lesson.live_session?.status === "ended" ? "Encerrada" :
-            "Configurar live";
+    normalizedLiveStatus === "live" ? "Ao vivo agora" :
+      normalizedLiveStatus === "ended" ? "Encerrada" :
+        normalizedLiveStatus === "canceled" ? "Cancelada" :
+          normalizedLiveStatus === "ready" ? "Pronta para OBS" :
+            normalizedLiveStatus === "scheduled" ? "Agendada" :
+              "Configurar live";
 
   return (
     <motion.li

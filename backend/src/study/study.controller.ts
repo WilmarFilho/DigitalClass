@@ -12,7 +12,7 @@ import {
 import { StudyService, SessionWithSubject } from './study.service';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { UpdateSessionDto } from './dto/update-session.dto';
-import { ChatMessageDto } from './dto/chat-message.dto';
+import { ChatAudioDto, ChatMessageDto, ChatSuggestedTopicDto } from './dto/chat-message.dto';
 import { SupabaseJwtGuard } from '../auth/guards/supabase-jwt.guard';
 
 @Controller('study')
@@ -72,8 +72,7 @@ export class StudyController {
     @Param('id') id: string,
     @Body() dto: ChatMessageDto,
   ) {
-    const text = await this.studyService.chat(id, req.user.id, dto.message, dto.history ?? []);
-    return { message: text };
+    return this.studyService.chat(id, req.user.id, dto.message, dto.history ?? [], dto.include_audio ?? false);
   }
 
   @Post('sessions/:id/chat/next-steps')
@@ -86,15 +85,24 @@ export class StudyController {
   async chatSuggested(
     @Req() req: any,
     @Param('id') id: string,
-    @Body() dto: { topic: string, history: any[] },
+    @Body() dto: ChatSuggestedTopicDto,
   ) {
-    const text = await this.studyService.chatSuggestedTopic(
+    return this.studyService.chatSuggestedTopic(
       id,
       req.user.id,
       dto.topic,
-      dto.history
+      dto.history ?? [],
+      dto.include_audio ?? false,
     );
-    return { message: text };
+  }
+
+  @Post('sessions/:id/chat/audio')
+  async generateChatAudio(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: ChatAudioDto,
+  ) {
+    return this.studyService.generateChatAudio(id, req.user.id, dto);
   }
 
   @Get('sessions/:id/chat/messages')

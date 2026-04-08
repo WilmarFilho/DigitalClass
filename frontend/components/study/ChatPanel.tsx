@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, Send, Loader2, Bot, X, Plus, Sparkles, ChevronRight } from "lucide-react";
+import { MessageCircle, Send, Loader2, Bot, X, Sparkles, ChevronRight, Volume2, VolumeX, PlayCircle, PauseCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiGet, apiPost } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,15 @@ interface ChatPanelProps {
   sessionId: string;
   subjectColor?: string;
   subjectTitle?: string;
+  autoSpeak?: boolean;
+  onAutoSpeakChange?: (value: boolean) => void;
+  onAudioUiStateChange?: (state: {
+    selectedAssistantMessageId: string | null;
+    generatingAudioForId: string | null;
+    playingAudioForId: string | null;
+  }) => void;
+  onPlaySelectedReady?: (handler: () => Promise<void>) => void;
+  onStopAudioReady?: (handler: () => void) => void;
 }
 
 interface SessionHighlight {
@@ -21,14 +30,47 @@ interface SessionHighlight {
 }
 
 interface ChatMessage {
+  id?: string;
   role: string;
   content: string;
+  created_at?: string;
+}
+
+interface ChatAudioPayload {
+  content_base64: string;
+  mime_type: string;
+  voice: string;
+}
+
+interface ChatReplySegment {
+  id: string;
+  order: number;
+  text: string;
+  audio?: ChatAudioPayload;
+}
+
+interface ChatReply {
+  message: string;
+  message_id: string;
+  segments?: ChatReplySegment[];
+  audio?: ChatAudioPayload;
+}
+
+interface ActiveProgressivePlayback {
+  messageId: string;
+  segments: ChatReplySegment[];
+  renderedSegments: number;
 }
 
 export function ChatPanel({
   sessionId,
   subjectColor = "#6D44CC",
   subjectTitle = "este tema",
+  autoSpeak: controlledAutoSpeak,
+  onAutoSpeakChange,
+  onAudioUiStateChange,
+  onPlaySelectedReady,
+  onStopAudioReady,
 }: ChatPanelProps) {
   const { t } = useTranslation();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -37,9 +79,96 @@ export function ChatPanel({
   const [loadingIntro, setLoadingIntro] = useState(true);
   const [savingHighlight, setSavingHighlight] = useState(false);
   const [sending, setSending] = useState(false);
+  const [internalAutoSpeak, setInternalAutoSpeak] = useState(true);
+  const [selectedAssistantMessageId, setSelectedAssistantMessageId] = useState<string | null>(null);
+  const [generatingAudioForId, setGeneratingAudioForId] = useState<string | null>(null);
+  const [playingAudioForId, setPlayingAudioForId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlCacheRef = useRef<Record<string, string>>({});
+  const audioPayloadCacheRef = useRef<Record<string, ChatAudioPayload>>({});
+  const segmentAudioPromiseCacheRef = useRef<Record<string, Promise<ChatAudioPayload>>>({});
+  const progressivePlaybackTokenRef = useRef(0);
+  const activeProgressivePlaybackRef = useRef<ActiveProgressivePlayback | null>(null);
+  const introAudioPlayedRef = useRef(false);
+  const introSourceTextRef = useRef<string | null>(null);
+  const autoSpeak = controlledAutoSpeak ?? internalAutoSpeak;
+  const autoSpeakRef = useRef(autoSpeak);
+  const previousAutoSpeakRef = useRef(autoSpeak);
+  const subjectTitleRef = useRef(subjectTitle);
+  const translateRef = useRef(t);
+  const loadedSessionRef = useRef<string | null>(null);
+  const localMessageCounterRef = useRef(0);
+  const setAutoSpeak = useCallback((value: boolean | ((current: boolean) => boolean)) => {
+    const nextValue = typeof value === "function" ? value(autoSpeak) : value;
+    onAutoSpeakChange?.(nextValue);
+    if (controlledAutoSpeak === undefined) {
+      setInternalAutoSpeak(nextValue);
+    }
+  }, [autoSpeak, controlledAutoSpeak, onAutoSpeakChange]);
 
   const [nextSteps, setNextSteps] = useState<string[]>([]);
+
+  const splitReplyIntoSegments = useCallback((reply: string) => {
+    const normalized = reply.replace(/\r/g, "").trim();
+    if (!normalized) return [] as string[];
+
+    const rawParagraphs = normalized
+      .split(/\n\s*\n/)
+      .map((paragraph) => paragraph.trim())
+      .filter(Boolean);
+
+    const sourceParagraphs = rawParagraphs.length > 0
+      ? rawParagraphs
+      : normalized
+        .split(/(?<=[.!?])\s+/)
+        .map((paragraph) => paragraph.trim())
+        .filter(Boolean);
+
+    const segments: string[] = [];
+
+    for (const paragraph of sourceParagraphs) {
+      if (paragraph.length <= 320) {
+        segments.push(paragraph);
+        continue;
+      }
+
+      const sentences = paragraph
+        .split(/(?<=[.!?])\s+/)
+        .map((sentence) => sentence.trim())
+        .filter(Boolean);
+
+      let current = "";
+      for (const sentence of sentences) {
+        const candidate = current ? `${current} ${sentence}` : sentence;
+        if (candidate.length <= 320) {
+          current = candidate;
+          continue;
+        }
+
+        if (current) {
+          segments.push(current);
+        }
+
+        if (sentence.length <= 320) {
+          current = sentence;
+          continue;
+        }
+
+        for (let index = 0; index < sentence.length; index += 320) {
+          segments.push(sentence.slice(index, index + 320).trim());
+        }
+
+        current = "";
+      }
+
+      if (current) {
+        segments.push(current);
+      }
+    }
+
+    return segments.filter(Boolean).slice(0, 8);
+  }, []);
 
   const loadNextSteps = async (currentHistory: any[]) => {
     try {
@@ -75,6 +204,111 @@ export function ChatPanel({
     document.addEventListener("mousedown", dismissPopup);
     return () => document.removeEventListener("mousedown", dismissPopup);
   }, []);
+
+  useEffect(() => {
+    if (controlledAutoSpeak !== undefined) return;
+    const stored = window.localStorage.getItem("study-chat-auto-speak");
+    setInternalAutoSpeak(stored === null ? true : stored === "true");
+  }, [controlledAutoSpeak]);
+
+  useEffect(() => {
+    if (controlledAutoSpeak !== undefined) return;
+    window.localStorage.setItem("study-chat-auto-speak", autoSpeak ? "true" : "false");
+  }, [autoSpeak, controlledAutoSpeak]);
+
+  useEffect(() => {
+    autoSpeakRef.current = autoSpeak;
+  }, [autoSpeak]);
+
+  useEffect(() => {
+    previousAutoSpeakRef.current = autoSpeak;
+  }, [autoSpeak]);
+
+  useEffect(() => {
+    subjectTitleRef.current = subjectTitle;
+  }, [subjectTitle]);
+
+  useEffect(() => {
+    translateRef.current = t;
+  }, [t]);
+
+  const createLocalMessageId = useCallback((prefix: string) => {
+    localMessageCounterRef.current += 1;
+    return `${prefix}-${sessionId}-${Date.now()}-${localMessageCounterRef.current}`;
+  }, [sessionId]);
+
+  const completeRemainingSegments = useCallback((messageId: string, segments: ChatReplySegment[], renderedSegments: number) => {
+    const remainingText = segments
+      .slice(renderedSegments)
+      .map((segment) => segment.text)
+      .filter(Boolean)
+      .join("\n\n");
+
+    if (!remainingText) {
+      return;
+    }
+
+    setMessages((current) =>
+      current.map((message) => {
+        if (message.id !== messageId) return message;
+        const nextContent = message.content.trim()
+          ? `${message.content.trim()}\n\n${remainingText}`
+          : remainingText;
+        return { ...message, content: nextContent };
+      })
+    );
+  }, []);
+
+  const cancelActivePlayback = useCallback((options?: { flushText?: boolean }) => {
+    progressivePlaybackTokenRef.current += 1;
+    if (options?.flushText && activeProgressivePlaybackRef.current) {
+      const { messageId, segments, renderedSegments } = activeProgressivePlaybackRef.current;
+      completeRemainingSegments(messageId, segments, renderedSegments);
+    }
+    activeProgressivePlaybackRef.current = null;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setPlayingAudioForId(null);
+  }, [completeRemainingSegments]);
+
+  useEffect(() => {
+    if (!autoSpeak) {
+      cancelActivePlayback({ flushText: true });
+    }
+  }, [autoSpeak, cancelActivePlayback]);
+
+  useEffect(() => {
+    onAudioUiStateChange?.({
+      selectedAssistantMessageId,
+      generatingAudioForId,
+      playingAudioForId,
+    });
+  }, [selectedAssistantMessageId, generatingAudioForId, playingAudioForId, onAudioUiStateChange]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(audioUrlCacheRef.current).forEach((url) => URL.revokeObjectURL(url));
+      audioUrlCacheRef.current = {};
+      audioPayloadCacheRef.current = {};
+      segmentAudioPromiseCacheRef.current = {};
+      progressivePlaybackTokenRef.current += 1;
+      activeProgressivePlaybackRef.current = null;
+      introAudioPlayedRef.current = false;
+      introSourceTextRef.current = null;
+      loadedSessionRef.current = null;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!onStopAudioReady) return;
+    onStopAudioReady(() => cancelActivePlayback({ flushText: true }));
+  }, [onStopAudioReady, cancelActivePlayback]);
 
   const handleTextSelection = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -127,29 +361,40 @@ export function ChatPanel({
     setNextSteps([]);
 
     // 2. Adiciona a mensagem do usuário ao chat visualmente
-    const userMsg = { role: "user" as const, content: `${t("study.chatStartTopic")} ${step}` };
+    const userMsg = { id: createLocalMessageId("user"), role: "user" as const, content: `${t("study.chatStartTopic")} ${step}` };
     setMessages((m) => [...m, userMsg]);
     setSending(true);
 
     try {
       // 3. Bate no novo endpoint dedicado ou no chat passando o contexto
-      const { message } = await apiPost<{ message: string }>(
+      const response = await apiPost<ChatReply>(
         `/study/sessions/${sessionId}/chat/suggested-topic`,
         {
           topic: step,
           history: messages.map((m) => ({ role: m.role, content: m.content })),
+          include_audio: autoSpeak,
         }
       );
 
-      const assistantMsg = { role: "assistant" as const, content: message };
+      const initialAssistantContent = autoSpeak && response.segments?.length
+        ? response.segments[0].text
+        : response.message;
+      const assistantMsg = { id: response.message_id, role: "assistant" as const, content: initialAssistantContent };
       setMessages((m) => [...m, assistantMsg]);
+      setSelectedAssistantMessageId(response.message_id);
+
+      if (autoSpeak && response.segments?.length) {
+        startProgressiveAssistantPlayback(response.message_id, response.segments);
+      } else if (autoSpeak && response.audio) {
+        await playAudioFromPayload(response.message_id, response.audio);
+      }
 
       // 4. Carrega os PRÓXIMOS passos baseados nessa nova explicação
-      loadNextSteps([...messages, userMsg, assistantMsg]);
+      loadNextSteps([...messages, userMsg, { ...assistantMsg, content: response.message }]);
     } catch {
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: t("study.chatError") },
+        { id: createLocalMessageId("assistant-error"), role: "assistant", content: t("study.chatError") },
       ]);
     } finally {
       setSending(false);
@@ -185,17 +430,266 @@ export function ChatPanel({
     }
   };
 
+  const createAudioUrl = (audio: ChatAudioPayload) => {
+    const binary = window.atob(audio.content_base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    const blob = new Blob([bytes], { type: audio.mime_type || "audio/mpeg" });
+    return URL.createObjectURL(blob);
+  };
+
+  const appendSegmentToMessage = useCallback((messageId: string, segmentText: string) => {
+    setMessages((current) =>
+      current.map((message) => {
+        if (message.id !== messageId) return message;
+        const nextContent = message.content.trim()
+          ? `${message.content.trim()}\n\n${segmentText}`
+          : segmentText;
+        return { ...message, content: nextContent };
+      })
+    );
+  }, []);
+
+  const fetchSegmentAudio = useCallback((segment: ChatReplySegment) => {
+    const cachedAudio = audioPayloadCacheRef.current[segment.id];
+    if (cachedAudio) {
+      return Promise.resolve(cachedAudio);
+    }
+
+    const inFlight = segmentAudioPromiseCacheRef.current[segment.id];
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const request = (segment.audio
+      ? Promise.resolve(segment.audio)
+      : apiPost<ChatAudioPayload>(`/study/sessions/${sessionId}/chat/audio`, {
+          content: segment.text,
+        })
+    ).then((audio) => {
+      audioPayloadCacheRef.current[segment.id] = audio;
+      delete segmentAudioPromiseCacheRef.current[segment.id];
+      return audio;
+    }).catch((error) => {
+      delete segmentAudioPromiseCacheRef.current[segment.id];
+      throw error;
+    });
+
+    segmentAudioPromiseCacheRef.current[segment.id] = request;
+    return request;
+  }, [sessionId]);
+
+  const playAudioFromPayload = async (
+    messageId: string,
+    audio: ChatAudioPayload,
+    options?: { cacheKey?: string; waitForEnd?: boolean }
+  ) => {
+    const cacheKey = options?.cacheKey ?? messageId;
+    const cachedUrl = audioUrlCacheRef.current[cacheKey];
+    if (cachedUrl) {
+      URL.revokeObjectURL(cachedUrl);
+    }
+
+    const url = createAudioUrl(audio);
+    audioUrlCacheRef.current[cacheKey] = url;
+    audioPayloadCacheRef.current[cacheKey] = audio;
+
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+    }
+
+    const player = audioRef.current;
+    player.onended = null;
+    player.onpause = null;
+    player.onerror = null;
+    player.src = url;
+    setPlayingAudioForId(messageId);
+
+    if (!options?.waitForEnd) {
+      await player.play().catch(() => {
+        setPlayingAudioForId(null);
+      });
+      player.onended = () => setPlayingAudioForId(null);
+      player.onpause = () => setPlayingAudioForId((current) => (current === messageId ? null : current));
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      player.onended = () => {
+        setPlayingAudioForId(null);
+        resolve();
+      };
+      player.onpause = () => {
+        setPlayingAudioForId((current) => (current === messageId ? null : current));
+        resolve();
+      };
+      player.onerror = () => {
+        setPlayingAudioForId(null);
+        resolve();
+      };
+
+      player.play().catch(() => {
+        setPlayingAudioForId(null);
+        resolve();
+      });
+    });
+  };
+
+  const startProgressiveAssistantPlayback = useCallback((messageId: string, segments: ChatReplySegment[]) => {
+    if (segments.length === 0) return;
+
+    cancelActivePlayback();
+    const playbackToken = progressivePlaybackTokenRef.current;
+    activeProgressivePlaybackRef.current = {
+      messageId,
+      segments,
+      renderedSegments: 1,
+    };
+
+    setMessages((current) =>
+      current.map((message) =>
+        message.id === messageId ? { ...message, content: segments[0].text } : message
+      )
+    );
+
+    void (async () => {
+      for (let index = 0; index < segments.length; index += 1) {
+        if (progressivePlaybackTokenRef.current !== playbackToken) return;
+
+        const currentSegment = segments[index];
+        const nextSegment = segments[index + 1];
+
+        if (index > 0) {
+          appendSegmentToMessage(messageId, currentSegment.text);
+          if (activeProgressivePlaybackRef.current?.messageId === messageId) {
+            activeProgressivePlaybackRef.current.renderedSegments = index + 1;
+          }
+        }
+
+        if (nextSegment) {
+          void fetchSegmentAudio(nextSegment).catch(() => undefined);
+        }
+
+        try {
+          const audio = await fetchSegmentAudio(currentSegment);
+          if (progressivePlaybackTokenRef.current !== playbackToken) return;
+          await playAudioFromPayload(messageId, audio, {
+            cacheKey: currentSegment.id,
+            waitForEnd: true,
+          });
+        } catch {
+          continue;
+        }
+      }
+      if (activeProgressivePlaybackRef.current?.messageId === messageId) {
+        activeProgressivePlaybackRef.current = null;
+      }
+    })();
+  }, [appendSegmentToMessage, cancelActivePlayback, fetchSegmentAudio]);
+
   useEffect(() => {
+    const justEnabledAutoSpeak = autoSpeak && !previousAutoSpeakRef.current;
+    previousAutoSpeakRef.current = autoSpeak;
+
+    if (!justEnabledAutoSpeak || loadingIntro || introAudioPlayedRef.current) {
+      return;
+    }
+
+    const introMessage = messages[0];
+    if (
+      messages.length !== 1 ||
+      !introMessage ||
+      introMessage.role !== "assistant" ||
+      typeof introMessage.id !== "string" ||
+      !introMessage.id.startsWith("intro-") ||
+      !introSourceTextRef.current
+    ) {
+      return;
+    }
+
+    const introSegments = splitReplyIntoSegments(introSourceTextRef.current).map((text, index) => ({
+      id: `${introMessage.id}:segment:${index}`,
+      order: index,
+      text,
+    }));
+
+    if (introSegments.length > 0) {
+      introAudioPlayedRef.current = true;
+      startProgressiveAssistantPlayback(introMessage.id, introSegments);
+    }
+  }, [autoSpeak, loadingIntro, messages, splitReplyIntoSegments, startProgressiveAssistantPlayback]);
+
+  const handlePlaySelectedMessage = useCallback(async () => {
+    const selectedMessage = messages.find((message) => message.id === selectedAssistantMessageId && message.role === "assistant");
+    if (!selectedMessage?.id) return;
+
+    if (playingAudioForId === selectedMessage.id && audioRef.current) {
+      audioRef.current.pause();
+      setPlayingAudioForId(null);
+      return;
+    }
+
+    const cachedUrl = audioUrlCacheRef.current[selectedMessage.id];
+    if (cachedUrl) {
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+        audioRef.current.onended = () => setPlayingAudioForId(null);
+        audioRef.current.onpause = () => setPlayingAudioForId((current) => (current === selectedMessage.id ? null : current));
+      }
+
+      audioRef.current.src = cachedUrl;
+      setPlayingAudioForId(selectedMessage.id);
+      await audioRef.current.play().catch(() => {
+        setPlayingAudioForId(null);
+      });
+      return;
+    }
+
+    setGeneratingAudioForId(selectedMessage.id);
+    try {
+      const audio = await apiPost<ChatAudioPayload>(`/study/sessions/${sessionId}/chat/audio`, {
+        message_id: selectedMessage.id,
+      });
+      await playAudioFromPayload(selectedMessage.id, audio);
+    } finally {
+      setGeneratingAudioForId(null);
+    }
+  }, [messages, selectedAssistantMessageId, playingAudioForId, sessionId]);
+
+  useEffect(() => {
+    if (!onPlaySelectedReady) return;
+    onPlaySelectedReady(handlePlaySelectedMessage);
+  }, [onPlaySelectedReady, handlePlaySelectedMessage]);
+
+  useEffect(() => {
+    let cancelled = false;
+
     async function loadChat() {
+      if (loadedSessionRef.current === sessionId) {
+        return;
+      }
+
       setLoadingIntro(true);
+      introAudioPlayedRef.current = false;
+      introSourceTextRef.current = null;
+      cancelActivePlayback();
+
       try {
         const sessionDetailPromise = apiGet<any>("/study/sessions/" + sessionId + "/detail").catch(() => null);
         const detail = await sessionDetailPromise;
+        if (cancelled) return;
         if (detail && detail.highlights) {
           setHighlights(detail.highlights);
         }
         if (detail && detail.chat_messages && detail.chat_messages.length > 0) {
+          introSourceTextRef.current = null;
           setMessages(detail.chat_messages);
+          const lastAssistant = [...detail.chat_messages].reverse().find((message: ChatMessage) => message.role === "assistant" && message.id);
+          setSelectedAssistantMessageId(lastAssistant?.id ?? null);
+          loadedSessionRef.current = sessionId;
           setLoadingIntro(false);
           return;
         }
@@ -203,25 +697,63 @@ export function ChatPanel({
         const { message } = await apiGet<{ message: string }>(
           "/study/sessions/" + sessionId + "/chat/intro"
         );
+        if (cancelled) return;
 
-        const introMsg = { role: "assistant", content: message };
+        const introId = `intro-${sessionId}`;
+        introSourceTextRef.current = message;
+        const introSegments = splitReplyIntoSegments(message).map((text, index) => ({
+          id: `${introId}:segment:${index}`,
+          order: index,
+          text,
+        }));
+        const introMsg = {
+          id: introId,
+          role: "assistant" as const,
+          content: autoSpeakRef.current && introSegments.length ? introSegments[0].text : message,
+        };
 
         setMessages([introMsg]);
+        setSelectedAssistantMessageId(introId);
         loadNextSteps([introMsg]);
+        if (autoSpeakRef.current && introSegments.length && !introAudioPlayedRef.current) {
+          introAudioPlayedRef.current = true;
+          startProgressiveAssistantPlayback(introId, introSegments);
+        }
+        loadedSessionRef.current = sessionId;
 
       } catch {
-        setMessages([
-          {
-            role: "assistant",
-            content: t("study.chatFallbackIntro", { topic: subjectTitle }),
-          },
-        ]);
+        if (cancelled) return;
+        const fallbackIntro = translateRef.current("study.chatFallbackIntro", { topic: subjectTitleRef.current });
+        const introId = `intro-${sessionId}`;
+        introSourceTextRef.current = fallbackIntro;
+        const introSegments = splitReplyIntoSegments(fallbackIntro).map((text, index) => ({
+          id: `${introId}:segment:${index}`,
+          order: index,
+          text,
+        }));
+        const introMsg = {
+          id: introId,
+          role: "assistant" as const,
+          content: autoSpeakRef.current && introSegments.length ? introSegments[0].text : fallbackIntro,
+        };
+        setMessages([introMsg]);
+        setSelectedAssistantMessageId(introId);
+        if (autoSpeakRef.current && introSegments.length && !introAudioPlayedRef.current) {
+          introAudioPlayedRef.current = true;
+          startProgressiveAssistantPlayback(introId, introSegments);
+        }
+        loadedSessionRef.current = sessionId;
       } finally {
-        setLoadingIntro(false);
+        if (!cancelled) {
+          setLoadingIntro(false);
+        }
       }
     }
     loadChat();
-  }, [sessionId, subjectTitle]);
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, splitReplyIntoSegments, startProgressiveAssistantPlayback, cancelActivePlayback]);
 
   const handleSend = async () => {
     const text = input.trim();
@@ -233,27 +765,38 @@ export function ChatPanel({
     const fullText = quotedText ? `> "${quotedText}"\n\n${text}` : text;
     setQuotedText(null);
 
-    setMessages((m) => [...m, { role: "user", content: fullText }]);
+    const userMsg = { id: createLocalMessageId("user"), role: "user" as const, content: fullText };
+    setMessages((m) => [...m, userMsg]);
     setSending(true);
 
     try {
-      const { message } = await apiPost<{ message: string }>(
+      const response = await apiPost<ChatReply>(
         "/study/sessions/" + sessionId + "/chat",
         {
           message: fullText,
           history: messages.map((m) => ({ role: m.role, content: m.content })),
+          include_audio: autoSpeak,
         }
       );
 
-      const assistantMsg = { role: "assistant", content: message };
+      const initialAssistantContent = autoSpeak && response.segments?.length
+        ? response.segments[0].text
+        : response.message;
+      const assistantMsg = { id: response.message_id, role: "assistant", content: initialAssistantContent };
       setMessages(prev => [...prev, assistantMsg]);
-      loadNextSteps([...messages, { role: "user", content: fullText }, assistantMsg]);
+      setSelectedAssistantMessageId(response.message_id);
+      if (autoSpeak && response.segments?.length) {
+        startProgressiveAssistantPlayback(response.message_id, response.segments);
+      } else if (autoSpeak && response.audio) {
+        await playAudioFromPayload(response.message_id, response.audio);
+      }
+      loadNextSteps([...messages, userMsg, { ...assistantMsg, content: response.message }]);
 
 
     } catch {
       setMessages((m) => [
         ...m,
-        { role: "assistant", content: t("study.chatError") },
+        { id: createLocalMessageId("assistant-error"), role: "assistant", content: t("study.chatError") },
       ]);
     } finally {
       setSending(false);
@@ -300,18 +843,26 @@ export function ChatPanel({
         className="shrink-0 px-6 py-5 border-b border-slate-100"
         style={{ background: `linear-gradient(135deg, ${subjectColor}05, ${subjectColor}12)` }}
       >
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-white shadow-sm">
-            <MessageCircle className="h-5 w-5" style={{ color: subjectColor }} />
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-white shadow-sm">
+                <MessageCircle className="h-5 w-5" style={{ color: subjectColor }} />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest">
+                  {t("study.chatTitle")}
+                </h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                  {t("study.chatSubtitle")}
+                </p>
+              </div>
+            </div>
+
+
           </div>
-          <div>
-            <h3 className="font-black text-slate-800 text-xs uppercase tracking-widest">
-              {t("study.chatTitle")}
-            </h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
-              {t("study.chatSubtitle")}
-            </p>
-          </div>
+
+
         </div>
       </div>
 
@@ -321,6 +872,15 @@ export function ChatPanel({
         onMouseUp={handleTextSelection}
         className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 custom-scrollbar bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:20px_20px] [background-position:center]"
       >
+        {generatingAudioForId && (
+          <div className="sticky top-0 z-10 flex justify-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-white/95 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-amber-700 shadow-sm backdrop-blur">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Preparando audio para reproduzir
+            </div>
+          </div>
+        )}
+
         {loadingIntro && (
           <div className="flex items-center justify-center py-4 gap-2 text-slate-400">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -387,9 +947,12 @@ export function ChatPanel({
               }
             }
 
+            const isAssistant = msg.role === "assistant";
+            const isSelected = Boolean(msg.id) && selectedAssistantMessageId === msg.id;
+
             return (
               <motion.div
-                key={i}
+                key={msg.id ?? i}
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 className={cn(
@@ -400,24 +963,41 @@ export function ChatPanel({
                 <div
                   className={cn(
                     "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-black text-[10px] shadow-sm mb-1",
-                    msg.role === "assistant"
+                    isAssistant
                       ? "bg-white border border-slate-200 text-slate-400"
                       : "bg-slate-900 text-white"
                   )}
                 >
-                  {msg.role === "assistant" ? <Bot className="h-4 w-4 text-[#6D44CC]" /> : t("study.chatUser")}
+                  {isAssistant ? <Bot className="h-4 w-4 text-[#6D44CC]" /> : t("study.chatUser")}
                 </div>
 
-                <div
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isAssistant || !msg.id) return;
+                    const messageId = msg.id;
+                    setSelectedAssistantMessageId((current) => current === messageId ? null : messageId);
+                  }}
                   className={cn(
-                    "max-w-[85%] rounded-[20px] px-5 py-3 text-sm leading-relaxed shadow-sm font-medium",
+                    "max-w-[85%] rounded-[20px] px-5 py-3 text-left text-sm leading-relaxed shadow-sm font-medium transition-all",
                     msg.role === "user"
-                      ? "bg-[#6D44CC] text-white rounded-br-none"
-                      : "bg-white border border-slate-100 text-slate-700 rounded-bl-none assistant-message"
+                      ? "bg-[#6D44CC] text-white rounded-br-none cursor-default"
+                      : "bg-white border border-slate-100 text-slate-700 rounded-bl-none assistant-message hover:border-indigo-200",
+                    isSelected && "border-indigo-500 ring-4 ring-indigo-500/10"
                   )}
+                  disabled={!isAssistant}
                 >
                   <p className="whitespace-pre-wrap">{renderedContent}</p>
-                </div>
+                  {isAssistant && (
+                    <div className="mt-3 flex items-center justify-between gap-3 border-t border-slate-100 pt-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                      <span>{isSelected ? "Resposta selecionada" : "Clique para selecionar"}</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Volume2 className="h-3 w-3" />
+                        Áudio
+                      </span>
+                    </div>
+                  )}
+                </button>
               </motion.div>
             );
           })}

@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, BookOpen, LayoutDashboard, Brain, MessageCircle, Layers, ChevronLeft, ChevronRight, Timer, X } from "lucide-react";
+import { ArrowLeft, Loader2, BookOpen, LayoutDashboard, Brain, MessageCircle, Layers, ChevronLeft, ChevronRight, Timer, X, Volume2, VolumeX, PlayCircle, PauseCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ChatPanel } from "@/components/study/ChatPanel";
 import { QuizPanel } from "@/components/study/QuizPanel";
@@ -69,6 +69,29 @@ export default function SessaoPage() {
   const isCompact = useIsCompact();
   const [[activePanel, direction], setActivePanel] = useState<[number, number]>([1, 0]); // Start on Chat
   const [timerPopup, setTimerPopup] = useState(false);
+  const [autoSpeak, setAutoSpeak] = useState(true);
+  const [selectedAssistantMessageId, setSelectedAssistantMessageId] = useState<string | null>(null);
+  const [generatingAudioForId, setGeneratingAudioForId] = useState<string | null>(null);
+  const [playingAudioForId, setPlayingAudioForId] = useState<string | null>(null);
+  const playSelectedHandlerRef = useRef<(() => Promise<void>) | null>(null);
+  const stopAudioHandlerRef = useRef<(() => void) | null>(null);
+  const handleAudioUiStateChange = useCallback((state: {
+    selectedAssistantMessageId: string | null;
+    generatingAudioForId: string | null;
+    playingAudioForId: string | null;
+  }) => {
+    setSelectedAssistantMessageId(state.selectedAssistantMessageId);
+    setGeneratingAudioForId(state.generatingAudioForId);
+    setPlayingAudioForId(state.playingAudioForId);
+  }, []);
+
+  const handlePlaySelectedReady = useCallback((handler: () => Promise<void>) => {
+    playSelectedHandlerRef.current = handler;
+  }, []);
+
+  const handleStopAudioReady = useCallback((handler: () => void) => {
+    stopAudioHandlerRef.current = handler;
+  }, []);
 
   const PANELS = PANELS_CONFIG.map(p => ({ ...p, label: t(p.labelKey as any) }));
 
@@ -98,6 +121,15 @@ export default function SessaoPage() {
       .catch(() => setError(t("studySession.loadError")))
       .finally(() => setLoading(false));
   }, [sessionId]);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem("study-chat-auto-speak");
+    setAutoSpeak(stored === null ? true : stored === "true");
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("study-chat-auto-speak", autoSpeak ? "true" : "false");
+  }, [autoSpeak]);
 
   useEffect(() => {
     const handleBeforeUnload = () => saveDuration(false);
@@ -144,7 +176,17 @@ export default function SessaoPage() {
   // Panels rendered for compact mode — all always mounted but only active one is visible
   const panelComponents = [
     <QuizPanel key="quiz" sessionId={sessionId} subjectColor={subjectColor} />,
-    <ChatPanel key="chat" sessionId={sessionId} subjectColor={subjectColor} subjectTitle={subjectTitle} />,
+    <ChatPanel
+      key="chat"
+      sessionId={sessionId}
+      subjectColor={subjectColor}
+      subjectTitle={subjectTitle}
+      autoSpeak={autoSpeak}
+      onAutoSpeakChange={setAutoSpeak}
+      onAudioUiStateChange={handleAudioUiStateChange}
+      onPlaySelectedReady={handlePlaySelectedReady}
+      onStopAudioReady={handleStopAudioReady}
+    />,
     <FlashcardPanel key="flashcards" sessionId={sessionId} subjectColor={subjectColor} />,
   ];
 
@@ -184,6 +226,53 @@ export default function SessaoPage() {
               </h1>
             </div>
           </div>
+
+          <div className="hidden lg:flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setAutoSpeak((prev) => !prev)}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] transition-all",
+                autoSpeak
+                  ? "border-indigo-600 bg-indigo-600 text-white"
+                  : "border-slate-200 bg-white text-slate-600"
+              )}
+            >
+              {autoSpeak ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+              Voz IA auto
+            </button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-full border-slate-200 text-[10px] font-black uppercase tracking-[0.18em]"
+              disabled={!selectedAssistantMessageId || generatingAudioForId !== null || !playSelectedHandlerRef.current}
+              onClick={() => void playSelectedHandlerRef.current?.()}
+            >
+              {generatingAudioForId ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : playingAudioForId === selectedAssistantMessageId ? (
+                <PauseCircle className="mr-2 h-3.5 w-3.5" />
+              ) : (
+                <PlayCircle className="mr-2 h-3.5 w-3.5" />
+              )}
+              Ouvir resposta
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-full border-slate-200 text-[10px] font-black uppercase tracking-[0.18em]"
+              disabled={!playingAudioForId && !generatingAudioForId}
+              onClick={() => stopAudioHandlerRef.current?.()}
+            >
+              <X className="mr-2 h-3.5 w-3.5" />
+              Parar audio
+            </Button>
+
+
+          </div>
+
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4 shrink-0">
@@ -303,7 +392,16 @@ export default function SessaoPage() {
             <QuizPanel sessionId={sessionId} subjectColor={subjectColor} />
           </div>
           <div className="min-h-0 flex flex-col overflow-hidden transition-all duration-500 hover:scale-[1.01]">
-            <ChatPanel sessionId={sessionId} subjectColor={subjectColor} subjectTitle={subjectTitle} />
+            <ChatPanel
+              sessionId={sessionId}
+              subjectColor={subjectColor}
+              subjectTitle={subjectTitle}
+              autoSpeak={autoSpeak}
+              onAutoSpeakChange={setAutoSpeak}
+              onAudioUiStateChange={handleAudioUiStateChange}
+              onPlaySelectedReady={handlePlaySelectedReady}
+              onStopAudioReady={handleStopAudioReady}
+            />
           </div>
           <div className="min-h-0 flex flex-col overflow-hidden transition-all duration-500 hover:scale-[1.01]">
             <FlashcardPanel sessionId={sessionId} subjectColor={subjectColor} />
