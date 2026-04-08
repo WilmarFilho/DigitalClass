@@ -88,6 +88,7 @@ export function ChatPanel({
   const audioUrlCacheRef = useRef<Record<string, string>>({});
   const audioPayloadCacheRef = useRef<Record<string, ChatAudioPayload>>({});
   const segmentAudioPromiseCacheRef = useRef<Record<string, Promise<ChatAudioPayload>>>({});
+  const messageSegmentsRef = useRef<Record<string, ChatReplySegment[]>>({});
   const progressivePlaybackTokenRef = useRef(0);
   const activeProgressivePlaybackRef = useRef<ActiveProgressivePlayback | null>(null);
   const introAudioPlayedRef = useRef(false);
@@ -293,6 +294,7 @@ export function ChatPanel({
       audioUrlCacheRef.current = {};
       audioPayloadCacheRef.current = {};
       segmentAudioPromiseCacheRef.current = {};
+      messageSegmentsRef.current = {};
       progressivePlaybackTokenRef.current += 1;
       activeProgressivePlaybackRef.current = null;
       introAudioPlayedRef.current = false;
@@ -380,6 +382,9 @@ export function ChatPanel({
         ? response.segments[0].text
         : response.message;
       const assistantMsg = { id: response.message_id, role: "assistant" as const, content: initialAssistantContent };
+      if (response.segments?.length) {
+        messageSegmentsRef.current[response.message_id] = response.segments;
+      }
       setMessages((m) => [...m, assistantMsg]);
       setSelectedAssistantMessageId(response.message_id);
 
@@ -541,6 +546,7 @@ export function ChatPanel({
   const startProgressiveAssistantPlayback = useCallback((messageId: string, segments: ChatReplySegment[]) => {
     if (segments.length === 0) return;
 
+    messageSegmentsRef.current[messageId] = segments;
     cancelActivePlayback();
     const playbackToken = progressivePlaybackTokenRef.current;
     activeProgressivePlaybackRef.current = {
@@ -622,6 +628,44 @@ export function ChatPanel({
     }
   }, [autoSpeak, loadingIntro, messages, splitReplyIntoSegments, startProgressiveAssistantPlayback]);
 
+  const replayProgressiveAssistantAudio = useCallback(async (messageId: string, segments: ChatReplySegment[]) => {
+    if (segments.length === 0) return;
+
+    cancelActivePlayback();
+    const playbackToken = progressivePlaybackTokenRef.current;
+    activeProgressivePlaybackRef.current = {
+      messageId,
+      segments,
+      renderedSegments: segments.length,
+    };
+
+    for (const segment of segments) {
+      if (progressivePlaybackTokenRef.current !== playbackToken) return;
+
+      const needsGeneration = !audioPayloadCacheRef.current[segment.id] && !segment.audio;
+      if (needsGeneration) {
+        setGeneratingAudioForId(messageId);
+      }
+
+      try {
+        const audio = await fetchSegmentAudio(segment);
+        if (progressivePlaybackTokenRef.current !== playbackToken) return;
+        await playAudioFromPayload(messageId, audio, {
+          cacheKey: segment.id,
+          waitForEnd: true,
+        });
+      } finally {
+        if (needsGeneration) {
+          setGeneratingAudioForId((current) => (current === messageId ? null : current));
+        }
+      }
+    }
+
+    if (activeProgressivePlaybackRef.current?.messageId === messageId) {
+      activeProgressivePlaybackRef.current = null;
+    }
+  }, [cancelActivePlayback, fetchSegmentAudio]);
+
   const handlePlaySelectedMessage = useCallback(async () => {
     const selectedMessage = messages.find((message) => message.id === selectedAssistantMessageId && message.role === "assistant");
     if (!selectedMessage?.id) return;
@@ -648,6 +692,12 @@ export function ChatPanel({
       return;
     }
 
+    const knownSegments = messageSegmentsRef.current[selectedMessage.id];
+    if (knownSegments?.length) {
+      await replayProgressiveAssistantAudio(selectedMessage.id, knownSegments);
+      return;
+    }
+
     setGeneratingAudioForId(selectedMessage.id);
     try {
       const audio = await apiPost<ChatAudioPayload>(`/study/sessions/${sessionId}/chat/audio`, {
@@ -657,7 +707,7 @@ export function ChatPanel({
     } finally {
       setGeneratingAudioForId(null);
     }
-  }, [messages, selectedAssistantMessageId, playingAudioForId, sessionId]);
+  }, [messages, selectedAssistantMessageId, playingAudioForId, replayProgressiveAssistantAudio, sessionId]);
 
   useEffect(() => {
     if (!onPlaySelectedReady) return;
@@ -711,6 +761,9 @@ export function ChatPanel({
           role: "assistant" as const,
           content: autoSpeakRef.current && introSegments.length ? introSegments[0].text : message,
         };
+        if (introSegments.length) {
+          messageSegmentsRef.current[introId] = introSegments;
+        }
 
         setMessages([introMsg]);
         setSelectedAssistantMessageId(introId);
@@ -736,6 +789,9 @@ export function ChatPanel({
           role: "assistant" as const,
           content: autoSpeakRef.current && introSegments.length ? introSegments[0].text : fallbackIntro,
         };
+        if (introSegments.length) {
+          messageSegmentsRef.current[introId] = introSegments;
+        }
         setMessages([introMsg]);
         setSelectedAssistantMessageId(introId);
         if (autoSpeakRef.current && introSegments.length && !introAudioPlayedRef.current) {
@@ -783,6 +839,9 @@ export function ChatPanel({
         ? response.segments[0].text
         : response.message;
       const assistantMsg = { id: response.message_id, role: "assistant", content: initialAssistantContent };
+      if (response.segments?.length) {
+        messageSegmentsRef.current[response.message_id] = response.segments;
+      }
       setMessages(prev => [...prev, assistantMsg]);
       setSelectedAssistantMessageId(response.message_id);
       if (autoSpeak && response.segments?.length) {

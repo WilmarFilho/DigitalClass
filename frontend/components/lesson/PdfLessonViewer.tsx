@@ -115,7 +115,7 @@ export function PdfLessonViewer({ lessonId, title, sourceUrl, className }: PdfLe
       </div>
 
       <iframe
-        src={pdfUrl}
+        src={pdfUrl ?? undefined}
         className={className ?? "h-full w-full border-none"}
         title={title}
       />
