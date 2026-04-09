@@ -11,7 +11,14 @@ import { cn } from "@/lib/utils";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
 import { useTranslation } from "@/hooks/useTranslation";
-import { calculateSubjectProgress } from "./materias.utils";
+import {
+  buildManualSubjectPayload,
+  buildRecommendationSubjectPayload,
+  calculateSubjectProgress,
+  formatSubjectDeadline,
+  hasMoreSubjects,
+  hasSubjectAlreadyAdded,
+} from "./materias.utils";
 
 interface RecommendedSubject {
   title: string;
@@ -145,12 +152,12 @@ export function MateriasClient() {
         ]);
         setRecommendations(recsData);
         setMySubjects(subsResponse.data || []);
-        setHasMore((subsResponse.meta?.page ?? 1) < (subsResponse.meta?.last_page ?? 1));
+        setHasMore(hasMoreSubjects(subsResponse.meta));
         setPage(1);
       } else {
         const subsResponse = await apiGet<SubjectsResponse>(`/subjects?page=${pageNum}&limit=6`);
         setMySubjects(prev => [...prev, ...(subsResponse.data || [])]);
-        setHasMore((subsResponse.meta?.page ?? pageNum) < (subsResponse.meta?.last_page ?? pageNum));
+        setHasMore(hasMoreSubjects(subsResponse.meta));
         setPage(pageNum);
       }
     } catch (e) {
@@ -205,8 +212,7 @@ export function MateriasClient() {
     }
   };
 
-  const alreadyAdded = (title: string) =>
-    mySubjects.some((s) => s.title.toLowerCase() === title.toLowerCase());
+  const alreadyAdded = (title: string) => hasSubjectAlreadyAdded(mySubjects, title);
 
   const openEditModal = (s: Subject) => {
     setEditSubject(s);
@@ -392,7 +398,7 @@ export function MateriasClient() {
                           </div>
                           {s.deadline && (
                             <p className="flex items-center gap-1 text-[11px] font-bold text-red-400">
-                              <Calendar className="h-3 w-3" /> {new Date(s.deadline).toLocaleDateString(t("language") === "English" ? "en-US" : t("language") === "Spanish" ? "es-ES" : "pt-BR")}
+                              <Calendar className="h-3 w-3" /> {formatSubjectDeadline(s.deadline, t("language"))}
                             </p>
                           )}
                         </div>
@@ -468,7 +474,12 @@ export function MateriasClient() {
           <Modal open={manualModalOpen} onClose={() => setManualModalOpen(false)} title={t("materias.newSubject")} className="max-w-md">
             <form onSubmit={(e) => {
               e.preventDefault();
-              addSubject({ title: manualTitle, target_hours: parseInt(manualHours), deadline: manualDeadline || undefined, is_custom: true, color_code: manualColor }, true);
+              addSubject(buildManualSubjectPayload({
+                title: manualTitle,
+                targetHours: manualHours,
+                deadline: manualDeadline,
+                color: manualColor,
+              }), true);
             }} className="space-y-5">
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase text-slate-500">{t("materias.subjectName")}</Label>
@@ -501,13 +512,13 @@ export function MateriasClient() {
             {selectedRecommendation && (
               <form onSubmit={(e) => {
                 e.preventDefault();
-                addSubject({
-                  title: selectedRecommendation.title,
-                  color_code: selectedRecommendation.color_code,
-                  target_hours: selectedRecommendation.suggested_hours,
-                  difficulty_level: selectedRecommendation.difficulty_level,
-                  deadline: recommendationDeadline || undefined
-                }, false);
+                addSubject(
+                  buildRecommendationSubjectPayload(
+                    selectedRecommendation,
+                    recommendationDeadline,
+                  ),
+                  false,
+                );
               }} className="space-y-6">
                 <div className="p-4 rounded-2xl bg-[#F5F3FF] border border-[#E6E0F8] flex items-center gap-4">
                   <div className="h-12 w-12 rounded-xl flex items-center justify-center text-white font-black" style={{ backgroundColor: selectedRecommendation.color_code }}>

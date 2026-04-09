@@ -52,7 +52,10 @@ export function getSubjectLocale(language: SubjectLanguage) {
 
 export function formatSubjectDeadline(deadline: string | null, language: SubjectLanguage) {
   if (!deadline) return null;
-  return new Date(deadline).toLocaleDateString(getSubjectLocale(language));
+  const [year, month, day] = deadline.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString(
+    getSubjectLocale(language),
+  );
 }
 
 export function buildManualSubjectPayload(input: ManualSubjectFormInput) {
