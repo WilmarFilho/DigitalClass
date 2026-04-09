@@ -9,12 +9,17 @@ export class CalendarController {
 
   @Get('suggestions')
   @UseGuards(SupabaseJwtGuard)
-  async getSuggestions(@Req() req: any, @Query('month') month: string) {
+  async getSuggestions(
+    @Req() req: any,
+    @Query('month') month: string,
+    @Query('force') force?: string,
+  ) {
     if (!month || !/^\d{4}-\d{2}$/.test(month)) {
       const d = new Date();
       month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     }
-    return this.calendarService.getSuggestions(req.user.id, month);
+    const shouldForce = force === '1' || force === 'true';
+    return this.calendarService.getSuggestions(req.user.id, month, shouldForce);
   }
 
   @Get('events')

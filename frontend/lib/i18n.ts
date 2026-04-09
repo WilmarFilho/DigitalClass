@@ -264,6 +264,7 @@ export const translations = {
     "calendario.startTime": "Horário de início",
     "calendario.duration": "Duração",
     "calendario.confirmSchedule": "Confirmar agendamento",
+    "calendario.reorganize": "Reorganizar agenda",
 
     // Minha Area
     "minhaArea.title": "Painel do Professor",
@@ -966,6 +967,7 @@ export const translations = {
     "calendario.startTime": "Start time",
     "calendario.duration": "Duration",
     "calendario.confirmSchedule": "Confirm schedule",
+    "calendario.reorganize": "Reorganize plan",
 
     // Minha Area
     "minhaArea.title": "Teacher Dashboard",
@@ -1668,6 +1670,7 @@ export const translations = {
     "calendario.startTime": "Hora de inicio",
     "calendario.duration": "Duración",
     "calendario.confirmSchedule": "Confirmar horario",
+    "calendario.reorganize": "Reorganizar agenda",
 
     // Minha Area
     "minhaArea.title": "Panel del Profesor",

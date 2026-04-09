@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   ChevronLeft, ChevronRight, Plus, Loader2, Trash2,
   Sparkles, Maximize2, Calendar as CalendarIcon,
-  BookOpen, Clock, Target, CheckCircle2
+  BookOpen, Clock, Target, CheckCircle2, RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +52,8 @@ interface CalendarSuggestion {
   date: string;
   subject_id: string;
   suggested_duration_minutes: number;
+  suggested_time: string;
+  reason?: string;
   subject: { id: string; title: string; color_code: string };
 }
 
@@ -74,17 +76,18 @@ export function CalendarioClient() {
   const [formDuration, setFormDuration] = useState("60");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [reorganizing, setReorganizing] = useState(false);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (forceSuggestions = false) => {
     setLoading(true);
     try {
       const [eventsData, suggestionsData, subjectsRes] = await Promise.all([
         apiGet<CalendarEvent[]>(`/calendar/events?month=${monthKey}`),
-        apiGet<CalendarSuggestion[]>(`/calendar/suggestions?month=${monthKey}`),
+        apiGet<CalendarSuggestion[]>(`/calendar/suggestions?month=${monthKey}${forceSuggestions ? "&force=true" : ""}`),
         apiGet<any>("/subjects?limit=100")
       ]);
       setEvents(eventsData);
@@ -133,21 +136,30 @@ export function CalendarioClient() {
       await apiPost("/calendar/events", {
         subject_id: s.subject_id,
         scheduled_date: s.date,
-        scheduled_time: "09:00",
+        scheduled_time: s.suggested_time || "09:00",
         duration_minutes: s.suggested_duration_minutes,
       });
       loadData();
     } catch { } finally { setSubmitting(false); }
   };
 
+  const handleReorganize = async () => {
+    setReorganizing(true);
+    try {
+      await loadData(true);
+    } finally {
+      setReorganizing(false);
+    }
+  };
+
   return (
     <div className="flex flex-col space-y-6 animate-in fade-in duration-700 overflow-x-hidden w-full max-w-full">
 
       {/* Header Profissional com Glassmorphism */}
-      <div className="flex flex-row items-center justify-between gap-6 bg-white p-8 rounded-[32px] border border-[#E6E0F8] shadow-sm">
+      <div className="flex flex-row items-center justify-between gap-6 bg-white p-8 rounded-[32px] border border-[#E6E0F8] shadow-sm max-[1300px]:flex-col max-[1300px]:items-stretch">
 
         {/* Lado Esquerdo: Título e Ícone (Esconde abaixo de 1075px) */}
-        <div className="flex items-center gap-4 max-[1075px]:hidden">
+        <div className="flex items-center gap-4 max-[1300px]:hidden">
           <div className="p-3 bg-[#F5F3FF] rounded-2xl border border-[#E6E0F8] shadow-inner">
             <CalendarIcon className="h-7 w-7 text-[#6D44CC]" />
           </div>
@@ -160,7 +172,7 @@ export function CalendarioClient() {
         </div>
 
         {/* Lado Direito: Seletor de Mês (Sempre visível, centralizado no mobile) */}
-        <div className="flex items-center bg-[#F8F7FF] rounded-2xl border border-[#E6E0F8] p-1.5 shadow-inner max-[1075px]:w-full max-[1075px]:justify-between">
+        <div className="flex items-center bg-[#F8F7FF] rounded-2xl border border-[#E6E0F8] p-1.5 shadow-inner max-[1300px]:w-full max-[1300px]:justify-between">
           <Button
             variant="ghost"
             size="icon"
@@ -183,6 +195,16 @@ export function CalendarioClient() {
             <ChevronRight className="h-5 w-5" />
           </Button>
         </div>
+
+        <Button
+          type="button"
+          onClick={handleReorganize}
+          disabled={loading || reorganizing}
+          className="bg-[#6D44CC] hover:bg-[#5B39A8] text-white rounded-2xl px-5 h-11 font-black uppercase tracking-[0.12em] max-[1300px]:w-full"
+        >
+          {reorganizing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+          {t("calendario.reorganize")}
+        </Button>
       </div>
 
       {/* Wrapper de Scroll Horizontal Corrigido */}
@@ -309,7 +331,7 @@ export function CalendarioClient() {
                       >
                         {t("calendario.start")}
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => apiDelete(`/calendar/events/${ev.id}`).then(loadData)} className="h-8 w-8 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                      <Button variant="ghost" size="icon" onClick={() => apiDelete(`/calendar/events/${ev.id}`).then(() => loadData())} className="h-8 w-8 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-lg">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -329,7 +351,12 @@ export function CalendarioClient() {
                       <div className="w-2 h-10 rounded-full bg-amber-400" />
                       <div>
                         <p className="text-sm font-black text-amber-900">{s.subject.title}</p>
-                        <p className="text-[10px] font-bold text-amber-600/70 uppercase">{t("calendario.suggestedDuration")}: {s.suggested_duration_minutes}m</p>
+                        <p className="text-[10px] font-bold text-amber-600/70 uppercase">
+                          {s.suggested_time} • {t("calendario.suggestedDuration")}: {s.suggested_duration_minutes}m
+                        </p>
+                        {s.reason && (
+                          <p className="text-[10px] font-semibold text-amber-800/80 mt-1">{s.reason}</p>
+                        )}
                       </div>
                     </div>
                     <Button size="sm" onClick={() => handleAddSuggestion(s)} className="bg-amber-500 hover:bg-amber-600 h-8 text-[10px] font-black rounded-xl px-4">{t("calendario.accept")}</Button>

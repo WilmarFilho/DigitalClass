@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { Brain, Plus, BookOpen, Clock, Loader2, ChevronRight, History, AlertCircle, CheckCircle2, Calendar, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -32,6 +33,49 @@ interface CalendarEvent {
   duration_minutes: number;
   subjects: { id: string; title: string; color_code: string } | null;
 }
+
+const pageVariants = {
+  hidden: { opacity: 0, y: 18 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.45,
+      ease: [0.22, 1, 0.36, 1] as const,
+      staggerChildren: 0.1,
+      delayChildren: 0.06,
+    },
+  },
+};
+
+const sectionVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] as const },
+  },
+};
+
+const listVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.04,
+    },
+  },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 18, scale: 0.98 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] as const },
+  },
+};
 
 export function EstudosClient() {
   const router = useRouter();
@@ -147,9 +191,17 @@ export function EstudosClient() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10 pb-10 animate-in fade-in duration-700">
+    <motion.div
+      className="mx-auto max-w-6xl space-y-10 pb-10"
+      variants={pageVariants}
+      initial="hidden"
+      animate="visible"
+    >
       {/* Header com Glassmorphism */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-8 rounded-3xl border border-[#E6E0F8] shadow-sm">
+      <motion.div
+        variants={sectionVariants}
+        className="flex flex-col justify-between gap-6 rounded-3xl border border-[#E6E0F8] bg-white p-6 shadow-sm md:flex-row md:items-center md:p-8"
+      >
         <div className="flex items-center gap-4 max-[870px]:hidden">
           <div className="p-3 bg-[#F5F3FF] rounded-2xl border border-[#E6E0F8] shadow-inner">
             <Brain className="h-7 w-7 text-[#6D44CC]" />
@@ -179,11 +231,14 @@ export function EstudosClient() {
         >
           <Plus className="h-5 w-5 mr-2" /> {t("estudos.newSession")}
         </Button>
-      </div>
+      </motion.div>
 
       {/* Alerta de Matéria Pendente */}
       {subjects.length === 0 && !loading && (
-        <div className="group relative overflow-hidden rounded-3xl border border-amber-200 bg-amber-50/50 p-6 backdrop-blur-sm">
+        <motion.div
+          variants={sectionVariants}
+          className="group relative overflow-hidden rounded-3xl border border-amber-200 bg-amber-50/50 p-6 backdrop-blur-sm"
+        >
           <div className="flex items-center gap-4">
             <div className="p-2 bg-amber-100 rounded-lg">
               <AlertCircle className="h-5 w-5 text-amber-600" />
@@ -198,23 +253,27 @@ export function EstudosClient() {
               </Button>
             </Link>
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Agendados para Hoje */}
       {todayEvents.length > 0 && (
-        <div className="space-y-4">
+        <motion.div variants={sectionVariants} className="space-y-4">
           <div className="flex items-center gap-2 px-2">
             <Calendar className="h-5 w-5 text-[#6D44CC]" />
             <h3 className="text-sm font-black text-[#1A1A1A] uppercase tracking-[0.2em]">{t("estudos.plannedToday")}</h3>
           </div>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <motion.div
+            variants={listVariants}
+            className="grid grid-cols-1 gap-6 min-[890px]:grid-cols-2 min-[1365px]:grid-cols-3"
+          >
             {todayEvents.map((ev) => (
-              <div
+              <motion.div
                 key={ev.id}
-                className="group relative overflow-hidden rounded-3xl border-2 border-[#6D44CC]/20 bg-white p-6 transition-all hover:shadow-xl hover:border-[#6D44CC]/40"
+                variants={cardVariants}
+                className="group relative h-full overflow-hidden rounded-3xl border-2 border-[#6D44CC]/20 bg-white p-6 transition-all hover:border-[#6D44CC]/40 hover:shadow-xl"
               >
-                <div className="flex flex-col gap-4">
+                <div className="flex h-full flex-col gap-4">
                   <div className="flex items-start justify-between">
                     <div
                       className="p-2.5 rounded-xl bg-[#F5F3FF]"
@@ -230,7 +289,7 @@ export function EstudosClient() {
                     <h3 className="font-bold text-[#1A1A1A] truncate">
                       {ev.subjects?.title ?? "Matéria"}
                     </h3>
-                    <div className="mt-2 flex items-center justify-between">
+                    <div className="mt-2 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
                         <Clock className="h-3.5 w-3.5 text-[#6D44CC]" />
                         {ev.duration_minutes} MIN
@@ -263,20 +322,23 @@ export function EstudosClient() {
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
 
       {/* Grid de Sessões Recentes */}
-      <div className="space-y-4">
+      <motion.div variants={sectionVariants} className="space-y-4">
         <div className="flex items-center gap-2 px-2">
           <History className="h-5 w-5 text-slate-400" />
           <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">{t("estudos.recentHistory")}</h3>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <motion.div
+          variants={listVariants}
+          className="grid grid-cols-1 gap-6 min-[890px]:grid-cols-2 min-[1365px]:grid-cols-3"
+        >
           {loading ? (
             Array(3).fill(0).map((_, i) => (
               <div key={i} className="h-32 rounded-3xl bg-slate-50 border border-slate-100 animate-pulse" />
@@ -293,47 +355,47 @@ export function EstudosClient() {
             </div>
           ) : (
             sessions.map((s) => (
-              <Link
-                key={s.id}
-                href={`/protected/estudos/detalhe?sessionId=${s.id}`}
-                className="group relative overflow-hidden rounded-3xl border border-[#E6E0F8] bg-white p-6 transition-all hover:shadow-xl hover:border-[#6D44CC]/30"
-              >
-                {/* Indicador lateral de cor */}
-                <div
-                  className="absolute left-0 top-0 bottom-0 w-1.5 opacity-80"
-                  style={{ backgroundColor: s.subjects?.color_code ?? "#6D44CC" }}
-                />
+              <motion.div key={s.id} variants={cardVariants} className="h-full">
+                <Link
+                  href={`/protected/estudos/detalhe?sessionId=${s.id}`}
+                  className="group relative flex h-full overflow-hidden rounded-3xl border border-[#E6E0F8] bg-white p-6 transition-all hover:border-[#6D44CC]/30 hover:shadow-xl"
+                >
+                  <div
+                    className="absolute bottom-0 left-0 top-0 w-1.5 opacity-80"
+                    style={{ backgroundColor: s.subjects?.color_code ?? "#6D44CC" }}
+                  />
 
-                <div className="flex flex-col gap-4">
-                  <div className="flex items-start justify-between">
-                    <div
-                      className="p-2.5 rounded-xl"
-                      style={{ backgroundColor: `${s.subjects?.color_code ?? "#6D44CC"}15` }}
-                    >
-                      <BookOpen className="h-5 w-5" style={{ color: s.subjects?.color_code ?? "#6D44CC" }} />
-                    </div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-1 rounded-md">
-                      {formatDate(s.created_at)}
-                    </span>
-                  </div>
-
-                  <div className="min-w-0">
-                    <h3 className="font-bold text-[#1A1A1A] truncate group-hover:text-[#6D44CC] transition-colors">
-                      {s.subjects?.title ?? "Matéria"}
-                    </h3>
-                    <div className="mt-2 flex items-center gap-3">
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 bg-[#F5F3FF] px-2 py-1 rounded-md">
-                        <Clock className="h-3.5 w-3.5 text-[#6D44CC]" />
-                        {s.duration_minutes ?? 0} MIN
+                  <div className="flex w-full flex-col gap-4">
+                    <div className="flex items-start justify-between">
+                      <div
+                        className="rounded-xl p-2.5"
+                        style={{ backgroundColor: `${s.subjects?.color_code ?? "#6D44CC"}15` }}
+                      >
+                        <BookOpen className="h-5 w-5" style={{ color: s.subjects?.color_code ?? "#6D44CC" }} />
                       </div>
-                      <ChevronRight className="h-4 w-4 text-slate-300 ml-auto group-hover:translate-x-1 transition-transform" />
+                      <span className="rounded-md bg-slate-50 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        {formatDate(s.created_at)}
+                      </span>
+                    </div>
+
+                    <div className="min-w-0">
+                      <h3 className="truncate font-bold text-[#1A1A1A] transition-colors group-hover:text-[#6D44CC]">
+                        {s.subjects?.title ?? "Matéria"}
+                      </h3>
+                      <div className="mt-2 flex items-center gap-3">
+                        <div className="flex items-center gap-1.5 rounded-md bg-[#F5F3FF] px-2 py-1 text-xs font-bold text-slate-500">
+                          <Clock className="h-3.5 w-3.5 text-[#6D44CC]" />
+                          {s.duration_minutes ?? 0} MIN
+                        </div>
+                        <ChevronRight className="ml-auto h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-1" />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Link>
+                </Link>
+              </motion.div>
             ))
           )}
-        </div>
+        </motion.div>
 
         {hasMore && (
           <div className="flex justify-center mt-6">
@@ -348,7 +410,7 @@ export function EstudosClient() {
             </Button>
           </div>
         )}
-      </div>
+      </motion.div>
 
       {/* Modal: Iniciar Sessão */}
       <Modal
@@ -449,6 +511,6 @@ export function EstudosClient() {
           </div>
         </div>
       </Modal>
-    </div>
+    </motion.div>
   );
 }

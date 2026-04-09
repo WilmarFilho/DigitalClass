@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { motion } from "framer-motion";
 import { BookOpen, Plus, Loader2, Sparkles, Calendar, Clock, Target, CheckCircle2, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
 import { useTranslation } from "@/hooks/useTranslation";
+import { calculateSubjectProgress } from "./materias.utils";
 
 interface RecommendedSubject {
   title: string;
@@ -31,9 +33,68 @@ interface Subject {
   created_at: string;
 }
 
+interface SubjectsResponse {
+  data: Subject[];
+  meta?: {
+    page?: number;
+    last_page?: number;
+  };
+}
+
+type SubjectPayload = {
+  title: string;
+  target_hours: number;
+  deadline?: string;
+  is_custom?: boolean;
+  color_code?: string;
+  difficulty_level?: number;
+};
+
+const pageVariants = {
+  hidden: { opacity: 0, y: 18 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.45,
+      ease: [0.22, 1, 0.36, 1] as const,
+      staggerChildren: 0.1,
+      delayChildren: 0.06,
+    },
+  },
+};
+
+const sectionVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.4, ease: [0.22, 1, 0.36, 1] as const },
+  },
+};
+
+const gridVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.08,
+      delayChildren: 0.04,
+    },
+  },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 18, scale: 0.985 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] as const },
+  },
+};
+
 export function MateriasClient() {
   const { t } = useTranslation();
-  const [userId, setUserId] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<RecommendedSubject[]>([]);
   const [mySubjects, setMySubjects] = useState<Subject[]>([]);
   const [loadingRecs, setLoadingRecs] = useState(true);
@@ -68,12 +129,6 @@ export function MateriasClient() {
   const [deleteSubject, setDeleteSubject] = useState<Subject | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const loadUserId = useCallback(async () => {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) setUserId(user.id);
-  }, []);
-
   const loadData = useCallback(async (pageNum = 1) => {
     if (pageNum === 1) {
       setLoadingRecs(true);
@@ -86,20 +141,20 @@ export function MateriasClient() {
       if (pageNum === 1) {
         const [recsData, subsResponse] = await Promise.all([
           apiGet<RecommendedSubject[]>("/subjects/recommendations"),
-          apiGet<any>(`/subjects?page=1&limit=6`)
+          apiGet<SubjectsResponse>(`/subjects?page=1&limit=6`)
         ]);
         setRecommendations(recsData);
         setMySubjects(subsResponse.data || []);
-        setHasMore(subsResponse.meta?.page < subsResponse.meta?.last_page);
+        setHasMore((subsResponse.meta?.page ?? 1) < (subsResponse.meta?.last_page ?? 1));
         setPage(1);
       } else {
-        const subsResponse = await apiGet<any>(`/subjects?page=${pageNum}&limit=6`);
+        const subsResponse = await apiGet<SubjectsResponse>(`/subjects?page=${pageNum}&limit=6`);
         setMySubjects(prev => [...prev, ...(subsResponse.data || [])]);
-        setHasMore(subsResponse.meta?.page < subsResponse.meta?.last_page);
+        setHasMore((subsResponse.meta?.page ?? pageNum) < (subsResponse.meta?.last_page ?? pageNum));
         setPage(pageNum);
       }
     } catch (e) {
-      console.error(t("materias.loadError"), e);
+      console.error("Error loading subjects data:", e);
     } finally {
       setLoadingRecs(false);
       setLoadingSubjects(false);
@@ -107,11 +162,30 @@ export function MateriasClient() {
     }
   }, []);
 
-  useEffect(() => { loadUserId(); }, [loadUserId]);
-  useEffect(() => { if (userId) loadData(1); }, [userId, loadData]);
+  useEffect(() => {
+    let active = true;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const addSubject = async (payload: any, isManual: boolean) => {
+    async function bootstrap() {
+      try {
+        const supabase = createClient();
+        await supabase.auth.getUser();
+      } catch (error) {
+        console.error("Failed to resolve current user on materias screen:", error);
+      } finally {
+        if (active) {
+          loadData(1);
+        }
+      }
+    }
+
+    bootstrap();
+
+    return () => {
+      active = false;
+    };
+  }, [loadData]);
+
+  const addSubject = async (payload: SubjectPayload, isManual: boolean) => {
     setAddingId(isManual ? "manual" : payload.title);
     setModalError(null);
     try {
@@ -122,7 +196,7 @@ export function MateriasClient() {
       setManualHours("60");
       setManualDeadline("");
       setManualColor("#44baccff");
-      if (userId) loadData(1);
+      await loadData(1);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       setModalError(e.message || t("materias.addError"));
@@ -156,7 +230,7 @@ export function MateriasClient() {
         deadline: editDeadline || undefined,
       });
       setEditModalOpen(false);
-      if (userId) loadData(1);
+      await loadData(1);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       setModalError(e.message || t("materias.editError"));
@@ -172,7 +246,7 @@ export function MateriasClient() {
     try {
       await apiDelete(`/subjects/${deleteSubject.id}`);
       setDeleteModalOpen(false);
-      if (userId) loadData(1);
+      await loadData(1);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       setModalError(e.message || t("materias.deleteError"));
@@ -182,7 +256,12 @@ export function MateriasClient() {
   };
 
   return (
-    <div className="space-y-10 pb-10 animate-in fade-in duration-700">
+    <motion.div
+      className="space-y-10 pb-10"
+      variants={pageVariants}
+      initial="hidden"
+      animate="visible"
+    >
 
       {/* Loading de Tela Inicial */}
       {(loadingRecs && loadingSubjects) ? (
@@ -194,7 +273,10 @@ export function MateriasClient() {
       ) : (
         <>
           {/* Header Central */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-8 rounded-3xl border border-[#E6E0F8] shadow-sm">
+          <motion.div
+            variants={sectionVariants}
+            className="flex flex-col justify-between gap-4 rounded-3xl border border-[#E6E0F8] bg-white p-6 shadow-sm md:items-center lg:flex-row lg:p-8"
+          >
             <div className="flex items-center gap-4">
               <div className="p-3 bg-[#F5F3FF] rounded-2xl border border-[#E6E0F8]">
                 <BookOpen className="h-7 w-7 text-[#6D44CC]" />
@@ -210,22 +292,23 @@ export function MateriasClient() {
             >
               <Plus className="h-5 w-5 mr-2" /> {t("materias.add")}
             </Button>
-          </div>
+          </motion.div>
 
           {/* Seção de Sugestões IA */}
-          <section className="space-y-4">
+          <motion.section variants={sectionVariants} className="space-y-4">
             <div className="flex items-center gap-2 px-2">
               <Sparkles className="h-5 w-5 text-amber-500 fill-amber-500" />
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">{t("materias.suggestedAI")}</h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            <motion.div variants={gridVariants} className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
               {recommendations.map((rec) => {
                 const added = alreadyAdded(rec.title);
                 return (
-                  <div
+                  <motion.div
                     key={rec.title}
-                    className="group relative overflow-hidden rounded-3xl border border-[#E6E0F8] bg-white p-6 transition-all hover:shadow-xl hover:-translate-y-1"
+                    variants={cardVariants}
+                    className="group relative overflow-hidden rounded-3xl border border-[#E6E0F8] bg-white p-6 transition-shadow hover:shadow-xl"
                   >
                     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                       <Sparkles className="h-12 w-12 text-[#6D44CC]" />
@@ -256,84 +339,115 @@ export function MateriasClient() {
                         {added ? <><CheckCircle2 className="h-4 w-4 mr-2" /> {t("materias.alreadyAdded")}</> : t("materias.addToGrid")}
                       </Button>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
-            </div>
-          </section>
+            </motion.div>
+          </motion.section>
 
           {/* Seção Minhas Matérias */}
-          <section className="space-y-4">
+          <motion.section variants={sectionVariants} className="space-y-4">
             <div className="flex items-center gap-2 px-2">
               <Target className="h-5 w-5 text-[#6D44CC]" />
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">{t("materias.inProgress")}</h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            <motion.div variants={gridVariants} className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
               {mySubjects.length === 0 ? (
                 <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed border-[#E6E0F8]">
                   <BookOpen className="h-12 w-12 text-slate-200 mx-auto mb-4" />
                   <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">{t("materias.noSubjects")}</p>
                 </div>
               ) : mySubjects.map((s) => {
-                const completedMinutes = s.completed_minutes || 0;
-                const targetMinutes = Math.max(s.target_hours * 60, 1);
-                const progress = Math.min(Math.round((completedMinutes / targetMinutes) * 100), 100);
-                const completedHoursRounded = Math.floor(completedMinutes / 60);
+                const { completedMinutes, progress, completedHoursRounded, targetMinutes } = calculateSubjectProgress(s);
 
                 return (
-                  <div key={s.id} className="group bg-white rounded-3xl border border-[#E6E0F8] p-6 shadow-sm hover:shadow-md transition-shadow relative">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-xl flex items-center justify-center text-white" style={{ backgroundColor: s.color_code || "#6D44CC" }}>
+                  <motion.div
+                    key={s.id}
+                    variants={cardVariants}
+                    className="group relative rounded-3xl border border-[#E6E0F8] bg-white p-5 shadow-sm transition-shadow hover:shadow-md min-[1200px]:p-6"
+                  >
+                    <div
+                      className="absolute inset-x-5 top-0 h-1 rounded-b-full min-[1200px]:inset-x-6"
+                      style={{ backgroundColor: s.color_code || "#6D44CC" }}
+                    />
+
+                    <div className="mb-5 flex flex-col gap-4">
+                      <div className="flex min-w-0 items-start justify-between gap-3">
+                        <div className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-sm" style={{ backgroundColor: s.color_code || "#6D44CC" }}>
                           <span className="text-sm font-black">{s.title.charAt(0)}</span>
                         </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-[#1A1A1A] truncate text-sm">{s.title}</p>
+                        <div className="min-w-0 space-y-2">
+                          <p className="truncate pr-2 text-base font-black leading-tight text-[#1A1A1A]">{s.title}</p>
+                          <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.18em]">
+                            <span
+                              className="rounded-full px-2.5 py-1 text-white"
+                              style={{ backgroundColor: s.color_code || "#6D44CC" }}
+                            >
+                              {progress}% completo
+                            </span>
+                            <span className="rounded-full bg-[#F5F3FF] px-2.5 py-1 text-[#6D44CC]">
+                              {t("materias.hoursCompleted", { hours: completedHoursRounded })}
+                            </span>
+                          </div>
                           {s.deadline && (
-                            <p className="text-[10px] font-bold text-red-400 flex items-center gap-1 uppercase">
+                            <p className="flex items-center gap-1 text-[11px] font-bold text-red-400">
                               <Calendar className="h-3 w-3" /> {new Date(s.deadline).toLocaleDateString(t("language") === "English" ? "en-US" : t("language") === "Spanish" ? "es-ES" : "pt-BR")}
                             </p>
                           )}
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-[#6D44CC]">{progress}%</span>
-                        <div className="flex gap-1 opacity-100 transition-opacity">
-                          <button
-                            onClick={() => openEditModal(s)}
-                            className="p-1.5 rounded-lg bg-[#F5F3FF] text-slate-400 text-[#6D44CC] transition-colors"
-                            title="Editar"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => { setDeleteSubject(s); setModalError(null); setDeleteModalOpen(true); }}
-                            className="p-1.5 rounded-lg bg-red-50 text-slate-400 text-red-500 transition-colors"
-                            title="Excluir"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                        <div className="shrink-0 rounded-2xl border border-[#E6E0F8] bg-[#FBFAFF] px-3 py-2 text-right">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Meta</p>
+                          <p className="text-sm font-black text-[#6D44CC]">{s.target_hours}h</p>
                         </div>
                       </div>
                     </div>
 
-                    <div className="space-y-3">
-                      <div className="h-2 w-full bg-[#F5F3FF] rounded-full overflow-hidden">
-                        <div
-                          className="h-full transition-all duration-1000"
+                    <div className="space-y-3 rounded-2xl border border-[#F3EFFC] bg-[#FCFBFF] p-4">
+                      <div className="flex items-center justify-between gap-3 text-xs font-bold text-slate-500">
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5" />
+                          {completedMinutes} min
+                        </span>
+                        <span>{targetMinutes} min</span>
+                      </div>
+                      <div className="h-2.5 w-full overflow-hidden rounded-full bg-[#F0EBFF]">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${progress}%` }}
+                          transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+                          className="h-full"
                           style={{ width: `${progress}%`, backgroundColor: s.color_code || "#6D44CC" }}
                         />
                       </div>
-                      <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-tighter">
+                      <div className="flex flex-col gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 min-[1200px]:flex-row min-[1200px]:items-center min-[1200px]:justify-between">
                         <span>{t("materias.hoursCompleted", { hours: completedHoursRounded })}</span>
                         <span>{t("materias.goal", { hours: s.target_hours })}</span>
                       </div>
                     </div>
-                  </div>
+
+                    <div className="mt-4 flex flex-col gap-2 border-t border-[#F3EFFC] pt-4">
+                      <button
+                        onClick={() => openEditModal(s)}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#F5F3FF] px-4 py-2.5 text-sm font-bold text-[#6D44CC] transition-colors hover:bg-[#EEE9FF]"
+                        title="Editar"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => { setDeleteSubject(s); setModalError(null); setDeleteModalOpen(true); }}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-50 px-4 py-2.5 text-sm font-bold text-red-500 transition-colors hover:bg-red-100"
+                        title="Excluir"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Excluir
+                      </button>
+                    </div>
+                  </motion.div>
                 );
               })}
-            </div>
+            </motion.div>
 
             {hasMore && (
               <div className="flex justify-center mt-6">
@@ -348,7 +462,7 @@ export function MateriasClient() {
                 </Button>
               </div>
             )}
-          </section>
+          </motion.section>
 
           {/* Modal: Manual */}
           <Modal open={manualModalOpen} onClose={() => setManualModalOpen(false)} title={t("materias.newSubject")} className="max-w-md">
@@ -472,6 +586,6 @@ export function MateriasClient() {
           </Modal>
         </>
       )}
-    </div>
+    </motion.div>
   );
 }

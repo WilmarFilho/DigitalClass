@@ -16,8 +16,21 @@ export function PdfLessonViewer({ lessonId, title, sourceUrl, className }: PdfLe
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   const pdfEndpoint = useMemo(() => `/teachers/lessons/${lessonId}/pdf`, [lessonId]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+    setIsMobile(mediaQuery.matches);
+
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsMobile(event.matches);
+    };
+
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -114,11 +127,22 @@ export function PdfLessonViewer({ lessonId, title, sourceUrl, className }: PdfLe
         </Button>
       </div>
 
-      <iframe
-        src={pdfUrl ?? undefined}
-        className={className ?? "h-full w-full border-none"}
-        title={title}
-      />
+      {isMobile ? (
+        <div className="flex h-full w-full items-center justify-center p-6 text-white">
+          <div className="max-w-sm text-center">
+            <p className="text-base font-semibold">Abra o PDF no botão acima.</p>
+            <p className="mt-2 text-sm text-slate-300">
+              No celular, a visualização embutida pode falhar. Mantivemos apenas o atalho que funciona.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <iframe
+          src={pdfUrl ?? undefined}
+          className={className ?? "h-full w-full border-none"}
+          title={title}
+        />
+      )}
     </div>
   );
 }
