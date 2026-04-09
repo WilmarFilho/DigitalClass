@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, DeleteObjectsCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { MediaConvertClient, CreateJobCommand } from '@aws-sdk/client-mediaconvert';
 import { Sha256 } from '@aws-crypto/sha256-js';
 import { HttpRequest } from '@smithy/protocol-http';
@@ -103,6 +103,52 @@ export class AwsService {
     }
 
     return `https://${this.cloudFrontDomain}/${key}`;
+  }
+
+  async deleteS3Object(bucketType: 'input' | 'output', key: string): Promise<void> {
+    const bucket = bucketType === 'input' ? this.inputBucket : this.outputBucket;
+    this.logger.log(`Iniciando deleção do S3 para o bucket [${bucket}] com chave [${key}]...`);
+
+    try {
+      await this.s3Client.send(new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: key,
+      }));
+      this.logger.log(`Objeto deletado com sucesso no S3 (Bucket: ${bucket}, Key: ${key}).`);
+    } catch (e: any) {
+      this.logger.error(`Falha ao deletar arquivo no S3 (${key}): ${e.message}`, e.stack);
+    }
+  }
+
+  async deleteS3Folder(bucketType: 'input' | 'output', prefix: string): Promise<void> {
+    const bucket = bucketType === 'input' ? this.inputBucket : this.outputBucket;
+    this.logger.log(`Iniciando deleção do S3 para a pasta no bucket [${bucket}] com prefixo [${prefix}]...`);
+
+    try {
+      let continuationToken: string | undefined = undefined;
+      do {
+        const response: any = await this.s3Client.send(new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: prefix,
+          ContinuationToken: continuationToken,
+        }));
+
+        if (response.Contents && response.Contents.length > 0) {
+          const objectsToDelete = response.Contents.map((obj: any) => ({ Key: obj.Key }));
+          await this.s3Client.send(new DeleteObjectsCommand({
+            Bucket: bucket,
+            Delete: { Objects: objectsToDelete },
+          }));
+          this.logger.log(`Deletados ${objectsToDelete.length} objetos com prefixo [${prefix}].`);
+        }
+        
+        continuationToken = response.NextContinuationToken;
+      } while (continuationToken);
+
+      this.logger.log(`Limpeza concluída para o prefixo [${prefix}].`);
+    } catch (e: any) {
+      this.logger.error(`Falha ao deletar pasta no S3 (${prefix}): ${e.message}`, e.stack);
+    }
   }
 
   async startMediaConvertJob(inputKey: string, outputKeyPrefix: string): Promise<void> {

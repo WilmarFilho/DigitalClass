@@ -14,9 +14,6 @@ import { AwsService } from '../aws/aws.service';
 import { CreateTeacherAreaDto } from './dto/create-teacher-area.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 import { UpdateLessonDto } from './dto/update-lesson.dto';
-import * as ffmpeg from 'fluent-ffmpeg';
-import * as streamifier from 'streamifier';
-import { Readable, PassThrough } from 'stream';
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 
@@ -1105,7 +1102,7 @@ export class TeachersService {
 
     const { data: lesson } = await this.supabase()
       .from('lessons')
-      .select('area_id')
+      .select('area_id, content_url, type')
       .eq('id', lessonId)
       .maybeSingle();
 
@@ -1118,6 +1115,8 @@ export class TeachersService {
       .maybeSingle();
 
     if (area?.teacher_id !== teacherId) throw new ForbiddenException();
+
+    await this.cleanupLessonAssets(lesson.content_url, lesson.type);
 
     const { error } = await this.supabase()
       .from('lessons')
@@ -1140,6 +1139,16 @@ export class TeachersService {
 
     if (lesson.type === 'live') {
       throw new BadRequestException('Aulas ao vivo não aceitam upload direto. Use a configuração da live para transmitir via OBS.');
+    }
+
+    const { data: existingLesson } = await this.supabase()
+      .from('lessons')
+      .select('content_url')
+      .eq('id', lessonId)
+      .maybeSingle();
+
+    if (existingLesson?.content_url && lesson.type) {
+      await this.cleanupLessonAssets(existingLesson.content_url, lesson.type);
     }
 
     const isVideo = mimeType.startsWith('video');
@@ -1221,9 +1230,9 @@ export class TeachersService {
       live_session: this.mapLiveSession(session),
       obs: session.aws_ingest_endpoint && streamKeyValue
         ? {
-            server_url: `rtmps://${session.aws_ingest_endpoint}:443/app/`,
-            stream_key: streamKeyValue,
-          }
+          server_url: `rtmps://${session.aws_ingest_endpoint}:443/app/`,
+          stream_key: streamKeyValue,
+        }
         : null,
     };
   }
@@ -2221,5 +2230,44 @@ export class TeachersService {
         avatar_url: profile?.avatar_url ?? null,
       },
     };
+  }
+
+  private async cleanupLessonAssets(contentUrl: string | null, type: string | null) {
+    if (!contentUrl) return;
+
+    try {
+      this.logger.log(`[cleanupLessonAssets] Tentando remover assets S3 para URL: ${contentUrl}`);
+      let url: URL;
+      try {
+        url = new URL(contentUrl);
+      } catch (e) {
+        return; // não é uma URL válida
+      }
+
+      const pathname = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname;
+
+      if (type === 'video') {
+        const match = pathname.match(/^(.*?)_720p\.m3u8$/);
+        if (match) {
+          const prefix = match[1];
+          await this.awsService.deleteS3Folder('output', prefix);
+          await this.awsService.deleteS3Folder('input', prefix);
+        } else {
+          // caso não siga o padrão _720p.m3u8, tenta remover pelo folder que engloba (split por barra e tira o arquivo)
+          const parts = pathname.split('/');
+          parts.pop(); // tira o aqruivo
+          const prefix = parts.join('/');
+          if (prefix.includes('lessons/')) {
+            await this.awsService.deleteS3Folder('output', prefix);
+            await this.awsService.deleteS3Folder('input', prefix);
+          }
+        }
+      } else if (type === 'pdf' || type === 'document') {
+        await this.awsService.deleteS3Object('output', pathname);
+      }
+
+    } catch (e: any) {
+      this.logger.error(`[cleanupLessonAssets] Falha ao limpar arquivos antigos: ${e.message}`, e.stack);
+    }
   }
 }
