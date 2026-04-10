@@ -116,6 +116,16 @@ export class TeachersController {
     return this.teachersService.createCheckoutSession(req.user.id, req.user.email, areaId);
   }
 
+  @Get('checkout/session-status')
+  getCheckoutSessionStatus(@Query('session_id') sessionId: string) {
+    return this.teachersService.getCheckoutSessionStatus(sessionId);
+  }
+
+  @Get('areas/:areaId/subscription/portal')
+  getSubscriptionPortal(@Req() req: any, @Param('areaId') areaId: string) {
+    return this.teachersService.getSubscriptionPortalUrl(req.user.id, areaId);
+  }
+
   // ── Professor: minha área ─────────────────────────────────────────────────
 
   @Get('my-areas')

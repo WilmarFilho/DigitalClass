@@ -1632,21 +1632,23 @@ export class TeachersService {
   async getMyStudents(teacherId: string) {
     await this.assertTeacher(teacherId);
 
-    const { data: area } = await this.supabase()
+    // Busca TODAS as áreas do professor (não apenas uma)
+    const { data: areas } = await this.supabase()
       .from('teacher_areas')
       .select('id, monthly_price')
-      .eq('teacher_id', teacherId)
-      .maybeSingle();
+      .eq('teacher_id', teacherId);
 
-    if (!area) return { students: [], total_revenue: 0, monthly_revenue: 0 };
+    if (!areas || areas.length === 0) return { students: [], active_count: 0, monthly_revenue: 0, total_revenue: 0 };
+
+    const areaIds = areas.map((a) => a.id);
 
     const { data: subs, error } = await this.supabase()
       .from('teacher_subscriptions')
       .select(`
-        subscribed_at, subscription_status,
+        subscribed_at, subscription_status, teacher_area_id,
         profiles!student_id ( id, full_name, avatar_url, created_at )
       `)
-      .eq('teacher_area_id', area.id)
+      .in('teacher_area_id', areaIds)
       .in('subscription_status', ['active', 'past_due', 'lifetime'])
       .order('subscribed_at', { ascending: false });
 
@@ -1658,18 +1660,54 @@ export class TeachersService {
       avatar_url: s.profiles?.avatar_url ?? null,
       subscribed_at: s.subscribed_at,
       subscription_status: s.subscription_status ?? 'active',
+      teacher_area_id: s.teacher_area_id,
     }));
 
-    const monthlyPrice = Number(area.monthly_price ?? 0);
-    const fees = this.calculateFees(monthlyPrice);
-    const monthlyRevenue = students.length * fees.net_teacher;
+    // Receita: usa a área com maior preço como referência (ou soma de todas)
+    const totalMonthlyRevenue = areas.reduce((acc, area) => {
+      const areaStudents = students.filter((s) => s.teacher_area_id === area.id);
+      const fees = this.calculateFees(Number(area.monthly_price ?? 0));
+      return acc + areaStudents.length * fees.net_teacher;
+    }, 0);
 
     return {
       students,
       active_count: students.length,
-      monthly_revenue: +monthlyRevenue.toFixed(2),
-      total_revenue: +(monthlyRevenue * 3).toFixed(2), // rough estimate
+      monthly_revenue: +totalMonthlyRevenue.toFixed(2),
+      total_revenue: +(totalMonthlyRevenue * 3).toFixed(2),
     };
+  }
+
+  async getCheckoutSessionStatus(sessionId: string) {
+    try {
+      const session = await this.stripeService.getCheckoutSession(sessionId);
+      return { payment_status: session.payment_status };
+    } catch (err: any) {
+      this.logger.error(`getCheckoutSessionStatus(${sessionId}): ${err.message}`);
+      throw new BadRequestException('Sessão de checkout não encontrada.');
+    }
+  }
+
+  async getSubscriptionPortalUrl(studentId: string, areaId: string) {
+    const { data: profile } = await this.supabase()
+      .from('profiles')
+      .select('stripe_customer_id')
+      .eq('id', studentId)
+      .maybeSingle();
+
+    if (!profile?.stripe_customer_id) {
+      throw new BadRequestException('Você não possui uma assinatura gerenciável pelo portal.');
+    }
+
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+    const returnUrl = `${frontendUrl}/protected/professores/area/${areaId}`;
+
+    const portalSession = await this.stripeService.createPortalSession(
+      profile.stripe_customer_id,
+      returnUrl,
+    );
+
+    return { url: portalSession.url };
   }
 
   // ─── util ──────────────────────────────────────────────────────────────────

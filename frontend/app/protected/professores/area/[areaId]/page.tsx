@@ -13,7 +13,9 @@ import {
   Megaphone,
   CheckCircle2,
   MessageSquare,
-  MonitorPlay
+  MonitorPlay,
+  Settings,
+  Infinity,
 } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -100,6 +102,8 @@ export default function TeacherAreaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingModuleId, setLoadingModuleId] = useState<string | null>(null);
+  const [subscription, setSubscription] = useState<{ subscription_status: string; payment_model?: string } | null>(null);
+  const [loadingPortal, setLoadingPortal] = useState(false);
 
   useEffect(() => {
     if (!areaId) return;
@@ -138,6 +142,34 @@ export default function TeacherAreaPage() {
     }
     load();
   }, [areaId]);
+
+  // Busca status da assinatura do aluno nessa área via lista de seguindo
+  useEffect(() => {
+    if (!areaId) return;
+    apiGet<{ data: any[] }>(`/teachers/following?page=1&limit=100`)
+      .then((res) => {
+        const found = (res.data || []).find((f: any) => f.id === areaId);
+        if (found) {
+          setSubscription({
+            subscription_status: found.subscription_status ?? "active",
+            payment_model: found.payment_model,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [areaId]);
+
+  const handleManageSubscription = async () => {
+    setLoadingPortal(true);
+    try {
+      const result = await apiGet<{ url: string }>(`/teachers/areas/${areaId}/subscription/portal`);
+      if (result.url) window.location.href = result.url;
+    } catch {
+      // silencioso
+    } finally {
+      setLoadingPortal(false);
+    }
+  };
 
   let currentLesson: Lesson | null = null;
   for (const section of sections) {
@@ -187,6 +219,8 @@ export default function TeacherAreaPage() {
     .join("")
     .toUpperCase();
 
+  const isLifetime = subscription?.subscription_status === "lifetime";
+
   return (
     <div className="flex h-screen bg-slate-50">
       {/* Sidebar personalizada do professor */}
@@ -204,7 +238,7 @@ export default function TeacherAreaPage() {
             {t("teacherArea.sidebarTitle")}
           </span>
         </div>
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 flex-1">
           <div className="flex items-center gap-3">
             {area.teacher.avatar_url ? (
               <img
@@ -248,9 +282,42 @@ export default function TeacherAreaPage() {
                 {t("teacherArea.exclusiveContent")}
               </span>
             </div>
-
           </div>
         </div>
+
+        {/* ── Gerenciar Assinatura ── */}
+        {subscription && (
+          <div className="p-4 border-t border-slate-100">
+            {isLifetime ? (
+              <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3">
+                <Infinity className="h-4 w-4 text-emerald-600 shrink-0" />
+                <div>
+                  <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest leading-none">
+                    Acesso Vitalício
+                  </p>
+                  <p className="text-[9px] text-emerald-600 mt-0.5">
+                    Pago via boleto
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full rounded-xl border-slate-200 text-slate-600 hover:bg-slate-50 font-bold text-xs gap-2"
+                onClick={handleManageSubscription}
+                disabled={loadingPortal}
+              >
+                {loadingPortal ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Settings className="h-4 w-4" />
+                )}
+                Gerenciar Assinatura
+              </Button>
+            )}
+          </div>
+        )}
       </aside>
 
       {/* Conteúdo principal */}
@@ -382,7 +449,6 @@ export default function TeacherAreaPage() {
                                   <p className="text-[9px] md:text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     {t("teacherArea.viewModule")}
                                   </p>
-                                  {/* Ajuste de fonte do título: text-base para telas pequenas, text-lg para o padrão */}
                                   <h4 className="font-black text-slate-900 text-base md:text-lg leading-tight group-hover:text-indigo-600 transition-colors line-clamp-2">
                                     {module.title}
                                   </h4>
@@ -513,4 +579,3 @@ export default function TeacherAreaPage() {
     </div>
   );
 }
-

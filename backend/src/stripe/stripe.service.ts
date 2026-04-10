@@ -142,6 +142,24 @@ export class StripeService {
     return this.stripe.checkout.sessions.create(sessionParams);
   }
 
+  // ─── Checkout Sessions (retrieve) ─────────────────────────────────────────
+
+  async getCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session> {
+    return this.stripe.checkout.sessions.retrieve(sessionId);
+  }
+
+  // ─── Customer Portal ───────────────────────────────────────────────────────
+
+  async createPortalSession(
+    customerId: string,
+    returnUrl: string,
+  ): Promise<Stripe.BillingPortal.Session> {
+    return this.stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: returnUrl,
+    });
+  }
+
   // ─── Subscriptions ─────────────────────────────────────────────────────────
 
   async cancelSubscription(subscriptionId: string): Promise<Stripe.Subscription> {

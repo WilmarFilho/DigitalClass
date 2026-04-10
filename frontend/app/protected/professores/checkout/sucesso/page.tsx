@@ -2,23 +2,49 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, ArrowRight } from "lucide-react";
+import { CheckCircle2, Loader2, ArrowRight, Clock, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import { apiGet } from "@/lib/api";
+
+type PageState = "loading" | "paid" | "pending_boleto";
 
 export default function CheckoutSucessoPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const areaId = searchParams.get("area_id");
+  const sessionId = searchParams.get("session_id");
+
+  const [state, setState] = useState<PageState>("loading");
   const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
+    async function checkSession() {
+      if (!sessionId) {
+        setState("paid");
+        return;
+      }
+      try {
+        const session = await apiGet<{ payment_status: string }>(
+          `/teachers/checkout/session-status?session_id=${sessionId}`
+        );
+        setState(session.payment_status === "paid" ? "paid" : "pending_boleto");
+      } catch {
+        setState("paid");
+      }
+    }
+    checkSession();
+  }, [sessionId]);
+
+  // Countdown só roda quando pagamento está confirmado
+  useEffect(() => {
+    if (state !== "paid") return;
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
           if (areaId) {
-            window.open(`/protected/professores/area/${areaId}`, '_self');
+            window.open(`/protected/professores/area/${areaId}`, "_self");
           } else {
             router.push("/protected/professores");
           }
@@ -27,10 +53,85 @@ export default function CheckoutSucessoPage() {
         return prev - 1;
       });
     }, 1000);
-
     return () => clearInterval(timer);
-  }, [areaId, router]);
+  }, [state, areaId, router]);
 
+  if (state === "loading") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-indigo-50">
+        <Loader2 className="h-10 w-10 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
+
+  // ── Boleto pendente ────────────────────────────────────────────────────────────
+  if (state === "pending_boleto") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-amber-50 via-white to-orange-50 p-6">
+        <motion.div
+          initial={{ opacity: 0, y: 30, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="w-full max-w-md text-center"
+        >
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.3, type: "spring", stiffness: 200, damping: 12 }}
+            className="mx-auto mb-8"
+          >
+            <div className="h-24 w-24 mx-auto rounded-full bg-amber-100 flex items-center justify-center shadow-xl shadow-amber-200/50">
+              <Clock className="h-12 w-12 text-amber-600" />
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="space-y-3"
+          >
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+              Boleto Gerado!
+            </h1>
+            <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-xs mx-auto">
+              Seu boleto foi gerado com sucesso. Após a compensação bancária
+              (1–3 dias úteis), seu acesso será liberado automaticamente.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.7 }}
+            className="mt-8 space-y-4"
+          >
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left space-y-2">
+              <div className="flex items-center gap-2 text-amber-700 font-black text-xs uppercase tracking-widest">
+                <FileText className="h-4 w-4" />
+                O que acontece agora?
+              </div>
+              <ul className="text-xs text-amber-800 space-y-1 font-medium list-disc list-inside">
+                <li>Abra o e-mail do Stripe e pague o boleto</li>
+                <li>Aguarde a compensação bancária (1–3 dias úteis)</li>
+                <li>Seu acesso será liberado automaticamente após confirmação</li>
+              </ul>
+            </div>
+
+            <Button
+              onClick={() => router.push("/protected/professores")}
+              className="w-full rounded-2xl bg-slate-900 hover:bg-black text-white px-8 py-3 font-black text-xs uppercase tracking-widest shadow-xl shadow-slate-200"
+            >
+              <ArrowRight className="h-4 w-4 mr-2" />
+              Voltar para professores
+            </Button>
+          </motion.div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // ── Pagamento confirmado (cartão / pix imediato) ────────────────────────────
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-indigo-50 p-6">
       <motion.div
@@ -39,7 +140,6 @@ export default function CheckoutSucessoPage() {
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="w-full max-w-md text-center"
       >
-        {/* Success Icon */}
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
@@ -51,7 +151,6 @@ export default function CheckoutSucessoPage() {
           </div>
         </motion.div>
 
-        {/* Text */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -67,7 +166,6 @@ export default function CheckoutSucessoPage() {
           </p>
         </motion.div>
 
-        {/* Countdown */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -81,7 +179,7 @@ export default function CheckoutSucessoPage() {
           <Button
             onClick={() => {
               if (areaId) {
-                window.open(`/protected/professores/area/${areaId}`, '_self');
+                window.open(`/protected/professores/area/${areaId}`, "_self");
               } else {
                 router.push("/protected/professores");
               }
