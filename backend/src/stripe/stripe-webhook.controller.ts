@@ -60,6 +60,10 @@ export class StripeWebhookController {
           await this.handleAsyncPaymentFailed(event.data.object as Stripe.Checkout.Session);
           break;
 
+        case 'invoice.paid':
+          await this.handleInvoicePaid(event.data.object as Stripe.Invoice);
+          break;
+
         case 'invoice.payment_failed':
           await this.handlePaymentFailed(event.data.object as Stripe.Invoice);
           break;
@@ -106,15 +110,22 @@ export class StripeWebhookController {
   private async handleAsyncPaymentSucceeded(session: Stripe.Checkout.Session) {
     const studentId = session.metadata?.student_id;
     const areaId = session.metadata?.area_id;
-    const paymentIntentId = session.payment_intent as string;
+    const paymentIntentId = session.payment_intent as string | null;
+    // Para áreas recorrentes (subscription), session.subscription contém o ID da assinatura.
+    // Para áreas de pagamento único (payment), session.subscription será null.
+    const subscriptionId = (session.subscription as string) || null;
 
     if (!studentId || !areaId) {
       this.logger.warn('async_payment_succeeded missing metadata (student_id, area_id)');
       return;
     }
 
-    this.logger.log(`Boleto/Pix compensado! Ativando acesso: student=${studentId}, area=${areaId}`);
-    await this.activateSubscription(studentId, areaId, null, paymentIntentId);
+    this.logger.log(
+      `Boleto compensado! Ativando acesso: student=${studentId}, area=${areaId}, sub=${subscriptionId ?? 'one_time'}`,
+    );
+    // subscriptionId null → pagamento único → lifetime
+    // subscriptionId preenchido → recorrente pago com boleto → active + armazena ID da sub
+    await this.activateSubscription(studentId, areaId, subscriptionId, paymentIntentId);
   }
 
   private async handleAsyncPaymentFailed(session: Stripe.Checkout.Session) {
@@ -155,6 +166,32 @@ export class StripeWebhookController {
       this.logger.error(`Failed to upsert subscription: ${error.message}`);
     } else {
       this.logger.log(`${isOneTime ? 'One-time access' : 'Subscription'} activated for student ${studentId} in area ${areaId}`);
+    }
+  }
+
+  // Trata renovações de boleto recorrente: quando o Stripe gera nova invoice e o cliente paga
+  private async handleInvoicePaid(invoice: Stripe.Invoice) {
+    const subscriptionId = (invoice as any).subscription as string | null;
+    // Ignorar invoices que não estão ligadas a assinaturas (pagamentos únicos)
+    if (!subscriptionId) return;
+    // Ignorar a fatura inicial da assinatura (é tratada por checkout.session events)
+    const billingReason = (invoice as any).billing_reason as string;
+    if (billingReason === 'subscription_create') return;
+
+    this.logger.log(`invoice.paid para renova\u00e7\u00e3o de sub ${subscriptionId}`);
+
+    const { error } = await this.supabase()
+      .from('teacher_subscriptions')
+      .update({
+        subscription_status: 'active',
+        payment_failure_count: 0,
+      })
+      .eq('stripe_subscription_id', subscriptionId);
+
+    if (error) {
+      this.logger.error(`handleInvoicePaid: falha ao reativar sub ${subscriptionId}: ${error.message}`);
+    } else {
+      this.logger.log(`Assinatura ${subscriptionId} reativada ap\u00f3s pagamento de boleto (renova\u00e7\u00e3o).`);
     }
   }
 

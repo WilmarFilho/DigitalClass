@@ -124,16 +124,18 @@ export class StripeService {
     };
 
     if (params.mode === 'subscription') {
+      // Assinaturas recorrentes: apenas cart\u00e3o.
+      // Boleto em modo recorrente gera um novo boleto a cada ciclo (n\u00e3o \u00e9 d\u00e9bito autom\u00e1tico),
+      // o que requer tratamento de webhook espec\u00edfico (invoice.paid, async_payment_succeeded).
+      // Deixamos desabilitado at\u00e9 o fluxo estar completamente estabilizado.
+      sessionParams.payment_method_types = ['card'];
       sessionParams.subscription_data = {
         metadata: params.metadata,
       };
     } else {
+      // Pagamento \u00fanico (vitalício): aceita cart\u00e3o e boleto
       sessionParams.currency = 'brl';
-
-      // 2. Tente usar 'payment_method_configuration' se o array direto falhar
-      // Mas o padrão para sua conta Connect deve ser este:
       sessionParams.payment_method_types = ['card', 'boleto'];
-
       sessionParams.payment_intent_data = {
         metadata: params.metadata,
       };
