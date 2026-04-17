@@ -14,14 +14,18 @@ FROM deps AS builder
 WORKDIR /app
 COPY frontend/ ./frontend/
 
+ARG NEXT_PUBLIC_SUPABASE_URL=https://nxlxwsmzyjtuzzckeksw.supabase.co
+ARG NEXT_PUBLIC_API_URL=https://apiclass.nkwflow.com
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV SKIP_TYPESCRIPT_CHECK=true
 ENV SKIP_LINT=true
 
-# Variáveis de build
-ENV NEXT_PUBLIC_SUPABASE_URL=https://nxlxwsmzyjtuzzckeksw.supabase.co
-ENV NEXT_PUBLIC_API_URL=https://apiclass.nkwflow.com
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54bHh3c216eWp0dXp6Y2tla3N3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMzA2ODYsImV4cCI6MjA4ODgwNjY4Nn0.d5dimVeZ3xPcSozF_O57oEsRS9ePTgRp3k-Y5fTmxgc
+# Variáveis públicas do frontend precisam entrar no build do Next.
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 RUN cd frontend && npm run build
 

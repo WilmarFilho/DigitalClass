@@ -3,6 +3,14 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -19,6 +27,20 @@ export function SignUpForm({ className, onSwitch, ...props }: SignUpFormProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+
+  const handleGoToLogin = () => {
+    setIsSuccessModalOpen(false);
+    onSwitch();
+  };
+
+  const handleSuccessModalChange = (open: boolean) => {
+    setIsSuccessModalOpen(open);
+
+    if (!open) {
+      onSwitch();
+    }
+  };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,15 +49,18 @@ export function SignUpForm({ className, onSwitch, ...props }: SignUpFormProps) {
     setError(null);
 
     try {
+      const emailRedirectTo = new URL("/auth/confirm", window.location.origin).toString();
       const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `https://class.nkwflow.com/auth/confirm`,
-        }
+          emailRedirectTo,
+        },
       });
       if (signUpError) throw signUpError;
-      alert(t("auth.signUpSuccess"));
+      setEmail("");
+      setPassword("");
+      setIsSuccessModalOpen(true);
     } catch (err: any) {
       setError(err instanceof AuthError ? err.message : t("auth.signUpError"));
     } finally {
@@ -86,6 +111,37 @@ export function SignUpForm({ className, onSwitch, ...props }: SignUpFormProps) {
           {t("auth.loginAction")}
         </button>
       </p>
+
+      <Dialog open={isSuccessModalOpen} onOpenChange={handleSuccessModalChange}>
+        <DialogContent className="max-w-md rounded-3xl border-0 bg-white p-0 shadow-2xl">
+          <div className="bg-[#6D44CC] px-6 py-7 text-white">
+            <DialogHeader className="text-left">
+              <DialogTitle className="text-2xl font-black">
+                {t("auth.signUpModalTitle")}
+              </DialogTitle>
+              <DialogDescription className="mt-2 text-sm text-white/85">
+                {t("auth.signUpModalSubtitle")}
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="px-6 pb-6 pt-5">
+            <div className="rounded-2xl bg-[#F6F1FF] p-4 text-sm text-[#5A38A8]">
+              {t("auth.signUpSuccess")}
+            </div>
+
+            <DialogFooter className="mt-6">
+              <Button
+                type="button"
+                onClick={handleGoToLogin}
+                className="h-11 w-full bg-[#F38B4B] font-bold text-white hover:bg-[#db7636] sm:w-full"
+              >
+                {t("auth.backToLogin")}
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
