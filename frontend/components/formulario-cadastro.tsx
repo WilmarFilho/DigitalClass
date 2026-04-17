@@ -58,10 +58,11 @@ export function SignUpForm({ className, onSwitch, ...props }: SignUpFormProps) {
         },
       });
       if (signUpError) throw signUpError;
+
       setEmail("");
       setPassword("");
       setIsSuccessModalOpen(true);
-    } catch (err: any) {
+    } catch (err) {
       setError(err instanceof AuthError ? err.message : t("auth.signUpError"));
     } finally {
       setIsLoading(false);
